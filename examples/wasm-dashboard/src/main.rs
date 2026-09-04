@@ -167,10 +167,14 @@ async fn poll_api(info: &RefCell<NodeInfo>) {
                     .collect();
             }
         }
-        Err(e) => {
+        Err(_) => {
             let mut i = info.borrow_mut();
             i.connected = false;
-            i.error = Some(format!("{e:?}"));
+            i.error = Some(
+                "Cannot connect to http://127.0.0.1:5001/api/v0/id. \
+                 Is the daemon running with CORS enabled?"
+                    .to_string(),
+            );
         }
     }
 }

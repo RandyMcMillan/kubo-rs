@@ -68,7 +68,15 @@ See [`FFI.md`](FFI.md) for architecture details and the full API surface.
 cargo test
 ```
 
-Tests cover version retrieval, repo initialization, node lifecycle, UnixFS add/cat roundtrips, and drop behavior.
+Tests cover version retrieval, repo initialization, node lifecycle, UnixFS add/cat roundtrips, Block API, drop behavior, and peer-to-peer data exchange between two online nodes.
+
+## Benchmarks
+
+```bash
+cargo bench
+```
+
+Includes Criterion benchmarks for `add_bytes` with 1 MiB and 11 B payloads.
 
 ## CI
 
@@ -91,4 +99,9 @@ GitHub Actions builds and tests on:
 
 ## License
 
-Same as Kubo (MIT/Apache-2.0 dual license).
+Licensed under either of:
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+- MIT license ([LICENSE-MIT](LICENSE-MIT))
+
+at your option.

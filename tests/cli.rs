@@ -137,27 +137,18 @@ fn cli_block_put_get_stat() {
     assert!(!cid.is_empty());
 
     let stat = kubo_rs()
-        .args([
-            "ipfs",
-            "block-stat",
-            "--repo",
-            repo.to_str().unwrap(),
-            &cid,
-        ])
+        .args(["ipfs", "block-stat", "--repo", repo.to_str().unwrap(), &cid])
         .output()
         .unwrap();
     assert!(stat.status.success());
-    let size = String::from_utf8_lossy(&stat.stdout).trim().parse::<usize>().unwrap();
+    let size = String::from_utf8_lossy(&stat.stdout)
+        .trim()
+        .parse::<usize>()
+        .unwrap();
     assert_eq!(size, b"raw block data".len());
 
     let get = kubo_rs()
-        .args([
-            "ipfs",
-            "block-get",
-            "--repo",
-            repo.to_str().unwrap(),
-            &cid,
-        ])
+        .args(["ipfs", "block-get", "--repo", repo.to_str().unwrap(), &cid])
         .output()
         .unwrap();
     assert!(get.status.success());

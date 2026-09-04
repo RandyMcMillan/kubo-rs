@@ -84,6 +84,13 @@ example:
 p2p:
 	cargo run --example p2p
 
+dashboard:
+	cargo run --example dashboard
+
+wasm-dashboard:
+	@echo "Build with: cd examples/wasm-dashboard && trunk serve"
+	@echo "Requires: rustup target add wasm32-unknown-unknown && cargo install trunk"
+
 # Cross-testing
 scripts:
 	@echo "Run one of:"
@@ -98,23 +105,25 @@ cross-test:
 # Help
 help:
 	@echo "Available targets:"
-	@echo "  build        - Build the Rust library"
-	@echo "  build-bin    - Build the kubo-rs CLI binary"
-	@echo "  build-go     - Build the Go ipfs binary (via go/kubo-sys/Makefile)"
-	@echo "  build-ffi    - Build the FFI C archive"
-	@echo "  test         - Run all Rust tests"
-	@echo "  test-cli     - Run CLI integration tests"
-	@echo "  test-ffi-c   - Build and run C FFI tests"
-	@echo "  test-ffi-rust- Build and run Rust raw-FFI tests"
-	@echo "  test-ffi     - Run both C and Rust FFI tests"
-	@echo "  test-all     - Run Rust tests + FFI tests"
-	@echo "  bench        - Run Criterion benchmarks"
-	@echo "  fmt          - Format Rust code"
-	@echo "  clippy       - Run Clippy lints"
-	@echo "  check        - Run fmt + clippy + test-all"
-	@echo "  clean        - Clean Rust and FFI build artifacts"
-	@echo "  clean-all    - Clean everything including Go build"
-	@echo "  example      - Run the basic example"
-	@echo "  p2p          - Run the p2p example"
-	@echo "  cross-test   - Run cross-language alignment tests"
-	@echo "  scripts      - Show available test scripts"
+	@echo "  build          - Build the Rust library"
+	@echo "  build-bin      - Build the kubo-rs CLI binary"
+	@echo "  build-go       - Build the Go ipfs binary (via go/kubo-sys/Makefile)"
+	@echo "  build-ffi      - Build the FFI C archive"
+	@echo "  test           - Run all Rust tests"
+	@echo "  test-cli       - Run CLI integration tests"
+	@echo "  test-ffi-c     - Build and run C FFI tests"
+	@echo "  test-ffi-rust  - Build and run Rust raw-FFI tests"
+	@echo "  test-ffi       - Run both C and Rust FFI tests"
+	@echo "  test-all       - Run Rust tests + FFI tests"
+	@echo "  bench          - Run Criterion benchmarks"
+	@echo "  fmt            - Format Rust code"
+	@echo "  clippy         - Run Clippy lints"
+	@echo "  check          - Run fmt + clippy + test-all"
+	@echo "  clean          - Clean Rust and FFI build artifacts"
+	@echo "  clean-all      - Clean everything including Go build"
+	@echo "  example        - Run the basic example"
+	@echo "  p2p            - Run the p2p example"
+	@echo "  dashboard      - Run the ratatui TUI dashboard example"
+	@echo "  wasm-dashboard - Show instructions for the WASM dashboard example"
+	@echo "  cross-test     - Run cross-language alignment tests"
+	@echo "  scripts        - Show available test scripts"

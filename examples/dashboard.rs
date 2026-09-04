@@ -11,7 +11,7 @@ use ratatui::{
     style::{Color, Modifier, Style},
     symbols,
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Clear, List, ListItem, Paragraph, Row, Sparkline, Table},
+    widgets::{Block, Borders, Cell, Clear, List, ListItem, Paragraph, Row, Table},
 };
 
 use kubo_rs::{Node, init_repo};
@@ -50,6 +50,14 @@ impl Tab {
     }
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum Modal {
+    None,
+    AddContent,
+    ConnectPeer,
+    ViewContent,
+}
+
 struct Dashboard {
     node: Node,
     peer_id: String,
@@ -57,17 +65,18 @@ struct Dashboard {
     repo_path: PathBuf,
     tab: Tab,
     addrs: Vec<String>,
-    peers: Vec<String>,
+    peers: Vec<(String, String)>,
     files: Vec<(String, String, usize)>,
     blocks: Vec<(String, usize)>,
     log: Vec<(String, String)>,
-    bandwidth_in: Vec<u64>,
-    bandwidth_out: Vec<u64>,
     last_tick: Instant,
     tick_count: u64,
-    input_mode: bool,
+    modal: Modal,
     input_buffer: String,
     scroll: usize,
+    selected_file: usize,
+    view_content: String,
+    node_id: String,
 }
 
 impl Dashboard {
@@ -75,6 +84,7 @@ impl Dashboard {
         let peer_id = node.peer_id().unwrap_or_else(|_| "unknown".to_string());
         let addrs = node.listening_addrs().unwrap_or_default();
         let peers = node.swarm_peers().unwrap_or_default();
+        let node_id = node.id().unwrap_or_else(|_| "{}".to_string());
         Ok(Self {
             node,
             peer_id,
@@ -86,13 +96,14 @@ impl Dashboard {
             files: Vec::new(),
             blocks: Vec::new(),
             log: Vec::new(),
-            bandwidth_in: vec![0; 100],
-            bandwidth_out: vec![0; 100],
             last_tick: Instant::now(),
             tick_count: 0,
-            input_mode: false,
+            modal: Modal::None,
             input_buffer: String::new(),
             scroll: 0,
+            selected_file: 0,
+            view_content: String::new(),
+            node_id,
         })
     }
 
@@ -105,21 +116,15 @@ impl Dashboard {
             if let Ok(peers) = self.node.swarm_peers() {
                 self.peers = peers;
             }
+            if let Ok(id) = self.node.id() {
+                self.node_id = id;
+            }
         }
-        self.bandwidth_in.rotate_left(1);
-        self.bandwidth_out.rotate_left(1);
-        self.bandwidth_in[99] = (rand::random::<u64>() % 500) + 100;
-        self.bandwidth_out[99] = (rand::random::<u64>() % 400) + 50;
     }
 
     fn log(&mut self, action: &str, detail: &str) {
         let now = self.tick_count / 4;
-        let time = format!(
-            "{:02}:{:02}:{:02}",
-            (now / 3600) % 24,
-            (now / 60) % 60,
-            now % 60
-        );
+        let time = format!("{:02}:{:02}:{:02}", (now / 3600) % 24, (now / 60) % 60, now % 60);
         self.log.push((time, format!("{action}: {detail}")));
         if self.log.len() > 200 {
             self.log.remove(0);
@@ -129,8 +134,7 @@ impl Dashboard {
     fn add_demo_content(&mut self) {
         let data = b"dashboard demo - hello ipfs";
         if let Ok(cid) = self.node.add_bytes(data) {
-            self.files
-                .push((cid.clone(), "hello.txt".to_string(), data.len()));
+            self.files.push((cid.clone(), "hello.txt".to_string(), data.len()));
             self.log("add", &format!("{cid} ({len} bytes)", len = data.len()));
         }
         let block_data = b"raw block for dashboard";
@@ -198,8 +202,8 @@ fn run_app(
         if event::poll(timeout)? {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
-                    if dash.input_mode {
-                        match key.code {
+                    match dash.modal {
+                        Modal::AddContent => match key.code {
                             KeyCode::Enter => {
                                 if !dash.input_buffer.is_empty() {
                                     let data = dash.input_buffer.clone().into_bytes();
@@ -212,7 +216,7 @@ fn run_app(
                                         dash.log("add", &format!("{cid} ({} bytes)", data.len()));
                                     }
                                 }
-                                dash.input_mode = false;
+                                dash.modal = Modal::None;
                                 dash.input_buffer.clear();
                             }
                             KeyCode::Char(c) => dash.input_buffer.push(c),
@@ -220,13 +224,38 @@ fn run_app(
                                 dash.input_buffer.pop();
                             }
                             KeyCode::Esc => {
-                                dash.input_mode = false;
+                                dash.modal = Modal::None;
                                 dash.input_buffer.clear();
                             }
                             _ => {}
+                        },
+                        Modal::ConnectPeer => match key.code {
+                            KeyCode::Enter => {
+                                if !dash.input_buffer.is_empty() {
+                                    let addr = dash.input_buffer.clone();
+                                    if let Err(e) = dash.node.connect(&addr) {
+                                        dash.log("connect", &format!("failed: {e}"));
+                                    } else {
+                                        dash.log("connect", &format!("{addr}"));
+                                    }
+                                }
+                                dash.modal = Modal::None;
+                                dash.input_buffer.clear();
+                            }
+                            KeyCode::Char(c) => dash.input_buffer.push(c),
+                            KeyCode::Backspace => {
+                                dash.input_buffer.pop();
+                            }
+                            KeyCode::Esc => {
+                                dash.modal = Modal::None;
+                                dash.input_buffer.clear();
+                            }
+                            _ => {}
+                        },
+                        Modal::ViewContent => {
+                            dash.modal = Modal::None;
                         }
-                    } else {
-                        match key.code {
+                        Modal::None => match key.code {
                             KeyCode::Char('q') => return Ok(()),
                             KeyCode::Char('1') => dash.tab = Tab::Status,
                             KeyCode::Char('2') => dash.tab = Tab::Files,
@@ -245,11 +274,31 @@ fn run_app(
                                 dash.tab = tabs[(idx + tabs.len() - 1) % tabs.len()];
                             }
                             KeyCode::Char('a') if dash.tab == Tab::Files => {
-                                dash.input_mode = true;
+                                dash.modal = Modal::AddContent;
                             }
                             KeyCode::Char('r') if dash.tab == Tab::Files => {
                                 dash.files.clear();
                                 dash.log("files", "cleared file list");
+                            }
+                            KeyCode::Char('v') if dash.tab == Tab::Files && !dash.files.is_empty() => {
+                                let idx = dash.selected_file.min(dash.files.len() - 1);
+                                let cid = dash.files[idx].0.clone();
+                                match dash.node.cat(&cid) {
+                                    Ok(data) => {
+                                        dash.view_content = String::from_utf8_lossy(&data).to_string();
+                                        dash.modal = Modal::ViewContent;
+                                    }
+                                    Err(e) => dash.log("cat", &format!("{cid} failed: {e}")),
+                                }
+                            }
+                            KeyCode::Up if dash.tab == Tab::Files && dash.selected_file > 0 => {
+                                dash.selected_file -= 1;
+                            }
+                            KeyCode::Down if dash.tab == Tab::Files && dash.selected_file + 1 < dash.files.len() => {
+                                dash.selected_file += 1;
+                            }
+                            KeyCode::Char('c') if dash.tab == Tab::Peers => {
+                                dash.modal = Modal::ConnectPeer;
                             }
                             KeyCode::Up if dash.tab == Tab::Logs => {
                                 dash.scroll = dash.scroll.saturating_sub(1);
@@ -258,7 +307,7 @@ fn run_app(
                                 dash.scroll = dash.scroll.saturating_add(1);
                             }
                             _ => {}
-                        }
+                        },
                     }
                 }
             }
@@ -287,18 +336,51 @@ fn ui(f: &mut Frame, dash: &Dashboard) {
     render_main(f, dash, chunks[2]);
     render_footer(f, dash, chunks[3]);
 
-    if dash.input_mode {
-        let area = centered_rect(60, 20, f.area());
-        f.render_widget(Clear, area);
-        let popup = Paragraph::new(format!("Add text to IPFS:\n> {}", dash.input_buffer))
+    match dash.modal {
+        Modal::AddContent => {
+            let area = centered_rect(60, 20, f.area());
+            f.render_widget(Clear, area);
+            let popup = Paragraph::new(format!("Add text to IPFS:\n> {}", dash.input_buffer))
+                .block(
+                    Block::default()
+                        .title(" Add Content ")
+                        .borders(Borders::ALL)
+                        .border_style(Color::Cyan),
+                )
+                .style(Style::default().fg(Color::White));
+            f.render_widget(popup, area);
+        }
+        Modal::ConnectPeer => {
+            let area = centered_rect(70, 20, f.area());
+            f.render_widget(Clear, area);
+            let popup = Paragraph::new(format!(
+                "Connect to peer multiaddr:\n> {}",
+                dash.input_buffer
+            ))
             .block(
                 Block::default()
-                    .title(" Add Content ")
+                    .title(" Connect Peer ")
                     .borders(Borders::ALL)
-                    .border_style(Color::Cyan),
+                    .border_style(Color::Green),
             )
             .style(Style::default().fg(Color::White));
-        f.render_widget(popup, area);
+            f.render_widget(popup, area);
+        }
+        Modal::ViewContent => {
+            let area = centered_rect(80, 70, f.area());
+            f.render_widget(Clear, area);
+            let popup = Paragraph::new(dash.view_content.as_str())
+                .block(
+                    Block::default()
+                        .title(" File Content ")
+                        .borders(Borders::ALL)
+                        .border_style(Color::Yellow),
+                )
+                .style(Style::default().fg(Color::White))
+                .wrap(ratatui::widgets::Wrap { trim: true });
+            f.render_widget(popup, area);
+        }
+        Modal::None => {}
     }
 }
 
@@ -464,12 +546,19 @@ fn render_files_tab(f: &mut Frame, dash: &Dashboard, area: Rect) {
     let rows: Vec<Row> = dash
         .files
         .iter()
-        .map(|(cid, name, size)| {
+        .enumerate()
+        .map(|(i, (cid, name, size))| {
+            let style = if i == dash.selected_file {
+                Style::default().bg(Color::DarkGray)
+            } else {
+                Style::default()
+            };
             Row::new(vec![
                 Cell::from(Span::styled(name.clone(), Style::default().fg(Color::Cyan))),
                 Cell::from(Span::raw(cid.clone())),
                 Cell::from(Span::raw(format!("{} B", size))),
             ])
+            .style(style)
         })
         .collect();
 
@@ -491,11 +580,10 @@ fn render_files_tab(f: &mut Frame, dash: &Dashboard, area: Rect) {
             .title(" Files ")
             .borders(Borders::ALL)
             .border_style(Color::Cyan),
-    )
-    .row_highlight_style(Style::default().bg(Color::DarkGray));
+    );
     f.render_widget(table, chunks[0]);
 
-    let help = Paragraph::new("a: add text  |  r: clear list  |  Enter: confirm  |  Esc: cancel")
+    let help = Paragraph::new("a: add  v: view  r: clear  ↑↓: select")
         .alignment(Alignment::Center)
         .style(Style::default().fg(Color::Gray));
     f.render_widget(help, chunks[1]);
@@ -520,10 +608,15 @@ fn render_peers_tab(f: &mut Frame, dash: &Dashboard, area: Rect) {
     let items: Vec<ListItem> = dash
         .peers
         .iter()
-        .map(|p| {
+        .map(|(id, addr)| {
+            let text = if addr.is_empty() {
+                id.clone()
+            } else {
+                format!("{}  →  {}", id, addr)
+            };
             ListItem::new(Line::from(vec![
                 Span::styled("● ", Style::default().fg(Color::Green)),
-                Span::raw(p),
+                Span::raw(text),
             ]))
             .style(Style::default().fg(Color::White))
         })
@@ -541,50 +634,21 @@ fn render_peers_tab(f: &mut Frame, dash: &Dashboard, area: Rect) {
 }
 
 fn render_network_tab(f: &mut Frame, dash: &Dashboard, area: Rect) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(12),
-            Constraint::Length(12),
-            Constraint::Min(0),
-        ])
-        .split(area);
-
-    let in_spark = Sparkline::default()
+    let id_text = if dash.node_id.len() > 120 {
+        format!("{}...", &dash.node_id[..120])
+    } else {
+        dash.node_id.clone()
+    };
+    let identity = Paragraph::new(id_text)
         .block(
             Block::default()
-                .title(" Bandwidth In (bytes/sec) ")
-                .borders(Borders::ALL),
+                .title(" Node Identity (JSON) ")
+                .borders(Borders::ALL)
+                .border_style(Color::Blue),
         )
-        .data(&dash.bandwidth_in)
-        .style(Style::default().fg(Color::Green))
-        .max(800);
-    f.render_widget(in_spark, chunks[0]);
-
-    let out_spark = Sparkline::default()
-        .block(
-            Block::default()
-                .title(" Bandwidth Out (bytes/sec) ")
-                .borders(Borders::ALL),
-        )
-        .data(&dash.bandwidth_out)
-        .style(Style::default().fg(Color::Blue))
-        .max(800);
-    f.render_widget(out_spark, chunks[1]);
-
-    let stats = Paragraph::new(format!(
-        "Listening addresses: {}\nConnected peers: {}\n\nUse the Peers tab for detailed peer info.",
-        dash.addrs.len(),
-        dash.peers.len(),
-    ))
-    .block(
-        Block::default()
-            .title(" Stats ")
-            .borders(Borders::ALL)
-            .border_style(Color::Magenta),
-    )
-    .style(Style::default().fg(Color::White));
-    f.render_widget(stats, chunks[2]);
+        .style(Style::default().fg(Color::White))
+        .wrap(ratatui::widgets::Wrap { trim: true });
+    f.render_widget(identity, area);
 }
 
 fn render_blocks_tab(f: &mut Frame, dash: &Dashboard, area: Rect) {
@@ -649,7 +713,7 @@ fn render_logs_tab(f: &mut Frame, dash: &Dashboard, area: Rect) {
 
 fn render_footer(f: &mut Frame, _dash: &Dashboard, area: Rect) {
     let footer = Paragraph::new(
-        "1-6: tabs  ←→: navigate  q: quit  |  Files: a=add r=clear  |  Logs: ↑↓=scroll",
+        "1-6: tabs  ←→: navigate  q: quit  |  Files: a=add v=view r=clear  |  Peers: c=connect  |  Logs: ↑↓=scroll",
     )
     .alignment(Alignment::Center)
     .style(Style::default().fg(Color::DarkGray).bg(Color::Black));

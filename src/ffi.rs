@@ -14,6 +14,7 @@ unsafe extern "C" {
     fn kubo_node_listening_addrs(handle: u64) -> *mut c_char;
     fn kubo_node_connect(handle: u64, addr: *const c_char) -> i64;
     fn kubo_swarm_peers(handle: u64) -> *mut c_char;
+    fn kubo_node_id(handle: u64) -> *mut c_char;
     fn kubo_unixfs_add_bytes(handle: u64, data: *const u8, length: usize) -> *mut c_char;
     fn kubo_unixfs_cat(
         handle: u64,
@@ -104,10 +105,22 @@ pub fn node_connect(handle: u64, addr: &str) -> Result<(), Error> {
     unsafe { check_err(kubo_node_connect(handle, c_addr.as_ptr())) }
 }
 
-pub fn swarm_peers(handle: u64) -> Result<Vec<String>, Error> {
+pub fn swarm_peers(handle: u64) -> Result<Vec<(String, String)>, Error> {
     let raw =
         unsafe { ptr_to_string(kubo_swarm_peers(handle)).ok_or_else(|| Error::Go(last_error()))? };
-    Ok(raw.lines().map(|s| s.to_string()).collect())
+    Ok(raw
+        .lines()
+        .map(|s| {
+            let mut parts = s.splitn(2, '\t');
+            let id = parts.next().unwrap_or("").to_string();
+            let addr = parts.next().unwrap_or("").to_string();
+            (id, addr)
+        })
+        .collect())
+}
+
+pub fn node_id(handle: u64) -> Result<String, Error> {
+    unsafe { ptr_to_string(kubo_node_id(handle)).ok_or_else(|| Error::Go(last_error())) }
 }
 
 pub fn unixfs_add_bytes(handle: u64, data: &[u8]) -> Result<String, Error> {

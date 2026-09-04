@@ -8,11 +8,11 @@ This file is written before a context compaction. Current branch: `main` on `ori
 
 ## Active Work (In Progress)
 
-- [ ] **Add swarm_peers FFI function** — Go code added to `go/kubo-sys/ffi/ffi.go` (needs build + test)
-- [ ] **Add swarm_peers Rust binding** — `src/ffi.rs` and `src/lib.rs` updated (needs build verification)
-- [ ] **Rewrite dashboard.rs** — Rich ratatui TUI written to `examples/dashboard.rs` with 6 tabs (Status, Files, Peers, Network, Blocks, Logs), input modal, sparklines, scrollable logs. Needs build + run test.
-- [ ] **Build and test all changes** — `cargo build`, `cargo test`, `cargo fmt`, `cargo clippy`
-- [ ] **Commit dashboard enhancements** — Commit swarm_peers + dashboard rewrite together
+- [x] **Add swarm_peers FFI function** — Go code added to `go/kubo-sys/ffi/ffi.go` (committed in submodule)
+- [x] **Add swarm_peers Rust binding** — `src/ffi.rs` and `src/lib.rs` updated
+- [x] **Rewrite dashboard.rs** — Rich ratatui TUI written to `examples/dashboard.rs` with 6 tabs (Status, Files, Peers, Network, Blocks, Logs), input modal, sparklines, scrollable logs
+- [x] **Build and test all changes** — `cargo build`, `cargo test`, `cargo fmt`, `cargo clippy` all pass
+- [x] **Commit dashboard enhancements** — Committed swarm_peers + dashboard rewrite together
 
 ## Recently Completed (already pushed)
 

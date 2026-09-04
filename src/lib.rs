@@ -93,11 +93,22 @@ impl Node {
 
     /// Return the list of connected swarm peers.
     ///
+    /// Each tuple contains the peer ID and the connected address.
+    ///
     /// # Errors
     ///
     /// Returns an error if the peer list cannot be read.
-    pub fn swarm_peers(&self) -> Result<Vec<String>, Error> {
+    pub fn swarm_peers(&self) -> Result<Vec<(String, String)>, Error> {
         ffi::swarm_peers(self.handle)
+    }
+
+    /// Return the node's identity as a JSON string.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the identity cannot be read.
+    pub fn id(&self) -> Result<String, Error> {
+        ffi::node_id(self.handle)
     }
 
     /// Add a byte slice to IPFS and return the resulting CID.
@@ -326,6 +337,42 @@ mod tests {
         // Fetch from node_b.
         let fetched = node_b.cat(&cid).expect("cat from node_b should succeed");
         assert_eq!(fetched, data, "data fetched via bitswap should match");
+
+        node_a.stop().expect("stop node_a should succeed");
+        node_b.stop().expect("stop node_b should succeed");
+    }
+
+    #[test]
+    fn test_swarm_peers_and_id() {
+        let base = tmp_dir("swarm_peers_and_id");
+        let repo_a = base.join("repo_a");
+        let repo_b = base.join("repo_b");
+
+        init_repo(&repo_a).expect("init repo_a should succeed");
+        init_repo(&repo_b).expect("init repo_b should succeed");
+
+        let node_a = Node::start(&repo_a, true).expect("start node_a should succeed");
+        let node_b = Node::start(&repo_b, true).expect("start node_b should succeed");
+
+        let peer_id_a = node_a.peer_id().expect("peer_id_a should succeed");
+        let addrs_a = node_a
+            .listening_addrs()
+            .expect("listening_addrs_a should succeed");
+        assert!(!addrs_a.is_empty(), "node_a should have addresses");
+
+        let dial_addr = format!("{}/p2p/{}", addrs_a[0], peer_id_a);
+        node_b
+            .connect(&dial_addr)
+            .expect("connect b->a should succeed");
+
+        let peers_a = node_a.swarm_peers().expect("swarm_peers a should succeed");
+        assert!(
+            peers_a.iter().any(|(id, _)| id == &peer_id_a || id == &node_b.peer_id().unwrap()),
+            "node_a should see node_b or itself in peer list"
+        );
+
+        let id_json = node_a.id().expect("id should succeed");
+        assert!(id_json.contains("id\""), "id json should contain id field");
 
         node_a.stop().expect("stop node_a should succeed");
         node_b.stop().expect("stop node_b should succeed");

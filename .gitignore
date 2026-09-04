@@ -1,1 +1,5 @@
 /target
+/kubo-sys/ffi/ffi.h
+/kubo-sys/ffi/*.a
+/kubo-sys/ffi/*.so
+/kubo-sys/ffi/*.dll

@@ -52,6 +52,10 @@ jobs:
           toolchain: stable-x86_64-pc-windows-gnu
           components: rustfmt, clippy
 
+      - name: Set default Rust toolchain (Windows)
+        if: runner.os == 'Windows'
+        run: rustup default stable-x86_64-pc-windows-gnu
+
       - name: Install Go
         uses: actions/setup-go@v5
         with:
@@ -74,15 +78,10 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('kubo-sys/go.sum', 'kubo-sys/ffi/go.sum') }}
           restore-keys: ${{ runner.os }}-go-
 
-      - name: Cache Cargo
-        uses: actions/cache@v4
+      - name: Populate Rust cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-
+          shared-key: stable-cache
 
       - name: Check formatting
         run: cargo fmt -- --check

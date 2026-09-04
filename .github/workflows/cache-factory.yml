@@ -1,0 +1,121 @@
+name: Cache Factory
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust-cache:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Init submodules
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --recursive
+
+      - name: Install Rust (Unix)
+        if: runner.os != 'Windows'
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Install Rust (Windows GNU)
+        if: runner.os == 'Windows'
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable-x86_64-pc-windows-gnu
+          components: rustfmt, clippy
+
+      - name: Set default Rust toolchain (Windows)
+        if: runner.os == 'Windows'
+        run: rustup default stable-x86_64-pc-windows-gnu
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.5"
+
+      - name: Install MinGW (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install mingw -y
+          echo "C:\ProgramData\Chocolatey\lib\mingw\tools\install\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('kubo-sys/go.sum', 'kubo-sys/ffi/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-
+
+      - name: Populate Rust cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+        with:
+          shared-key: stable-cache
+
+      - name: Build dependencies (no-run)
+        run: cargo test --all-targets --workspace --no-run --verbose
+
+  go-cache:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Init submodules
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --recursive
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.5"
+
+      - name: Install MinGW (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install mingw -y
+          echo "C:\ProgramData\Chocolatey\lib\mingw\tools\install\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('kubo-sys/go.sum', 'kubo-sys/ffi/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-
+
+      - name: Populate Go module cache
+        run: |
+          cd kubo-sys/ffi
+          go build -buildmode=c-archive -o /dev/null ./ffi.go

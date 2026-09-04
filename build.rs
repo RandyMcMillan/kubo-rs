@@ -45,8 +45,8 @@ fn main() {
 
     // Pin GOTOOLCHAIN to the Go version declared in go/kubo-sys/go.mod so that
     // the build is reproducible even when the host has a newer Go installed.
-    let go_mod_text =
-        std::fs::read_to_string(kubo_sys.join("go.mod")).expect("failed to read go/kubo-sys/go.mod");
+    let go_mod_text = std::fs::read_to_string(kubo_sys.join("go.mod"))
+        .expect("failed to read go/kubo-sys/go.mod");
     let toolchain = go_mod_text
         .lines()
         .find_map(|line| {

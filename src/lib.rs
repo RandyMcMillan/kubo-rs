@@ -1,16 +1,22 @@
+mod error;
 mod ffi;
 
-use std::path::Path;
-
+pub use error::Error;
 pub use ffi::version;
+
+use std::path::Path;
 
 /// Initialize a new IPFS repo at the given path.
 ///
 /// # Errors
 ///
-/// Returns an error string if the repo cannot be initialized.
-pub fn init_repo<P: AsRef<Path>>(path: P) -> Result<(), String> {
-    ffi::init_repo(path.as_ref().to_str().ok_or("invalid utf-8 path")?)
+/// Returns an error if the repo cannot be initialized.
+pub fn init_repo<P: AsRef<Path>>(path: P) -> Result<(), Error> {
+    let s = path.as_ref().to_str().ok_or(Error::InvalidPath)?;
+    if s.contains('\0') {
+        return Err(Error::InvalidPath);
+    }
+    ffi::init_repo(s)
 }
 
 /// An owned handle to a running Kubo IPFS node.
@@ -28,9 +34,12 @@ impl Node {
     ///
     /// # Errors
     ///
-    /// Returns an error string if the node cannot be started.
-    pub fn start<P: AsRef<Path>>(path: P, online: bool) -> Result<Self, String> {
-        let path = path.as_ref().to_str().ok_or("invalid utf-8 path")?;
+    /// Returns an error if the node cannot be started.
+    pub fn start<P: AsRef<Path>>(path: P, online: bool) -> Result<Self, Error> {
+        let path = path.as_ref().to_str().ok_or(Error::InvalidPath)?;
+        if path.contains('\0') {
+            return Err(Error::InvalidPath);
+        }
         let handle = ffi::node_start(path, online)?;
         Ok(Node { handle })
     }
@@ -39,26 +48,49 @@ impl Node {
     ///
     /// # Errors
     ///
-    /// Returns an error string if the peer ID cannot be read.
-    pub fn peer_id(&self) -> Result<String, String> {
+    /// Returns an error if the peer ID cannot be read.
+    pub fn peer_id(&self) -> Result<String, Error> {
         ffi::node_peer_id(self.handle)
+    }
+
+    /// Return the node's listening addresses.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the addresses cannot be read.
+    pub fn listening_addrs(&self) -> Result<Vec<String>, Error> {
+        ffi::node_listening_addrs(self.handle)
+    }
+
+    /// Connect to a peer by multiaddr.
+    ///
+    /// The address should include the peer ID, e.g.:
+    /// `/ip4/127.0.0.1/tcp/4001/p2p/Qm...`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection fails.
+    pub fn connect(&self, addr: &str) -> Result<(), Error> {
+        ffi::node_connect(self.handle, addr)
     }
 
     /// Add a byte slice to IPFS and return the resulting CID.
     ///
     /// # Errors
     ///
-    /// Returns an error string if the add operation fails.
-    pub fn add_bytes(&self, data: &[u8]) -> Result<String, String> {
+    /// Returns an error if the add operation fails.
+    pub fn add_bytes(&self, data: &[u8]) -> Result<String, Error> {
         ffi::unixfs_add_bytes(self.handle, data)
     }
 
     /// Retrieve the contents of a UnixFS file by CID.
     ///
+    /// Accepts both raw CIDs and `/ipfs/…` paths.
+    ///
     /// # Errors
     ///
-    /// Returns an error string if the content cannot be retrieved.
-    pub fn cat(&self, cid: &str) -> Result<Vec<u8>, String> {
+    /// Returns an error if the content cannot be retrieved.
+    pub fn cat(&self, cid: &str) -> Result<Vec<u8>, Error> {
         ffi::unixfs_cat(self.handle, cid)
     }
 
@@ -66,8 +98,8 @@ impl Node {
     ///
     /// # Errors
     ///
-    /// Returns an error string if shutdown fails.
-    pub fn stop(self) -> Result<(), String> {
+    /// Returns an error if shutdown fails.
+    pub fn stop(self) -> Result<(), Error> {
         let result = ffi::node_stop(self.handle);
         std::mem::forget(self); // prevent double-stop in Drop
         result
@@ -88,7 +120,6 @@ mod tests {
     fn test_version() {
         let v = version();
         assert!(!v.is_empty(), "version should not be empty");
-        // Kubo version strings typically look like "0.44.0-dev" or similar.
         assert!(v.contains('.'), "version should contain a dot");
     }
 
@@ -123,5 +154,64 @@ mod tests {
         assert_eq!(fetched, data, "retrieved data should match");
 
         node.stop().expect("stop should succeed");
+    }
+
+    #[test]
+    fn test_listening_addrs_online() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let repo = tmp.path().join("repo");
+
+        init_repo(&repo).expect("init repo should succeed");
+        let node = Node::start(&repo, true).expect("start node should succeed");
+
+        let addrs = node
+            .listening_addrs()
+            .expect("listening_addrs should succeed");
+        assert!(
+            !addrs.is_empty(),
+            "online node should have listening addresses"
+        );
+
+        node.stop().expect("stop should succeed");
+    }
+
+    #[test]
+    fn test_drop_stops_node() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let repo = tmp.path().join("repo");
+
+        init_repo(&repo).expect("init repo should succeed");
+        {
+            let _node = Node::start(&repo, false).expect("start node should succeed");
+            // Node is dropped here; should not panic.
+        }
+        // Starting a new node on the same repo should succeed after drop.
+        let node = Node::start(&repo, false).expect("restart node should succeed");
+        node.stop().expect("stop should succeed");
+    }
+
+    #[test]
+    fn test_add_cat_empty() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let repo = tmp.path().join("repo");
+
+        init_repo(&repo).expect("init repo should succeed");
+        let node = Node::start(&repo, false).expect("start node should succeed");
+
+        let data: &[u8] = b"";
+        let cid = node.add_bytes(data).expect("add_bytes should succeed");
+        let fetched = node.cat(&cid).expect("cat should succeed");
+        assert_eq!(fetched, data);
+
+        node.stop().expect("stop should succeed");
+    }
+
+    #[test]
+    fn test_invalid_path() {
+        let result = init_repo("path\0with\0null");
+        assert!(
+            matches!(result, Err(Error::InvalidPath)),
+            "null path should fail with InvalidPath"
+        );
     }
 }

@@ -1,3 +1,4 @@
+use crate::error::Error;
 use std::ffi::{CStr, CString, c_char};
 use std::slice;
 
@@ -10,6 +11,8 @@ unsafe extern "C" {
     fn kubo_node_start(path: *const c_char, online: u8) -> u64;
     fn kubo_node_stop(handle: u64) -> i64;
     fn kubo_node_peer_id(handle: u64) -> *mut c_char;
+    fn kubo_node_listening_addrs(handle: u64) -> *mut c_char;
+    fn kubo_node_connect(handle: u64, addr: *const c_char) -> i64;
     fn kubo_unixfs_add_bytes(handle: u64, data: *const u8, length: usize) -> *mut c_char;
     fn kubo_unixfs_cat(
         handle: u64,
@@ -20,8 +23,12 @@ unsafe extern "C" {
     fn kubo_free_buffer(buf: *mut u8);
 }
 
-fn check_err(code: i64) -> Result<(), String> {
-    if code == 0 { Ok(()) } else { Err(last_error()) }
+fn check_err(code: i64) -> Result<(), Error> {
+    if code == 0 {
+        Ok(())
+    } else {
+        Err(Error::Go(last_error()))
+    }
 }
 
 fn last_error() -> String {
@@ -53,38 +60,50 @@ pub fn version() -> String {
     unsafe { ptr_to_string(kubo_version()).unwrap_or_default() }
 }
 
-pub fn init_repo(path: &str) -> Result<(), String> {
-    let c_path = CString::new(path).map_err(|e| e.to_string())?;
+pub fn init_repo(path: &str) -> Result<(), Error> {
+    let c_path = CString::new(path)?;
     unsafe { check_err(kubo_init_repo(c_path.as_ptr())) }
 }
 
-pub fn node_start(path: &str, online: bool) -> Result<u64, String> {
-    let c_path = CString::new(path).map_err(|e| e.to_string())?;
+pub fn node_start(path: &str, online: bool) -> Result<u64, Error> {
+    let c_path = CString::new(path)?;
     let handle = unsafe { kubo_node_start(c_path.as_ptr(), online as u8) };
     if handle == 0 {
-        Err(last_error())
+        Err(Error::Go(last_error()))
     } else {
         Ok(handle)
     }
 }
 
-pub fn node_stop(handle: u64) -> Result<(), String> {
+pub fn node_stop(handle: u64) -> Result<(), Error> {
     unsafe { check_err(kubo_node_stop(handle)) }
 }
 
-pub fn node_peer_id(handle: u64) -> Result<String, String> {
-    unsafe { ptr_to_string(kubo_node_peer_id(handle)).ok_or_else(last_error) }
+pub fn node_peer_id(handle: u64) -> Result<String, Error> {
+    unsafe { ptr_to_string(kubo_node_peer_id(handle)).ok_or_else(|| Error::Go(last_error())) }
 }
 
-pub fn unixfs_add_bytes(handle: u64, data: &[u8]) -> Result<String, String> {
+pub fn node_listening_addrs(handle: u64) -> Result<Vec<String>, Error> {
+    let raw = unsafe {
+        ptr_to_string(kubo_node_listening_addrs(handle)).ok_or_else(|| Error::Go(last_error()))?
+    };
+    Ok(raw.lines().map(|s| s.to_string()).collect())
+}
+
+pub fn node_connect(handle: u64, addr: &str) -> Result<(), Error> {
+    let c_addr = CString::new(addr)?;
+    unsafe { check_err(kubo_node_connect(handle, c_addr.as_ptr())) }
+}
+
+pub fn unixfs_add_bytes(handle: u64, data: &[u8]) -> Result<String, Error> {
     unsafe {
         ptr_to_string(kubo_unixfs_add_bytes(handle, data.as_ptr(), data.len()))
-            .ok_or_else(last_error)
+            .ok_or_else(|| Error::Go(last_error()))
     }
 }
 
-pub fn unixfs_cat(handle: u64, cid: &str) -> Result<Vec<u8>, String> {
-    let c_cid = CString::new(cid).map_err(|e| e.to_string())?;
+pub fn unixfs_cat(handle: u64, cid: &str) -> Result<Vec<u8>, Error> {
+    let c_cid = CString::new(cid)?;
     unsafe {
         let mut out: *mut u8 = std::ptr::null_mut();
         let mut out_len: usize = 0;

@@ -1,5 +1,21 @@
 /target
+Cargo.lock
+
+# Go FFI build artifacts that may be generated during development
 /kubo-sys/ffi/ffi.h
+/kubo-sys/ffi/*.h
 /kubo-sys/ffi/*.a
+/kubo-sys/ffi/*.lib
 /kubo-sys/ffi/*.so
 /kubo-sys/ffi/*.dll
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

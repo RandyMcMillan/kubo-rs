@@ -109,3 +109,128 @@ fn cli_add_hello_world_cidv0() {
         "CLI add of 'hello world' must match kubo default CIDv0"
     );
 }
+
+#[test]
+fn cli_block_put_get_stat() {
+    let base = tmp_dir("block_put_get_stat");
+    let repo = base.join("repo");
+    let file = base.join("block.bin");
+    std::fs::write(&file, b"raw block data").unwrap();
+
+    kubo_rs()
+        .args(["ipfs", "init", repo.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    let put = kubo_rs()
+        .args([
+            "ipfs",
+            "block-put",
+            "--repo",
+            repo.to_str().unwrap(),
+            file.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(put.status.success());
+    let cid = String::from_utf8_lossy(&put.stdout).trim().to_string();
+    assert!(!cid.is_empty());
+
+    let stat = kubo_rs()
+        .args([
+            "ipfs",
+            "block-stat",
+            "--repo",
+            repo.to_str().unwrap(),
+            &cid,
+        ])
+        .output()
+        .unwrap();
+    assert!(stat.status.success());
+    let size = String::from_utf8_lossy(&stat.stdout).trim().parse::<usize>().unwrap();
+    assert_eq!(size, b"raw block data".len());
+
+    let get = kubo_rs()
+        .args([
+            "ipfs",
+            "block-get",
+            "--repo",
+            repo.to_str().unwrap(),
+            &cid,
+        ])
+        .output()
+        .unwrap();
+    assert!(get.status.success());
+    assert_eq!(get.stdout, b"raw block data");
+}
+
+#[test]
+fn cli_config_json() {
+    let base = tmp_dir("config_json");
+    let repo = base.join("repo");
+
+    kubo_rs()
+        .args(["ipfs", "init", repo.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    let set = kubo_rs()
+        .args([
+            "ipfs",
+            "config",
+            "--repo",
+            repo.to_str().unwrap(),
+            "--json",
+            "API.HTTPHeaders.Access-Control-Allow-Origin",
+            "[\"http://localhost:3000\", \"https://webui.ipfs.io\"]",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        set.status.success(),
+        "config set failed: {}",
+        String::from_utf8_lossy(&set.stderr)
+    );
+
+    let get = kubo_rs()
+        .args([
+            "ipfs",
+            "config",
+            "--repo",
+            repo.to_str().unwrap(),
+            "--json",
+            "API.HTTPHeaders.Access-Control-Allow-Origin",
+        ])
+        .output()
+        .unwrap();
+    assert!(get.status.success());
+    let stdout = String::from_utf8_lossy(&get.stdout);
+    assert!(stdout.contains("http://localhost:3000"));
+    assert!(stdout.contains("https://webui.ipfs.io"));
+}
+
+#[test]
+fn cli_p2p_peer_id_and_listen() {
+    let repo = tmp_dir("p2p_peer_id_and_listen").join("repo");
+
+    kubo_rs()
+        .args(["ipfs", "init", repo.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    let peer_id = kubo_rs()
+        .args(["p2p", "peer-id", repo.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(peer_id.status.success());
+    let id = String::from_utf8_lossy(&peer_id.stdout).trim().to_string();
+    assert!(!id.is_empty(), "peer_id should not be empty");
+
+    let listen = kubo_rs()
+        .args(["p2p", "listen", "--repo", repo.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(listen.status.success());
+    let addrs = String::from_utf8_lossy(&listen.stdout);
+    assert!(!addrs.trim().is_empty(), "listen addrs should not be empty");
+}

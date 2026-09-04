@@ -248,3 +248,48 @@ jobs:
         run: |
           cd go/kubo-sys
           go test ./plugin/plugins/nostr/ -v
+
+  git-remote-tests:
+    if: github.event_name == 'pull_request' || github.event.workflow_run.conclusion == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Init submodules (full depth)
+        run: |
+          git submodule sync
+          git submodule update --init
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.5"
+          cache: false
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('go/kubo-sys/go.sum', 'go/kubo-sys/ffi/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-
+
+      - name: Run git-remote protocol tests
+        run: |
+          cd go/kubo-sys
+          go test ./plugin/plugins/git-remote/ -v
+
+      - name: Build git-remote helpers
+        run: |
+          cd go/kubo-sys
+          go build ./cmd/git-remote-ipfs
+          go build ./cmd/git-remote-nostr
+          go build ./cmd/git-remote-p2p

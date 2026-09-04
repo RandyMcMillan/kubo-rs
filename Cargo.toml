@@ -1,6 +1,6 @@
 [package]
 name = "kubo-rs"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 build = "build.rs"
 links = "kubo_ffi"
@@ -22,6 +22,11 @@ criterion = "0.5"
 [[bench]]
 name = "add_bytes"
 harness = false
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
 
 [package.metadata.docs.rs]
 # docs.rs needs the kubo-sys submodule and Go toolchain to build.

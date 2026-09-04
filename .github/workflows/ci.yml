@@ -1,6 +1,13 @@
 name: CI Dispatch
 
 on:
+  workflow_run:
+    workflows: ["Cache Factory"]
+    types: [completed]
+    branches:
+      - main
+      - 'feat/**'
+      - 'fix/**'
   workflow_dispatch:
     inputs:
       ubuntu-latest:
@@ -22,6 +29,7 @@ concurrency:
 
 jobs:
   select-matrix:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.select.outputs.matrix }}

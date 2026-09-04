@@ -242,10 +242,19 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 node.stop()?;
                 println!("daemon stopped");
             }
-            IpfsCommands::Config { repo, json, key, value } => {
+            IpfsCommands::Config {
+                repo,
+                json,
+                key,
+                value,
+            } => {
                 let config_path = repo.join("config");
                 if !config_path.exists() {
-                    return Err(format!("config not found at {}. run `init` first.", config_path.display()).into());
+                    return Err(format!(
+                        "config not found at {}. run `init` first.",
+                        config_path.display()
+                    )
+                    .into());
                 }
 
                 let mut config: serde_json::Value =
@@ -311,9 +320,14 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 node.stop()?;
                 println!("nostr relay stopped");
             }
-            NostrCommands::Publish { repo: _, content: _ } => {
+            NostrCommands::Publish {
+                repo: _,
+                content: _,
+            } => {
                 eprintln!("nostr publish is not yet implemented");
-                eprintln!("it requires extending the FFI layer with nostr event signing/publishing");
+                eprintln!(
+                    "it requires extending the FFI layer with nostr event signing/publishing"
+                );
                 std::process::exit(1);
             }
         },

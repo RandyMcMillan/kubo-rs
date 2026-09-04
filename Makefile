@@ -95,6 +95,17 @@ wasm-dashboard:
 run-wasm-dashboard:
 	@rustup target list --installed | grep -q wasm32-unknown-unknown || rustup target add wasm32-unknown-unknown
 	@which trunk >/dev/null 2>&1 || cargo install trunk
+	@echo ""
+	@echo "Starting WASM dashboard at http://localhost:8080"
+	@echo ""
+	@echo "Setup:"
+	@echo "  1. Start kubo-rs daemon:  kubo-rs ipfs daemon --online"
+	@echo "  2. Enable CORS:"
+	@echo "     kubo-rs ipfs config --json API.HTTPHeaders.Access-Control-Allow-Origin '\"[\"http://localhost:8080\"]\"'"
+	@echo "  3. Restart daemon and reload the page"
+	@echo ""
+	@echo "This dashboard uses the Kubo HTTP API (port 5001)."
+	@echo ""
 	cd examples/wasm-dashboard && env -u NO_COLOR trunk serve
 
 # Cross-testing

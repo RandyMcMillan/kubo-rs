@@ -82,7 +82,9 @@ jobs:
 
       - name: Set default Rust toolchain (Windows)
         if: runner.os == 'Windows'
-        run: rustup default stable-x86_64-pc-windows-gnu
+        run: |
+          rustup default stable-x86_64-pc-windows-gnu
+          rustup override set stable-x86_64-pc-windows-gnu
 
       - name: Install Go
         uses: actions/setup-go@v5

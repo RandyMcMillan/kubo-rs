@@ -133,6 +133,11 @@ jobs:
           git submodule sync --recursive
           git submodule update --init --recursive
 
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+
       - name: Install Go
         uses: actions/setup-go@v5
         with:
@@ -161,6 +166,20 @@ jobs:
           fi
           ./cmd/testffi/testffi
 
-      - name: Build and run Rust FFI tests
+      - name: Build and run Rust FFI tests (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd kubo-sys/ffi
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            rustc cmd/testrust/main.rs -L ./tmp -lkubo_ffi -o cmd/testrust/testrust \
+              -C link-arg="-framework" -C link-arg="Security" \
+              -C link-arg="-framework" -C link-arg="CoreFoundation" \
+              -lresolv -lpthread -ldl
+          else
+            rustc cmd/testrust/main.rs -L ./tmp -lkubo_ffi -o cmd/testrust/testrust -lpthread -ldl
+          fi
+          ./cmd/testrust/testrust
+
+      - name: Build and run Rust tests
         run: |
           cargo test --verbose

@@ -4,3 +4,6 @@
 [submodule "go/kubo-sys"]
 	path = go/kubo-sys
 	url = https://github.com/RandyMcMillan/kubo.git
+[submodule "go/git"]
+	path = go/git
+	url = https://github.com/RandyMcMillan/go-git.git

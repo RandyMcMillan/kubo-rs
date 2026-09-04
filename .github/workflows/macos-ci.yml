@@ -108,8 +108,8 @@ jobs:
 
       - name: Init submodules
         run: |
-          git submodule sync --recursive
-          git submodule update --init --recursive
+          git submodule sync
+          git submodule update --init
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
@@ -172,8 +172,8 @@ jobs:
 
       - name: Init submodules
         run: |
-          git submodule sync --recursive
-          git submodule update --init --recursive
+          git submodule sync
+          git submodule update --init
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master

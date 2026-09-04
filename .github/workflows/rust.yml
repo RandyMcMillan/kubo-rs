@@ -35,8 +35,8 @@ jobs:
 
       - name: Init submodules (full depth)
         run: |
-          git submodule sync --recursive
-          git submodule update --init --recursive
+          git submodule sync
+          git submodule update --init
 
       - name: Install Rust (Unix)
         if: runner.os != 'Windows'
@@ -124,8 +124,8 @@ jobs:
 
       - name: Init submodules (full depth)
         run: |
-          git submodule sync --recursive
-          git submodule update --init --recursive
+          git submodule sync
+          git submodule update --init
 
       - name: Verify submodule is initialized
         run: |
@@ -148,8 +148,8 @@ jobs:
 
       - name: Init submodules (full depth)
         run: |
-          git submodule sync --recursive
-          git submodule update --init --recursive
+          git submodule sync
+          git submodule update --init
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master

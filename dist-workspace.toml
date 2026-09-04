@@ -18,6 +18,8 @@ targets = ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-apple-da
 # Path that installers should place binaries in
 install-path = "CARGO_HOME"
 # Publish jobs to run in CI
-publish-jobs = ["homebrew"]
+# Homebrew tap publishing is disabled until the tap repo is created.
+# The formula file is still generated and attached to the release.
+publish-jobs = []
 # Whether to install an updater program
 install-updater = true

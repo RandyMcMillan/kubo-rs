@@ -30,7 +30,10 @@ targets = [
     "x86_64-pc-windows-gnu",
 ]
 install-path = "CARGO_HOME"
-publish-jobs = ["homebrew"]
+# Publish jobs to run in CI
+# Homebrew tap publishing is disabled until the tap repo is created.
+# The formula file is still generated and attached to the release.
+publish-jobs = []
 install-updater = true
 allow-dirty = ["ci"]
 ```

@@ -17,8 +17,9 @@ fn main() {
     let target_os = target_parts.get(2).copied().unwrap_or("unknown");
 
     let both_darwin = host_os == "apple" && target_os == "apple";
+    let both_linux = host_os == "linux" && target_os == "linux";
 
-    if target != host && !both_darwin {
+    if target != host && !both_darwin && !both_linux {
         panic!(
             "kubo-rs FFI build script does not support cross-compilation \
              for this target/host pair. TARGET ({}) != HOST ({}). \

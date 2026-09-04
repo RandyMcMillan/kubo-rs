@@ -7,16 +7,23 @@ fn main() {
     let target = env::var("TARGET").expect("TARGET not set");
     let host = env::var("HOST").expect("HOST not set");
 
-    // Only support host builds for now. CGO cross-compilation requires a
-    // matching C cross-toolchain, which is beyond the scope of this build
-    // script. If you need cross-compilation, set up a proper cross toolchain
-    // and override this script.
-    if target != host {
+    // Cross-compilation with CGO requires a matching C cross-toolchain.
+    // Allow macOS universal builds (arm64 ↔ x86_64) because the Xcode
+    // toolchain ships both SDKs. For everything else, bail out early
+    // with a clear message rather than letting `go build` fail cryptically.
+    let host_parts: Vec<&str> = host.split('-').collect();
+    let target_parts: Vec<&str> = target.split('-').collect();
+    let host_os = host_parts.get(2).copied().unwrap_or("unknown");
+    let target_os = target_parts.get(2).copied().unwrap_or("unknown");
+
+    let both_darwin = host_os == "apple" && target_os == "apple";
+
+    if target != host && !both_darwin {
         panic!(
-            "kubo-rs FFI build script does not support cross-compilation. \
-             TARGET ({}) != HOST ({}). \
-             To cross-compile, you must set up a C cross-toolchain and \
-             manually compile kubo-sys/ffi/ with CGO_ENABLED=1.",
+            "kubo-rs FFI build script does not support cross-compilation \
+             for this target/host pair. TARGET ({}) != HOST ({}). \
+             To cross-compile, set up a C cross-toolchain and \
+             manually compile go/kubo-sys/ffi/ with CGO_ENABLED=1.",
             target, host
         );
     }

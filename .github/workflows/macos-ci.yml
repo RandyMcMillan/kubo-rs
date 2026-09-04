@@ -82,18 +82,22 @@ jobs:
             fi
           }
 
-          if [ "${{ inputs.macos-latest }}" = "true" ]; then append "macos-latest"; fi
-          if [ "${{ inputs.macos-15 }}" = "true" ]; then append "macos-15"; fi
-          if [ "${{ inputs.macos-14 }}" = "true" ]; then append "macos-14"; fi
-          if [ "${{ inputs.macos-13 }}" = "true" ]; then append "macos-13"; fi
-          if [ "${{ inputs.macos-latest-large }}" = "true" ]; then append "macos-latest-large"; fi
-          if [ "${{ inputs.macos-latest-xlarge }}" = "true" ]; then append "macos-latest-xlarge"; fi
-          if [ "${{ inputs.macos-15-large }}" = "true" ]; then append "macos-15-large"; fi
-          if [ "${{ inputs.macos-15-xlarge }}" = "true" ]; then append "macos-15-xlarge"; fi
-          if [ "${{ inputs.macos-14-large }}" = "true" ]; then append "macos-14-large"; fi
-          if [ "${{ inputs.macos-14-xlarge }}" = "true" ]; then append "macos-14-xlarge"; fi
-          if [ "${{ inputs.macos-13-large }}" = "true" ]; then append "macos-13-large"; fi
-          if [ "${{ inputs.macos-13-xlarge }}" = "true" ]; then append "macos-13-xlarge"; fi
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            append "macos-latest"
+          else
+            if [ "${{ inputs.macos-latest }}" = "true" ]; then append "macos-latest"; fi
+            if [ "${{ inputs.macos-15 }}" = "true" ]; then append "macos-15"; fi
+            if [ "${{ inputs.macos-14 }}" = "true" ]; then append "macos-14"; fi
+            if [ "${{ inputs.macos-13 }}" = "true" ]; then append "macos-13"; fi
+            if [ "${{ inputs.macos-latest-large }}" = "true" ]; then append "macos-latest-large"; fi
+            if [ "${{ inputs.macos-latest-xlarge }}" = "true" ]; then append "macos-latest-xlarge"; fi
+            if [ "${{ inputs.macos-15-large }}" = "true" ]; then append "macos-15-large"; fi
+            if [ "${{ inputs.macos-15-xlarge }}" = "true" ]; then append "macos-15-xlarge"; fi
+            if [ "${{ inputs.macos-14-large }}" = "true" ]; then append "macos-14-large"; fi
+            if [ "${{ inputs.macos-14-xlarge }}" = "true" ]; then append "macos-14-xlarge"; fi
+            if [ "${{ inputs.macos-13-large }}" = "true" ]; then append "macos-13-large"; fi
+            if [ "${{ inputs.macos-13-xlarge }}" = "true" ]; then append "macos-13-xlarge"; fi
+          fi
 
           echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
 

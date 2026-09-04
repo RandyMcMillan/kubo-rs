@@ -46,9 +46,13 @@ jobs:
             fi
           }
 
-          if [ "${{ inputs.ubuntu-latest }}" = "true" ]; then append "ubuntu-latest"; fi
-          if [ "${{ inputs.macos-latest }}" = "true" ]; then append "macos-latest"; fi
-          if [ "${{ inputs.windows-latest }}" = "true" ]; then append "windows-latest"; fi
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            append "ubuntu-latest"
+          else
+            if [ "${{ inputs.ubuntu-latest }}" = "true" ]; then append "ubuntu-latest"; fi
+            if [ "${{ inputs.macos-latest }}" = "true" ]; then append "macos-latest"; fi
+            if [ "${{ inputs.windows-latest }}" = "true" ]; then append "windows-latest"; fi
+          fi
 
           echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
 

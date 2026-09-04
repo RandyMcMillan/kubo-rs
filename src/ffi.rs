@@ -20,6 +20,14 @@ unsafe extern "C" {
         out: *mut *mut u8,
         out_len: *mut usize,
     ) -> i64;
+    fn kubo_block_put(handle: u64, data: *const u8, length: usize) -> *mut c_char;
+    fn kubo_block_get(
+        handle: u64,
+        cid_str: *const c_char,
+        out: *mut *mut u8,
+        out_len: *mut usize,
+    ) -> i64;
+    fn kubo_block_stat(handle: u64, cid_str: *const c_char) -> i64;
     fn kubo_free_buffer(buf: *mut u8);
 }
 
@@ -116,5 +124,39 @@ pub fn unixfs_cat(handle: u64, cid: &str) -> Result<Vec<u8>, Error> {
             kubo_free_buffer(out);
             Ok(buf)
         }
+    }
+}
+
+pub fn block_put(handle: u64, data: &[u8]) -> Result<String, Error> {
+    unsafe {
+        ptr_to_string(kubo_block_put(handle, data.as_ptr(), data.len()))
+            .ok_or_else(|| Error::Go(last_error()))
+    }
+}
+
+pub fn block_get(handle: u64, cid: &str) -> Result<Vec<u8>, Error> {
+    let c_cid = CString::new(cid)?;
+    unsafe {
+        let mut out: *mut u8 = std::ptr::null_mut();
+        let mut out_len: usize = 0;
+        let code = kubo_block_get(handle, c_cid.as_ptr(), &mut out, &mut out_len);
+        check_err(code)?;
+        if out.is_null() || out_len == 0 {
+            Ok(Vec::new())
+        } else {
+            let buf = slice::from_raw_parts(out, out_len).to_vec();
+            kubo_free_buffer(out);
+            Ok(buf)
+        }
+    }
+}
+
+pub fn block_stat(handle: u64, cid: &str) -> Result<usize, Error> {
+    let c_cid = CString::new(cid)?;
+    let size = unsafe { kubo_block_stat(handle, c_cid.as_ptr()) };
+    if size < 0 {
+        Err(Error::Go(last_error()))
+    } else {
+        Ok(size as usize)
     }
 }

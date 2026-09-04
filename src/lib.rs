@@ -1,3 +1,20 @@
+//! Rust bindings for Kubo (the Go implementation of IPFS).
+//!
+//! This crate provides a native Rust API over a CGO/FFI bridge to the Kubo
+//! Go codebase. See [`FFI.md`] for architecture details.
+//!
+//! # Quick start
+//!
+//! ```no_run
+//! use kubo_rs::{init_repo, Node};
+//!
+//! init_repo("/tmp/ipfs-repo").unwrap();
+//! let node = Node::start("/tmp/ipfs-repo", false).unwrap();
+//! let cid = node.add_bytes(b"hello").unwrap();
+//! let data = node.cat(&cid).unwrap();
+//! node.stop().unwrap();
+//! ```
+
 mod error;
 mod ffi;
 
@@ -92,6 +109,33 @@ impl Node {
     /// Returns an error if the content cannot be retrieved.
     pub fn cat(&self, cid: &str) -> Result<Vec<u8>, Error> {
         ffi::unixfs_cat(self.handle, cid)
+    }
+
+    /// Put a raw block into the blockstore and return its CID.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the block cannot be stored.
+    pub fn block_put(&self, data: &[u8]) -> Result<String, Error> {
+        ffi::block_put(self.handle, data)
+    }
+
+    /// Get a raw block from the blockstore by CID.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the block cannot be retrieved.
+    pub fn block_get(&self, cid: &str) -> Result<Vec<u8>, Error> {
+        ffi::block_get(self.handle, cid)
+    }
+
+    /// Return the size of a raw block in the blockstore.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the block cannot be found.
+    pub fn block_stat(&self, cid: &str) -> Result<usize, Error> {
+        ffi::block_stat(self.handle, cid)
     }
 
     /// Shut the node down and consume the handle.
@@ -249,5 +293,26 @@ mod tests {
 
         node_a.stop().expect("stop node_a should succeed");
         node_b.stop().expect("stop node_b should succeed");
+    }
+
+    #[test]
+    fn test_block_put_get_stat() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let repo = tmp.path().join("repo");
+
+        init_repo(&repo).expect("init repo should succeed");
+        let node = Node::start(&repo, false).expect("start node should succeed");
+
+        let data = b"raw block data";
+        let cid = node.block_put(data).expect("block_put should succeed");
+        assert!(!cid.is_empty(), "cid should not be empty");
+
+        let size = node.block_stat(&cid).expect("block_stat should succeed");
+        assert_eq!(size, data.len(), "block size should match");
+
+        let fetched = node.block_get(&cid).expect("block_get should succeed");
+        assert_eq!(fetched, data, "retrieved block should match");
+
+        node.stop().expect("stop should succeed");
     }
 }

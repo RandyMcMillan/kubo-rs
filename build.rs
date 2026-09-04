@@ -59,8 +59,18 @@ fn main() {
     let (goos, goarch) = parse_target(&target);
 
     let ffi_dir = kubo_sys.join("ffi");
-    let archive = out_dir.join("libkubo_ffi.a");
-    let header = out_dir.join("libkubo_ffi.h");
+
+    // Go's c-archive naming depends on the platform toolchain:
+    //   Unix / MinGW: libkubo_ffi.a
+    //   Windows MSVC: kubo_ffi.lib
+    let os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    let (archive_name, header_name) = if os == "windows" {
+        ("kubo_ffi.lib", "kubo_ffi.h")
+    } else {
+        ("libkubo_ffi.a", "libkubo_ffi.h")
+    };
+    let archive = out_dir.join(archive_name);
+    let header = out_dir.join(header_name);
 
     // Only rebuild when Go sources change.
     println!("cargo:rerun-if-changed=kubo-sys/ffi/ffi.go");
@@ -101,7 +111,6 @@ fn main() {
 
     // Platform-specific system libraries required by the Go runtime.
     let family = env::var("CARGO_CFG_TARGET_FAMILY").unwrap_or_default();
-    let os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
 
     if family == "unix" {
         println!("cargo:rustc-link-lib=pthread");

@@ -4,8 +4,22 @@ version = "0.1.0"
 edition = "2024"
 build = "build.rs"
 links = "kubo_ffi"
+authors = ["Randy McMillan <randy.lee.mcmillan@gmail.com>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/RandyMcMillan/kubo-rs"
+description = "Rust bindings for Kubo (IPFS in Go) via CGO/FFI"
+keywords = ["ipfs", "kubo", "p2p", "libp2p", "ffi"]
+categories = ["filesystem", "network-programming"]
+rust-version = "1.85"
 
 [dependencies]
 
 [dev-dependencies]
 tempfile = "3"
+
+[package.metadata.docs.rs]
+# docs.rs needs the kubo-sys submodule and Go toolchain to build.
+# The default build environment has git and Go available, but we
+# must ensure submodules are checked out.
+features = []
+no-default-features = true

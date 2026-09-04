@@ -1,7 +1,7 @@
 //! Rust bindings for Kubo (the Go implementation of IPFS).
 //!
 //! This crate provides a native Rust API over a CGO/FFI bridge to the Kubo
-//! Go codebase. See [`FFI.md`] for architecture details.
+//! Go codebase. See `FFI.md` for architecture details.
 //!
 //! # Quick start
 //!

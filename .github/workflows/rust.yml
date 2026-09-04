@@ -2,7 +2,10 @@ name: Rust FFI CI
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - 'feat/**'
+      - 'fix/**'
   pull_request:
     branches: [main]
 
@@ -72,6 +75,11 @@ jobs:
 
       - name: Test
         run: cargo test --verbose
+
+      - name: Check docs
+        run: cargo doc --no-deps --document-private-items
+        env:
+          RUSTDOCFLAGS: -D warnings
 
   check-submodule:
     runs-on: ubuntu-latest

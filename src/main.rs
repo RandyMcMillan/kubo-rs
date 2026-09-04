@@ -71,6 +71,15 @@ enum Commands {
         /// CID of the block
         cid: String,
     },
+    /// Run a persistent IPFS node (daemon)
+    Daemon {
+        /// Path to the repo
+        #[arg(short, long, default_value = ".ipfs")]
+        repo: PathBuf,
+        /// Run in online mode
+        #[arg(long)]
+        online: bool,
+    },
 }
 
 fn main() {
@@ -127,6 +136,30 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             let size = node.block_stat(&cid)?;
             println!("{size}");
             node.stop()?;
+        }
+        Commands::Daemon { repo, online } => {
+            let node = Node::start(&repo, online)?;
+            println!("daemon started");
+            println!("peer id: {}", node.peer_id()?);
+            println!("listening addrs:");
+            for addr in node.listening_addrs()? {
+                println!("  {addr}");
+            }
+            println!("press Ctrl+C to stop");
+
+            let running = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+            let r = running.clone();
+            ctrlc::set_handler(move || {
+                r.store(false, std::sync::atomic::Ordering::SeqCst);
+            })?;
+
+            while running.load(std::sync::atomic::Ordering::SeqCst) {
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+
+            println!("shutting down...");
+            node.stop()?;
+            println!("daemon stopped");
         }
     }
 

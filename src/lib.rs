@@ -91,6 +91,15 @@ impl Node {
         ffi::node_connect(self.handle, addr)
     }
 
+    /// Return the list of connected swarm peers.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the peer list cannot be read.
+    pub fn swarm_peers(&self) -> Result<Vec<String>, Error> {
+        ffi::swarm_peers(self.handle)
+    }
+
     /// Add a byte slice to IPFS and return the resulting CID.
     ///
     /// # Errors

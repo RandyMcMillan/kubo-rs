@@ -13,6 +13,7 @@ unsafe extern "C" {
     fn kubo_node_peer_id(handle: u64) -> *mut c_char;
     fn kubo_node_listening_addrs(handle: u64) -> *mut c_char;
     fn kubo_node_connect(handle: u64, addr: *const c_char) -> i64;
+    fn kubo_swarm_peers(handle: u64) -> *mut c_char;
     fn kubo_unixfs_add_bytes(handle: u64, data: *const u8, length: usize) -> *mut c_char;
     fn kubo_unixfs_cat(
         handle: u64,
@@ -101,6 +102,12 @@ pub fn node_listening_addrs(handle: u64) -> Result<Vec<String>, Error> {
 pub fn node_connect(handle: u64, addr: &str) -> Result<(), Error> {
     let c_addr = CString::new(addr)?;
     unsafe { check_err(kubo_node_connect(handle, c_addr.as_ptr())) }
+}
+
+pub fn swarm_peers(handle: u64) -> Result<Vec<String>, Error> {
+    let raw =
+        unsafe { ptr_to_string(kubo_swarm_peers(handle)).ok_or_else(|| Error::Go(last_error()))? };
+    Ok(raw.lines().map(|s| s.to_string()).collect())
 }
 
 pub fn unixfs_add_bytes(handle: u64, data: &[u8]) -> Result<String, Error> {

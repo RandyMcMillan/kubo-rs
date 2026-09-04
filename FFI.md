@@ -194,14 +194,13 @@ All tests use a project-local `./tmp/` directory instead of system temp (`/tmp` 
 
 ## CI
 
-GitHub Actions runs:
+GitHub Actions workflows:
 
-- Format, clippy, build, test on `ubuntu-latest`, `macos-latest`, `windows-latest`
-- `cargo-deny` for license/advisory checking
-- Submodule verification
-- **FFI tests** — builds the C archive and runs both `testffi` and `testrust`
+- **Rust FFI CI** (`.github/workflows/rust.yml`) — format, clippy, build, test on `ubuntu-latest`, `macos-latest`, `windows-latest`; `cargo-deny`; submodule verification; FFI tests
+- **Cache Factory** (`.github/workflows/cache-factory.yml`) — produces shared Rust and Go module caches for all three OSes to speed up PR builds
+- **macOS Dispatch** (`.github/workflows/macos-ci.yml`) — `workflow_dispatch` driven CI for various macOS runners (`macos-latest`, `macos-15`, `macos-14`, etc.); large/xlarge variants default to `false`
 
-The workflow fetches submodules at full depth (`fetch-depth: 0`) so that commits on non-default branches are available.
+All workflows fetch submodules at full depth (`fetch-depth: 0`) so that commits on non-default branches are available.
 
 ## Adding New FFI Functions
 

@@ -14,6 +14,15 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// IPFS commands
+    Ipfs {
+        #[command(subcommand)]
+        command: IpfsCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum IpfsCommands {
     /// Initialize a new IPFS repo
     Init {
         /// Path to the repo
@@ -93,74 +102,76 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Init { path } => {
-            init_repo(&path)?;
-            println!("initialized repo at {}", path.display());
-        }
-        Commands::Version => {
-            println!("{}", version());
-        }
-        Commands::PeerId { path, online } => {
-            let node = Node::start(&path, online)?;
-            println!("{}", node.peer_id()?);
-            node.stop()?;
-        }
-        Commands::Add { repo, file } => {
-            let data = fs::read(&file)?;
-            let node = Node::start(&repo, false)?;
-            let cid = node.add_bytes(&data)?;
-            println!("{cid}");
-            node.stop()?;
-        }
-        Commands::Cat { repo, cid } => {
-            let node = Node::start(&repo, false)?;
-            let data = node.cat(&cid)?;
-            std::io::Write::write_all(&mut std::io::stdout(), &data)?;
-            node.stop()?;
-        }
-        Commands::BlockPut { repo, file } => {
-            let data = fs::read(&file)?;
-            let node = Node::start(&repo, false)?;
-            let cid = node.block_put(&data)?;
-            println!("{cid}");
-            node.stop()?;
-        }
-        Commands::BlockGet { repo, cid } => {
-            let node = Node::start(&repo, false)?;
-            let data = node.block_get(&cid)?;
-            std::io::Write::write_all(&mut std::io::stdout(), &data)?;
-            node.stop()?;
-        }
-        Commands::BlockStat { repo, cid } => {
-            let node = Node::start(&repo, false)?;
-            let size = node.block_stat(&cid)?;
-            println!("{size}");
-            node.stop()?;
-        }
-        Commands::Daemon { repo, online } => {
-            let node = Node::start(&repo, online)?;
-            println!("daemon started");
-            println!("peer id: {}", node.peer_id()?);
-            println!("listening addrs:");
-            for addr in node.listening_addrs()? {
-                println!("  {addr}");
+        Commands::Ipfs { command } => match command {
+            IpfsCommands::Init { path } => {
+                init_repo(&path)?;
+                println!("initialized repo at {}", path.display());
             }
-            println!("press Ctrl+C to stop");
-
-            let running = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
-            let r = running.clone();
-            ctrlc::set_handler(move || {
-                r.store(false, std::sync::atomic::Ordering::SeqCst);
-            })?;
-
-            while running.load(std::sync::atomic::Ordering::SeqCst) {
-                std::thread::sleep(std::time::Duration::from_millis(100));
+            IpfsCommands::Version => {
+                println!("{}", version());
             }
+            IpfsCommands::PeerId { path, online } => {
+                let node = Node::start(&path, online)?;
+                println!("{}", node.peer_id()?);
+                node.stop()?;
+            }
+            IpfsCommands::Add { repo, file } => {
+                let data = fs::read(&file)?;
+                let node = Node::start(&repo, false)?;
+                let cid = node.add_bytes(&data)?;
+                println!("{cid}");
+                node.stop()?;
+            }
+            IpfsCommands::Cat { repo, cid } => {
+                let node = Node::start(&repo, false)?;
+                let data = node.cat(&cid)?;
+                std::io::Write::write_all(&mut std::io::stdout(), &data)?;
+                node.stop()?;
+            }
+            IpfsCommands::BlockPut { repo, file } => {
+                let data = fs::read(&file)?;
+                let node = Node::start(&repo, false)?;
+                let cid = node.block_put(&data)?;
+                println!("{cid}");
+                node.stop()?;
+            }
+            IpfsCommands::BlockGet { repo, cid } => {
+                let node = Node::start(&repo, false)?;
+                let data = node.block_get(&cid)?;
+                std::io::Write::write_all(&mut std::io::stdout(), &data)?;
+                node.stop()?;
+            }
+            IpfsCommands::BlockStat { repo, cid } => {
+                let node = Node::start(&repo, false)?;
+                let size = node.block_stat(&cid)?;
+                println!("{size}");
+                node.stop()?;
+            }
+            IpfsCommands::Daemon { repo, online } => {
+                let node = Node::start(&repo, online)?;
+                println!("daemon started");
+                println!("peer id: {}", node.peer_id()?);
+                println!("listening addrs:");
+                for addr in node.listening_addrs()? {
+                    println!("  {addr}");
+                }
+                println!("press Ctrl+C to stop");
 
-            println!("shutting down...");
-            node.stop()?;
-            println!("daemon stopped");
-        }
+                let running = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+                let r = running.clone();
+                ctrlc::set_handler(move || {
+                    r.store(false, std::sync::atomic::Ordering::SeqCst);
+                })?;
+
+                while running.load(std::sync::atomic::Ordering::SeqCst) {
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+
+                println!("shutting down...");
+                node.stop()?;
+                println!("daemon stopped");
+            }
+        },
     }
 
     Ok(())

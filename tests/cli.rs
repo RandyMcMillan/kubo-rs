@@ -16,7 +16,7 @@ fn tmp_dir(name: &str) -> PathBuf {
 
 #[test]
 fn cli_version() {
-    let output = kubo_rs().arg("version").output().unwrap();
+    let output = kubo_rs().args(["ipfs", "version"]).output().unwrap();
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains('.'), "version should contain a dot");
@@ -27,7 +27,7 @@ fn cli_init_and_peer_id() {
     let repo = tmp_dir("init_and_peer_id").join("repo");
 
     let init = kubo_rs()
-        .args(["init", repo.to_str().unwrap()])
+        .args(["ipfs", "init", repo.to_str().unwrap()])
         .output()
         .unwrap();
     assert!(
@@ -37,7 +37,7 @@ fn cli_init_and_peer_id() {
     );
 
     let peer_id = kubo_rs()
-        .args(["peer-id", repo.to_str().unwrap()])
+        .args(["ipfs", "peer-id", repo.to_str().unwrap()])
         .output()
         .unwrap();
     assert!(peer_id.status.success());
@@ -53,12 +53,13 @@ fn cli_add_and_cat() {
     std::fs::write(&file, b"cli test data").unwrap();
 
     kubo_rs()
-        .args(["init", repo.to_str().unwrap()])
+        .args(["ipfs", "init", repo.to_str().unwrap()])
         .output()
         .unwrap();
 
     let add = kubo_rs()
         .args([
+            "ipfs",
             "add",
             "--repo",
             repo.to_str().unwrap(),
@@ -71,7 +72,7 @@ fn cli_add_and_cat() {
     assert!(!cid.is_empty());
 
     let cat = kubo_rs()
-        .args(["cat", "--repo", repo.to_str().unwrap(), &cid])
+        .args(["ipfs", "cat", "--repo", repo.to_str().unwrap(), &cid])
         .output()
         .unwrap();
     assert!(cat.status.success());
@@ -87,12 +88,13 @@ fn cli_add_hello_world_cidv0() {
     std::fs::write(&file, b"hello world").unwrap();
 
     kubo_rs()
-        .args(["init", repo.to_str().unwrap()])
+        .args(["ipfs", "init", repo.to_str().unwrap()])
         .output()
         .unwrap();
 
     let add = kubo_rs()
         .args([
+            "ipfs",
             "add",
             "--repo",
             repo.to_str().unwrap(),

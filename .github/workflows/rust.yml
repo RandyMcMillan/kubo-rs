@@ -67,6 +67,9 @@ jobs:
       - name: Build
         run: cargo build --verbose
 
+      - name: Build examples
+        run: cargo build --examples --verbose
+
       - name: Test
         run: cargo test --verbose
 

@@ -19,6 +19,16 @@ enum Commands {
         #[command(subcommand)]
         command: IpfsCommands,
     },
+    /// P2P networking commands
+    P2p {
+        #[command(subcommand)]
+        command: P2pCommands,
+    },
+    /// Nostr bridge and relay commands
+    Nostr {
+        #[command(subcommand)]
+        command: NostrCommands,
+    },
 }
 
 #[derive(Subcommand)]
@@ -88,6 +98,54 @@ enum IpfsCommands {
         /// Run in online mode
         #[arg(long)]
         online: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum P2pCommands {
+    /// Print the peer ID
+    PeerId {
+        /// Path to the repo
+        #[arg(default_value = ".ipfs")]
+        path: PathBuf,
+        /// Start in online mode
+        #[arg(long)]
+        online: bool,
+    },
+    /// Connect to a peer by multiaddr
+    Connect {
+        /// Path to the repo
+        #[arg(short, long, default_value = ".ipfs")]
+        repo: PathBuf,
+        /// Multiaddr of the peer to connect to
+        addr: String,
+    },
+    /// Print listening addresses
+    Listen {
+        /// Path to the repo
+        #[arg(short, long, default_value = ".ipfs")]
+        repo: PathBuf,
+    },
+}
+
+#[derive(Subcommand)]
+enum NostrCommands {
+    /// Start a hybrid Nostr relay with IPFS backend
+    Relay {
+        /// Path to the repo
+        #[arg(short, long, default_value = ".ipfs")]
+        repo: PathBuf,
+        /// Run in online mode
+        #[arg(long)]
+        online: bool,
+    },
+    /// Publish a Nostr event (requires nostr FFI extension)
+    Publish {
+        /// Path to the repo
+        #[arg(short, long, default_value = ".ipfs")]
+        repo: PathBuf,
+        /// Event content to publish
+        content: String,
     },
 }
 
@@ -170,6 +228,57 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 println!("shutting down...");
                 node.stop()?;
                 println!("daemon stopped");
+            }
+        },
+        Commands::P2p { command } => match command {
+            P2pCommands::PeerId { path, online } => {
+                let node = Node::start(&path, online)?;
+                println!("{}", node.peer_id()?);
+                node.stop()?;
+            }
+            P2pCommands::Connect { repo, addr } => {
+                let node = Node::start(&repo, true)?;
+                node.connect(&addr)?;
+                println!("connected to {addr}");
+                node.stop()?;
+            }
+            P2pCommands::Listen { repo } => {
+                let node = Node::start(&repo, true)?;
+                for addr in node.listening_addrs()? {
+                    println!("{addr}");
+                }
+                node.stop()?;
+            }
+        },
+        Commands::Nostr { command } => match command {
+            NostrCommands::Relay { repo, online } => {
+                let node = Node::start(&repo, online)?;
+                println!("nostr relay started");
+                println!("peer id: {}", node.peer_id()?);
+                println!("listening addrs:");
+                for addr in node.listening_addrs()? {
+                    println!("  {addr}");
+                }
+                println!("press Ctrl+C to stop");
+
+                let running = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+                let r = running.clone();
+                ctrlc::set_handler(move || {
+                    r.store(false, std::sync::atomic::Ordering::SeqCst);
+                })?;
+
+                while running.load(std::sync::atomic::Ordering::SeqCst) {
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+
+                println!("shutting down...");
+                node.stop()?;
+                println!("nostr relay stopped");
+            }
+            NostrCommands::Publish { repo: _, content: _ } => {
+                eprintln!("nostr publish is not yet implemented");
+                eprintln!("it requires extending the FFI layer with nostr event signing/publishing");
+                std::process::exit(1);
             }
         },
     }

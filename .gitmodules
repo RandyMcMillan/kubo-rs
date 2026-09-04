@@ -10,3 +10,6 @@
 [submodule "libp2p"]
 	path = libp2p
 	url = git@github.com:RandyMcMillan/go-libp2p.git
+[submodule "go/libp2p"]
+	path = go/libp2p
+	url = git@github.com:RandyMcMillan/go-libp2p.git

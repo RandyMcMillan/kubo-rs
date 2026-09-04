@@ -54,7 +54,10 @@ The root `kubo-sys/` module is `package main` (the `ipfs` binary). CGo requires 
 | `kubo_node_connect` | `(handle, addr) -> int64` | Connects to a peer by multiaddr |
 | `kubo_unixfs_add_bytes` | `(handle, data, len) -> *char` | Adds bytes to IPFS; returns CID |
 | `kubo_unixfs_cat` | `(handle, cid, out, out_len) -> int64` | Retrieves UnixFS content by CID |
-| `kubo_free_buffer` | `(*uint8_t)` | Frees a buffer allocated by `kubo_unixfs_cat` |
+| `kubo_block_put` | `(handle, data, len) -> *char` | Stores raw block; returns CID |
+| `kubo_block_get` | `(handle, cid, out, out_len) -> int64` | Retrieves raw block data |
+| `kubo_block_stat` | `(handle, cid) -> int64` | Returns block size (-1 on error) |
+| `kubo_free_buffer` | `(*uint8_t)` | Frees a buffer allocated by Go |
 
 All functions that can fail return an `int64` error code (`0` = success, `-1` = error). Details are available via `kubo_last_error()`.
 
@@ -133,12 +136,15 @@ node.stop()?;
 | `node.connect(addr)` | Dials a peer. Address must include peer ID: `/ip4/…/p2p/Qm…` |
 | `node.add_bytes(data)` | Adds bytes to IPFS; returns the CID. |
 | `node.cat(cid)` | Retrieves UnixFS content by CID or `/ipfs/…` path. |
+| `node.block_put(data)` | Stores a raw block; returns the CID. |
+| `node.block_get(cid)` | Retrieves raw block data by CID. |
+| `node.block_stat(cid)` | Returns the size of a block by CID. |
 | `node.stop()` | Shuts the node down and consumes the handle. |
 
 ## Memory Safety
 
 - All C strings allocated by Go are freed by calling `kubo_free_string` from Rust.
-- All byte buffers allocated by `kubo_unixfs_cat` are freed by calling `kubo_free_buffer` from Rust.
+- All byte buffers allocated by `kubo_unixfs_cat`, `kubo_block_get`, etc. are freed by calling `kubo_free_buffer` from Rust.
 - The `Node` type implements `Drop` so that the Go node is stopped even if the Rust consumer forgets to call `stop()`.
 - Null bytes in paths and strings are rejected early with `Error::InvalidPath` / `Error::InvalidString`.
 
@@ -154,11 +160,13 @@ Tests cover:
 
 - Version string retrieval
 - Repo initialization and node start/stop
-- Adding bytes and retrieving them by CID
+- UnixFS add/cat roundtrip
 - Empty content roundtrip
 - Drop behavior (node stops automatically)
 - Listening addresses on online nodes
 - Invalid path rejection
+- Peer-to-peer data exchange between two online nodes
+- Block API put/get/stat roundtrip
 
 ## Adding New FFI Functions
 

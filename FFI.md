@@ -33,11 +33,11 @@ go/kubo-sys/ffi/ffi.go  (CGO exports, node registry, CoreAPI wrappers)
 
 ## Go CGo Library
 
-Located in `go/kubo-sys/ffi/`. It is a separate Go module (not `package main`) so it can build as a `c-archive`.
+Located in `go/kubo-sys/ffi/`. It is a separate Go module that uses `package main` with `//export` directives so it can build as a `c-archive`.
 
 ### Why a separate module?
 
-The root `go/kubo-sys/` module is `package main` (the `ipfs` binary). CGo requires a non-main package to produce a static C archive. The `ffi/` module imports Kubo via `replace github.com/ipfs/kubo => ..`.
+The root `go/kubo-sys/` module is `package main` (the `ipfs` binary). The `ffi/` module isolates the CGO exports and imports Kubo via `replace github.com/ipfs/kubo => ..`.
 
 ### Exported C Functions
 
@@ -87,7 +87,7 @@ Kubo requires plugins to be loaded once before any repo or node operation. The F
 
 ### Cross-compilation
 
-The build script currently supports host builds only. CGO cross-compilation requires a matching C cross-toolchain, which is beyond the scope of the current script.
+The build script supports same-OS cross-compilation (e.g., `x86_64-apple-darwin` → `aarch64-apple-darwin`, `x86_64-pc-windows-msvc` → `x86_64-pc-windows-gnu`). Full cross-OS compilation requires a matching C cross-toolchain and is not supported automatically.
 
 ## Rust Safe API
 

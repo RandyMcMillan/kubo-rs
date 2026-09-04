@@ -16,7 +16,7 @@ The FFI layer consists of three parts:
 Rust consumer
       │
       ▼
-  src/lib.rs      (safe API: Node, init_repo, version)
+  src/lib.rs      (safe API: Node, init_repo, version, Error)
       │
       ▼
   src/ffi.rs      (unsafe extern "C" bindings)
@@ -50,6 +50,8 @@ The root `kubo-sys/` module is `package main` (the `ipfs` binary). CGo requires 
 | `kubo_node_start` | `(path, online) -> uint64` | Starts a node; returns an opaque handle |
 | `kubo_node_stop` | `(handle) -> int64` | Stops the node |
 | `kubo_node_peer_id` | `(handle) -> *char` | Returns the node's peer ID |
+| `kubo_node_listening_addrs` | `(handle) -> *char` | Returns newline-separated listen addrs |
+| `kubo_node_connect` | `(handle, addr) -> int64` | Connects to a peer by multiaddr |
 | `kubo_unixfs_add_bytes` | `(handle, data, len) -> *char` | Adds bytes to IPFS; returns CID |
 | `kubo_unixfs_cat` | `(handle, cid, out, out_len) -> int64` | Retrieves UnixFS content by CID |
 | `kubo_free_buffer` | `(*uint8_t)` | Frees a buffer allocated by `kubo_unixfs_cat` |
@@ -94,6 +96,19 @@ Returns the Kubo version string (e.g., `"0.44.0-dev"`).
 
 Initializes a new IPFS repository at the given filesystem path.
 
+### `kubo_rs::Error`
+
+```rust
+pub enum Error {
+    InvalidPath,
+    InvalidString,
+    InvalidHandle,
+    Go(String),
+}
+```
+
+Implements `std::error::Error` and `Display`.
+
 ### `kubo_rs::Node`
 
 An owned handle to a running Kubo node. When dropped, the node is shut down.
@@ -102,24 +117,30 @@ An owned handle to a running Kubo node. When dropped, the node is shut down.
 use kubo_rs::{init_repo, Node};
 
 init_repo("/tmp/ipfs-repo")?;
-let node = Node::start("/tmp/ipfs-repo", false)?;
+let node = Node::start("/tmp/ipfs-repo", true)?;
 let peer_id = node.peer_id()?;
+let addrs = node.listening_addrs()?;
 node.stop()?;
 ```
 
 #### Methods
 
-- `Node::start(path, online)` — starts a node. `online` controls whether the node joins the libp2p network.
-- `node.peer_id()` — returns the node's peer ID.
-- `node.add_bytes(data)` — adds a byte slice to IPFS and returns the CID.
-- `node.cat(cid)` — retrieves UnixFS content by CID (raw CID or `/ipfs/…` path).
-- `node.stop()` — shuts the node down and consumes the handle.
+| Method | Description |
+|--------|-------------|
+| `Node::start(path, online)` | Starts a node. `online` controls libp2p networking. |
+| `node.peer_id()` | Returns the node's peer ID. |
+| `node.listening_addrs()` | Returns the node's listening multiaddresses. |
+| `node.connect(addr)` | Dials a peer. Address must include peer ID: `/ip4/…/p2p/Qm…` |
+| `node.add_bytes(data)` | Adds bytes to IPFS; returns the CID. |
+| `node.cat(cid)` | Retrieves UnixFS content by CID or `/ipfs/…` path. |
+| `node.stop()` | Shuts the node down and consumes the handle. |
 
 ## Memory Safety
 
 - All C strings allocated by Go are freed by calling `kubo_free_string` from Rust.
 - All byte buffers allocated by `kubo_unixfs_cat` are freed by calling `kubo_free_buffer` from Rust.
 - The `Node` type implements `Drop` so that the Go node is stopped even if the Rust consumer forgets to call `stop()`.
+- Null bytes in paths and strings are rejected early with `Error::InvalidPath` / `Error::InvalidString`.
 
 ## Testing
 
@@ -134,6 +155,10 @@ Tests cover:
 - Version string retrieval
 - Repo initialization and node start/stop
 - Adding bytes and retrieving them by CID
+- Empty content roundtrip
+- Drop behavior (node stops automatically)
+- Listening addresses on online nodes
+- Invalid path rejection
 
 ## Adding New FFI Functions
 

@@ -214,4 +214,40 @@ mod tests {
             "null path should fail with InvalidPath"
         );
     }
+
+    #[test]
+    fn test_two_nodes_exchange_data() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let repo_a = tmp.path().join("repo_a");
+        let repo_b = tmp.path().join("repo_b");
+
+        init_repo(&repo_a).expect("init repo_a should succeed");
+        init_repo(&repo_b).expect("init repo_b should succeed");
+
+        let node_a = Node::start(&repo_a, true).expect("start node_a should succeed");
+        let node_b = Node::start(&repo_b, true).expect("start node_b should succeed");
+
+        let peer_id_a = node_a.peer_id().expect("peer_id_a should succeed");
+        let addrs_a = node_a
+            .listening_addrs()
+            .expect("listening_addrs_a should succeed");
+        assert!(!addrs_a.is_empty(), "node_a should have addresses");
+
+        // Pick the first address and append the peer ID.
+        let dial_addr = format!("{}/p2p/{}", addrs_a[0], peer_id_a);
+        node_b
+            .connect(&dial_addr)
+            .expect("connect b->a should succeed");
+
+        // Add data on node_a.
+        let data = b"peer-to-peer hello";
+        let cid = node_a.add_bytes(data).expect("add_bytes should succeed");
+
+        // Fetch from node_b.
+        let fetched = node_b.cat(&cid).expect("cat from node_b should succeed");
+        assert_eq!(fetched, data, "data fetched via bitswap should match");
+
+        node_a.stop().expect("stop node_a should succeed");
+        node_b.stop().expect("stop node_b should succeed");
+    }
 }

@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: all build build-bin build-go build-ffi test test-cli test-ffi test-ffi-c test-ffi-rust test-all bench fmt clippy clean clean-all check example p2p scripts cross-test
+.PHONY: all build build-bin build-go build-ffi test test-cli test-ffi test-ffi-c test-ffi-rust test-all bench fmt clippy clean clean-all check example p2p scripts cross-test run-wasm-dashboard
 
 all: fmt clippy test
 
@@ -92,6 +92,11 @@ wasm-dashboard:
 	@which trunk >/dev/null 2>&1 || cargo install trunk
 	cd examples/wasm-dashboard && env -u NO_COLOR trunk build
 
+run-wasm-dashboard:
+	@rustup target list --installed | grep -q wasm32-unknown-unknown || rustup target add wasm32-unknown-unknown
+	@which trunk >/dev/null 2>&1 || cargo install trunk
+	cd examples/wasm-dashboard && env -u NO_COLOR trunk serve
+
 # Cross-testing
 scripts:
 	@echo "Run one of:"
@@ -125,6 +130,7 @@ help:
 	@echo "  example        - Run the basic example"
 	@echo "  p2p            - Run the p2p example"
 	@echo "  dashboard      - Run the ratatui TUI dashboard example"
-	@echo "  wasm-dashboard - Show instructions for the WASM dashboard example"
+	@echo "  wasm-dashboard    - Build the WASM dashboard example"
+	@echo "  run-wasm-dashboard - Build and serve the WASM dashboard (opens http://localhost:8080)"
 	@echo "  cross-test     - Run cross-language alignment tests"
 	@echo "  scripts        - Show available test scripts"

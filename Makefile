@@ -1,4 +1,4 @@
-.PHONY: all build test fmt clippy clean check
+.PHONY: all build test bench fmt clippy clean check example p2p
 
 all: fmt clippy test
 
@@ -7,6 +7,9 @@ build:
 
 test:
 	cargo test
+
+bench:
+	cargo bench
 
 fmt:
 	cargo fmt
@@ -22,3 +25,6 @@ clean:
 
 example:
 	cargo run --example basic
+
+p2p:
+	cargo run --example p2p

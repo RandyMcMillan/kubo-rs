@@ -64,7 +64,8 @@ fn main() {
     //   Unix / MinGW: libkubo_ffi.a
     //   Windows MSVC: kubo_ffi.lib
     let os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
-    let (archive_name, header_name) = if os == "windows" {
+    let env = env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
+    let (archive_name, header_name) = if os == "windows" && env == "msvc" {
         ("kubo_ffi.lib", "kubo_ffi.h")
     } else {
         ("libkubo_ffi.a", "libkubo_ffi.h")

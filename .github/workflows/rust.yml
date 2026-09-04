@@ -38,10 +38,18 @@ jobs:
           git submodule sync --recursive
           git submodule update --init --recursive
 
-      - name: Install Rust
+      - name: Install Rust (Unix)
+        if: runner.os != 'Windows'
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust }}
+          components: rustfmt, clippy
+
+      - name: Install Rust (Windows GNU)
+        if: runner.os == 'Windows'
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable-x86_64-pc-windows-gnu
           components: rustfmt, clippy
 
       - name: Install Go

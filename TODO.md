@@ -106,8 +106,8 @@ kubo-rs/
 
 ## Next Steps (Priority)
 
-1. Build the current workspace: `cargo build && cargo test`
-2. If swarm_peers causes issues, debug the Go FFI build
-3. Run the dashboard example: `cargo run --example dashboard`
-4. Commit swarm_peers + dashboard enhancements
+1. ~~Build the current workspace: `cargo build && cargo test`~~ ✅ done
+2. ~~If swarm_peers causes issues, debug the Go FFI build~~ ✅ done
+3. ~~Run the dashboard example: `cargo run --example dashboard`~~ ✅ builds
+4. ~~Commit swarm_peers + dashboard enhancements~~ ✅ done
 5. Continue extending dashboard with more ipfs-desktop-inspired features (settings panel, CID profiles, etc.)

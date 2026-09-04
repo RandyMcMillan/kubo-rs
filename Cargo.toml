@@ -16,6 +16,11 @@ rust-version = "1.85"
 
 [dev-dependencies]
 tempfile = "3"
+criterion = "0.5"
+
+[[bench]]
+name = "add_bytes"
+harness = false
 
 [package.metadata.docs.rs]
 # docs.rs needs the kubo-sys submodule and Go toolchain to build.

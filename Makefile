@@ -1,3 +1,5 @@
+.DEFAULT_GOAL := help
+
 .PHONY: all build build-bin build-go build-ffi test test-cli test-ffi test-ffi-c test-ffi-rust test-all bench fmt clippy clean clean-all check example p2p scripts cross-test
 
 all: fmt clippy test

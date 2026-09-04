@@ -1,7 +1,9 @@
 name: Rust FFI CI
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Cache Factory"]
+    types: [completed]
     branches:
       - main
       - 'feat/**'
@@ -15,6 +17,7 @@ concurrency:
 
 jobs:
   build-and-test:
+    if: github.event_name == 'pull_request' || github.event.workflow_run.conclusion == 'success'
     strategy:
       fail-fast: false
       matrix:
@@ -107,6 +110,7 @@ jobs:
           RUSTDOCFLAGS: -D warnings
 
   cargo-deny:
+    if: github.event_name == 'pull_request' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -117,6 +121,7 @@ jobs:
           command: check
 
   check-submodule:
+    if: github.event_name == 'pull_request' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -135,6 +140,7 @@ jobs:
           test -f go/kubo-sys/ffi/ffi.go || { echo "go/kubo-sys/ffi/ffi.go missing"; exit 1; }
 
   ffi-tests:
+    if: github.event_name == 'pull_request' || github.event.workflow_run.conclusion == 'success'
     strategy:
       fail-fast: false
       matrix:

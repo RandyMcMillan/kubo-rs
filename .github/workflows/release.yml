@@ -132,6 +132,11 @@ jobs:
         with:
           go-version: "1.26.5"
           cache: false
+      - name: Install MinGW (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install mingw -y
+          echo "C:\ProgramData\Chocolatey\lib\mingw\tools\install\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Install dist
         run: ${{ matrix.install_dist.run }}
       # Get the dist-manifest

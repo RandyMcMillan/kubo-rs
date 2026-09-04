@@ -6,7 +6,7 @@ This document describes the Rust ↔ Go FFI bridge that binds the `kubo-rs` crat
 
 The FFI layer consists of three parts:
 
-1. **Go CGo library** (`kubo-sys/ffi/`) — exports C symbols and manages Kubo node lifecycle.
+1. **Go CGo library** (`go/kubo-sys/ffi/`) — exports C symbols and manages Kubo node lifecycle.
 2. **Rust build script** (`build.rs`) — compiles the Go code into a static archive and links it.
 3. **Rust bindings** (`src/ffi.rs`, `src/lib.rs`) — unsafe FFI declarations and safe public API.
 
@@ -25,7 +25,7 @@ Rust consumer
   libkubo_ffi.a   (Go static archive built by build.rs)
       │
       ▼
-kubo-sys/ffi/ffi.go  (CGO exports, node registry, CoreAPI wrappers)
+go/kubo-sys/ffi/ffi.go  (CGO exports, node registry, CoreAPI wrappers)
       │
       ▼
   Kubo Go code    (core.NewNode, coreapi.NewCoreAPI, fsrepo, etc.)
@@ -33,11 +33,11 @@ kubo-sys/ffi/ffi.go  (CGO exports, node registry, CoreAPI wrappers)
 
 ## Go CGo Library
 
-Located in `kubo-sys/ffi/`. It is a separate Go module (not `package main`) so it can build as a `c-archive`.
+Located in `go/kubo-sys/ffi/`. It is a separate Go module (not `package main`) so it can build as a `c-archive`.
 
 ### Why a separate module?
 
-The root `kubo-sys/` module is `package main` (the `ipfs` binary). CGo requires a non-main package to produce a static C archive. The `ffi/` module imports Kubo via `replace github.com/ipfs/kubo => ..`.
+The root `go/kubo-sys/` module is `package main` (the `ipfs` binary). CGo requires a non-main package to produce a static C archive. The `ffi/` module imports Kubo via `replace github.com/ipfs/kubo => ..`.
 
 ### Exported C Functions
 
@@ -78,9 +78,9 @@ Kubo requires plugins to be loaded once before any repo or node operation. The F
 `build.rs` performs the following steps:
 
 1. Verifies the `kubo-sys` submodule is present.
-2. Reads the `go` directive from `kubo-sys/go.mod` and sets `GOTOOLCHAIN` to that version. This ensures reproducible builds even when the host has a newer Go installed.
+2. Reads the `go` directive from `go/kubo-sys/go.mod` and sets `GOTOOLCHAIN` to that version. This ensures reproducible builds even when the host has a newer Go installed.
 3. Maps the Rust `TARGET` triple to `GOOS` / `GOARCH`.
-4. Runs `go build -buildmode=c-archive` in `kubo-sys/ffi/`.
+4. Runs `go build -buildmode=c-archive` in `go/kubo-sys/ffi/`.
 5. Emits Cargo link instructions for the static archive and required system libraries:
    - Unix: `pthread`, `dl`
    - macOS: `Security`, `CoreFoundation`, `resolv`
@@ -169,7 +169,7 @@ make test-all       # rust tests + C/Rust FFI tests
 - **Version string retrieval**
 - **Repo initialization and node start/stop**
 - **UnixFS add/cat roundtrip** — including empty content
-- **CID alignment** — `add_bytes("hello world")` must produce `Qmf412jQZiuVUtdgnB36FXFX7xg5V6KEbSJ4dpQuhkLyfD` (CIDv0 dag-pb sha2-256), matching Kubo's default profile and `kubo-sys/test/cli/add_test.go`
+- **CID alignment** — `add_bytes("hello world")` must produce `Qmf412jQZiuVUtdgnB36FXFX7xg5V6KEbSJ4dpQuhkLyfD` (CIDv0 dag-pb sha2-256), matching Kubo's default profile and `go/kubo-sys/test/cli/add_test.go`
 - **Drop behavior** — node stops automatically when handle is dropped
 - **Listening addresses** on online nodes
 - **Invalid path rejection**
@@ -183,8 +183,8 @@ The FFI layer is validated from both sides:
 | Runner | Language | Location | Purpose |
 |--------|----------|----------|---------|
 | `cargo test` | Rust (safe API) | `src/lib.rs`, `tests/cli.rs` | Rust consumer-facing tests |
-| `testffi` | C (raw FFI) | `kubo-sys/ffi/cmd/testffi/main.c` | Validate C exports from Go side |
-| `testrust` | Rust (raw FFI) | `kubo-sys/ffi/cmd/testrust/main.rs` | Validate C exports from Rust side |
+| `testffi` | C (raw FFI) | `go/kubo-sys/ffi/cmd/testffi/main.c` | Validate C exports from Go side |
+| `testrust` | Rust (raw FFI) | `go/kubo-sys/ffi/cmd/testrust/main.rs` | Validate C exports from Rust side |
 
 Both `testffi` and `testrust` exercise the same functions with the same test vectors, confirming functional equivalence across languages.
 
@@ -204,15 +204,15 @@ All workflows fetch submodules at full depth (`fetch-depth: 0`) so that commits 
 
 ## Adding New FFI Functions
 
-1. Add the exported C function in `kubo-sys/ffi/ffi.go`.
-2. Run `go mod tidy` in `kubo-sys/ffi/` if new imports are added.
+1. Add the exported C function in `go/kubo-sys/ffi/ffi.go`.
+2. Run `go mod tidy` in `go/kubo-sys/ffi/` if new imports are added.
 3. Add the `extern "C"` declaration in `src/ffi.rs`.
 4. Add a safe wrapper in `src/lib.rs` (or extend `Node`).
 5. Add a test in `src/lib.rs` under `#[cfg(test)]`.
-6. Mirror the test in `kubo-sys/ffi/cmd/testffi/main.c` and `kubo-sys/ffi/cmd/testrust/main.rs`.
+6. Mirror the test in `go/kubo-sys/ffi/cmd/testffi/main.c` and `go/kubo-sys/ffi/cmd/testrust/main.rs`.
 7. Run `cargo fmt`, `cargo clippy`, and `cargo test`.
 8. Run `make check` or `./scripts/cross-test.sh` to verify alignment.
 
 ## Security & Stability Notes
 
-The FFI layer is a thin wrapper around Kubo's internal APIs. It does not alter Kubo's default CID recipe, gateway behavior, or RPC API. All Kubo stability and user-agency rules documented in `kubo-sys/AGENTS.md` apply to changes made through this bridge.
+The FFI layer is a thin wrapper around Kubo's internal APIs. It does not alter Kubo's default CID recipe, gateway behavior, or RPC API. All Kubo stability and user-agency rules documented in `go/kubo-sys/AGENTS.md` apply to changes made through this bridge.

@@ -208,7 +208,7 @@ mod tests {
 
     #[test]
     fn test_add_hello_world_cidv0_alignment() {
-        // Aligns with kubo-sys/test/cli/add_test.go:
+        // Aligns with go/kubo-sys/test/cli/add_test.go:
         // shortString = "hello world"
         // shortStringCidV0 = "Qmf412jQZiuVUtdgnB36FXFX7xg5V6KEbSJ4dpQuhkLyfD"
         let repo = tmp_dir("add_hello_world_cidv0").join("repo");

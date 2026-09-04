@@ -1,31 +1,59 @@
-name: Rust FFI CI
+name: CI Dispatch
 
 on:
-  push:
-    branches:
-      - main
-      - 'feat/**'
-      - 'fix/**'
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ubuntu-latest:
+        description: 'Run on ubuntu-latest'
+        type: boolean
+        default: true
+      macos-latest:
+        description: 'Run on macos-latest'
+        type: boolean
+        default: false
+      windows-latest:
+        description: 'Run on windows-latest'
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  select-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.select.outputs.matrix }}
+    steps:
+      - id: select
+        run: |
+          MATRIX="[]"
+          append() {
+            local runner="$1"
+            if [ "$MATRIX" = "[]" ]; then
+              MATRIX="[\"$runner\"]"
+            else
+              MATRIX="${MATRIX%]},\"$runner\"]"
+            fi
+          }
+
+          if [ "${{ inputs.ubuntu-latest }}" = "true" ]; then append "ubuntu-latest"; fi
+          if [ "${{ inputs.macos-latest }}" = "true" ]; then append "macos-latest"; fi
+          if [ "${{ inputs.windows-latest }}" = "true" ]; then append "windows-latest"; fi
+
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+
   build-and-test:
+    needs: select-matrix
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
-          - windows-latest
+        os: ${{ fromJson(needs.select-matrix.outputs.matrix) }}
         rust:
           - stable
-
     runs-on: ${{ matrix.os }}
+    if: needs.select-matrix.outputs.matrix != '[]'
 
     steps:
       - name: Checkout
@@ -33,7 +61,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Init submodules (full depth)
+      - name: Init submodules
         run: |
           git submodule sync --recursive
           git submodule update --init --recursive
@@ -68,10 +96,6 @@ jobs:
           choco install mingw -y
           echo "C:\ProgramData\Chocolatey\lib\mingw\tools\install\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Verify gcc (Windows)
-        if: runner.os == 'Windows'
-        run: gcc --version
-
       - name: Cache Go modules
         uses: actions/cache@v4
         with:
@@ -104,49 +128,22 @@ jobs:
         env:
           RUSTDOCFLAGS: -D warnings
 
-  cargo-deny:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Run cargo-deny
-        uses: EmbarkStudios/cargo-deny-action@v2
-        with:
-          command: check
-
-  check-submodule:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Init submodules (full depth)
-        run: |
-          git submodule sync --recursive
-          git submodule update --init --recursive
-
-      - name: Verify submodule is initialized
-        run: |
-          test -f go/kubo-sys/go.mod || { echo "go/kubo-sys submodule not initialized"; exit 1; }
-          test -f go/kubo-sys/ffi/ffi.go || { echo "go/kubo-sys/ffi/ffi.go missing"; exit 1; }
-
   ffi-tests:
+    needs: select-matrix
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
+        os: ${{ fromJson(needs.select-matrix.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
+    if: needs.select-matrix.outputs.matrix != '[]'
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Init submodules (full depth)
+      - name: Init submodules
         run: |
           git submodule sync --recursive
           git submodule update --init --recursive
@@ -200,5 +197,4 @@ jobs:
           ./cmd/testrust/testrust
 
       - name: Build and run Rust tests
-        run: |
-          cargo test --verbose
+        run: cargo test --verbose

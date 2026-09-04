@@ -14,13 +14,13 @@ build-bin:
 build-release:
 	cargo build --release
 
-# Go builds (delegates to kubo-sys Makefile)
+# Go builds (delegates to go/kubo-sys Makefile)
 build-go:
-	$(MAKE) -C kubo-sys build
+	$(MAKE) -C go/kubo-sys build
 
 # FFI archive build
 build-ffi:
-	cd kubo-sys/ffi && go build -buildmode=c-archive -o ./tmp/libkubo_ffi.a ./ffi.go
+	cd go/kubo-sys/ffi && go build -buildmode=c-archive -o ./tmp/libkubo_ffi.a ./ffi.go
 
 # Testing
 test:
@@ -30,7 +30,7 @@ test-cli:
 	cargo test --test cli
 
 test-ffi-c: build-ffi
-	cd kubo-sys/ffi && \
+	cd go/kubo-sys/ffi && \
 	if [ "$$(uname)" = "Darwin" ]; then \
 		cc -o cmd/testffi/testffi cmd/testffi/main.c -I./tmp ./tmp/libkubo_ffi.a -lpthread -ldl -framework Security -framework CoreFoundation -lresolv; \
 	else \
@@ -39,7 +39,7 @@ test-ffi-c: build-ffi
 	./cmd/testffi/testffi
 
 test-ffi-rust: build-ffi
-	cd kubo-sys/ffi && \
+	cd go/kubo-sys/ffi && \
 	if [ "$$(uname)" = "Darwin" ]; then \
 		rustc cmd/testrust/main.rs -L ./tmp -lkubo_ffi -o cmd/testrust/testrust \
 			-C link-arg="-framework" -C link-arg="Security" \
@@ -70,12 +70,12 @@ check: fmt clippy test-all
 # Cleanup
 clean:
 	cargo clean
-	cd kubo-sys/ffi && go clean
-	cd kubo-sys/ffi && rm -f cmd/testffi/testffi cmd/testrust/testrust
-	cd kubo-sys/ffi && rm -rf ./tmp
+	cd go/kubo-sys/ffi && go clean
+	cd go/kubo-sys/ffi && rm -f cmd/testffi/testffi cmd/testrust/testrust
+	cd go/kubo-sys/ffi && rm -rf ./tmp
 
 clean-all: clean
-	$(MAKE) -C kubo-sys clean
+	$(MAKE) -C go/kubo-sys clean
 
 # Examples
 example:
@@ -100,7 +100,7 @@ help:
 	@echo "Available targets:"
 	@echo "  build        - Build the Rust library"
 	@echo "  build-bin    - Build the kubo-rs CLI binary"
-	@echo "  build-go     - Build the Go ipfs binary (via kubo-sys/Makefile)"
+	@echo "  build-go     - Build the Go ipfs binary (via go/kubo-sys/Makefile)"
 	@echo "  build-ffi    - Build the FFI C archive"
 	@echo "  test         - Run all Rust tests"
 	@echo "  test-cli     - Run CLI integration tests"

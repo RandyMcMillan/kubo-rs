@@ -22,10 +22,10 @@ fn main() {
     }
 
     // Verify the submodule is present.
-    let kubo_sys = PathBuf::from("kubo-sys");
+    let kubo_sys = PathBuf::from("go/kubo-sys");
     if !kubo_sys.join("go.mod").exists() {
         panic!(
-            "kubo-sys/go.mod not found. \
+            "go/kubo-sys/go.mod not found. \
              Run: git submodule update --init --recursive"
         );
     }
@@ -43,17 +43,17 @@ fn main() {
         );
     }
 
-    // Pin GOTOOLCHAIN to the Go version declared in kubo-sys/go.mod so that
+    // Pin GOTOOLCHAIN to the Go version declared in go/kubo-sys/go.mod so that
     // the build is reproducible even when the host has a newer Go installed.
     let go_mod_text =
-        std::fs::read_to_string(kubo_sys.join("go.mod")).expect("failed to read kubo-sys/go.mod");
+        std::fs::read_to_string(kubo_sys.join("go.mod")).expect("failed to read go/kubo-sys/go.mod");
     let toolchain = go_mod_text
         .lines()
         .find_map(|line| {
             line.strip_prefix("go ")
                 .map(|ver| format!("go{}", ver.trim()))
         })
-        .expect("no 'go' directive found in kubo-sys/go.mod");
+        .expect("no 'go' directive found in go/kubo-sys/go.mod");
 
     // Map Rust target to Go os/arch.
     let (goos, goarch) = parse_target(&target);
@@ -73,9 +73,9 @@ fn main() {
     let header = out_dir.join(header_name);
 
     // Only rebuild when Go sources change.
-    println!("cargo:rerun-if-changed=kubo-sys/ffi/ffi.go");
-    println!("cargo:rerun-if-changed=kubo-sys/ffi/go.mod");
-    println!("cargo:rerun-if-changed=kubo-sys/ffi/go.sum");
+    println!("cargo:rerun-if-changed=go/kubo-sys/ffi/ffi.go");
+    println!("cargo:rerun-if-changed=go/kubo-sys/ffi/go.mod");
+    println!("cargo:rerun-if-changed=go/kubo-sys/ffi/go.sum");
 
     let status = Command::new(&go)
         .current_dir(&ffi_dir)
@@ -93,7 +93,7 @@ fn main() {
         .expect("failed to run `go build` for FFI");
 
     if !status.success() {
-        panic!("`go build` for kubo-sys/ffi failed");
+        panic!("`go build` for go/kubo-sys/ffi failed");
     }
 
     if !archive.exists() {

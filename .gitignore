@@ -2,12 +2,12 @@
 Cargo.lock
 
 # Go FFI build artifacts that may be generated during development
-/kubo-sys/ffi/ffi.h
-/kubo-sys/ffi/*.h
-/kubo-sys/ffi/*.a
-/kubo-sys/ffi/*.lib
-/kubo-sys/ffi/*.so
-/kubo-sys/ffi/*.dll
+/go/kubo-sys/ffi/ffi.h
+/go/kubo-sys/ffi/*.h
+/go/kubo-sys/ffi/*.a
+/go/kubo-sys/ffi/*.lib
+/go/kubo-sys/ffi/*.so
+/go/kubo-sys/ffi/*.dll
 
 # IDE
 .idea/

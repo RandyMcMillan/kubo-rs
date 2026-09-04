@@ -127,7 +127,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('kubo-sys/go.sum', 'kubo-sys/ffi/go.sum') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('go/kubo-sys/go.sum', 'go/kubo-sys/ffi/go.sum') }}
           restore-keys: ${{ runner.os }}-go-
 
       - name: Populate Rust cache
@@ -190,23 +190,23 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('kubo-sys/go.sum', 'kubo-sys/ffi/go.sum') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('go/kubo-sys/go.sum', 'go/kubo-sys/ffi/go.sum') }}
           restore-keys: ${{ runner.os }}-go-
 
       - name: Build FFI archive
         run: |
-          cd kubo-sys/ffi
+          cd go/kubo-sys/ffi
           go build -buildmode=c-archive -o ./tmp/libkubo_ffi.a ./ffi.go
 
       - name: Build and run C FFI tests
         run: |
-          cd kubo-sys/ffi
+          cd go/kubo-sys/ffi
           cc -o cmd/testffi/testffi cmd/testffi/main.c -I./tmp ./tmp/libkubo_ffi.a -lpthread -ldl -framework Security -framework CoreFoundation -lresolv
           ./cmd/testffi/testffi
 
       - name: Build and run Rust FFI tests
         run: |
-          cd kubo-sys/ffi
+          cd go/kubo-sys/ffi
           rustc cmd/testrust/main.rs -L ./tmp -lkubo_ffi -o cmd/testrust/testrust \
             -C link-arg="-framework" -C link-arg="Security" \
             -C link-arg="-framework" -C link-arg="CoreFoundation" \

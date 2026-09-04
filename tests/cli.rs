@@ -80,7 +80,7 @@ fn cli_add_and_cat() {
 
 #[test]
 fn cli_add_hello_world_cidv0() {
-    // Aligns with kubo-sys/test/cli/add_test.go default profile.
+    // Aligns with go/kubo-sys/test/cli/add_test.go default profile.
     let base = tmp_dir("add_hello_world_cidv0");
     let repo = base.join("repo");
     let file = base.join("hello.txt");

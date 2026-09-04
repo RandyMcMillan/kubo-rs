@@ -88,8 +88,9 @@ dashboard:
 	cargo run --example dashboard
 
 wasm-dashboard:
-	@echo "Build with: cd examples/wasm-dashboard && trunk serve"
-	@echo "Requires: rustup target add wasm32-unknown-unknown && cargo install trunk"
+	@rustup target list --installed | grep -q wasm32-unknown-unknown || rustup target add wasm32-unknown-unknown
+	@which trunk >/dev/null 2>&1 || cargo install trunk
+	cd examples/wasm-dashboard && env -u NO_COLOR trunk build
 
 # Cross-testing
 scripts:

@@ -1,0 +1,3 @@
+[submodule "kubo-sys"]
+	path = kubo-sys
+	url = https://github.com/RandyMcMillan/kubo.git

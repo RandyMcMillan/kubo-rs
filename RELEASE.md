@@ -21,7 +21,7 @@ Key settings:
 cargo-dist-version = "0.32.0"
 ci = "github"
 installers = ["shell", "powershell", "homebrew"]
-tap = "homebrew-randymcmillan"
+tap = "randymcmillan/homebrew-randymcmillan"
 targets = [
     "aarch64-apple-darwin",
     "aarch64-unknown-linux-gnu",

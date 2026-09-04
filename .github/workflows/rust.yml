@@ -31,7 +31,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          fetch-depth: 0
+
+      - name: Init submodules (full depth)
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --recursive
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
@@ -97,9 +102,65 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          fetch-depth: 0
+
+      - name: Init submodules (full depth)
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --recursive
 
       - name: Verify submodule is initialized
         run: |
           test -f kubo-sys/go.mod || { echo "kubo-sys submodule not initialized"; exit 1; }
           test -f kubo-sys/ffi/ffi.go || { echo "kubo-sys/ffi/ffi.go missing"; exit 1; }
+
+  ffi-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Init submodules (full depth)
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --recursive
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.5"
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('kubo-sys/go.sum', 'kubo-sys/ffi/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-
+
+      - name: Build FFI archive
+        run: |
+          cd kubo-sys/ffi
+          go build -buildmode=c-archive -o ./tmp/libkubo_ffi.a ./ffi.go
+
+      - name: Build and run C FFI tests (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd kubo-sys/ffi
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            cc -o cmd/testffi/testffi cmd/testffi/main.c -I./tmp ./tmp/libkubo_ffi.a -lpthread -ldl -framework Security -framework CoreFoundation -lresolv
+          else
+            cc -o cmd/testffi/testffi cmd/testffi/main.c -I./tmp ./tmp/libkubo_ffi.a -lpthread -ldl
+          fi
+          ./cmd/testffi/testffi
+
+      - name: Build and run Rust FFI tests
+        run: |
+          cargo test --verbose

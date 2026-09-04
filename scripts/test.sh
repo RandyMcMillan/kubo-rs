@@ -22,3 +22,7 @@ echo "=== Doc check ==="
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --document-private-items
 
 echo "=== All checks passed ==="
+echo
+echo "For cross-language FFI alignment tests, run:"
+echo "  make test-ffi"
+echo "  ./scripts/cross-test.sh"

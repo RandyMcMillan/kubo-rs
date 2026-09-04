@@ -22,3 +22,7 @@ $env:RUSTDOCFLAGS = "-D warnings"
 cargo doc --no-deps --document-private-items
 
 Write-Host "=== All checks passed ==="
+Write-Host ""
+Write-Host "For cross-language FFI alignment tests, run:"
+Write-Host "  make test-ffi"
+Write-Host "  ./scripts/cross-test.sh"

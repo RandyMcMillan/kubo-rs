@@ -150,23 +150,58 @@ node.stop()?;
 
 ## Testing
 
-Run the test suite with:
+### Quick test
 
 ```bash
 cargo test
 ```
 
-Tests cover:
+### Full validation (includes cross-language alignment)
 
-- Version string retrieval
-- Repo initialization and node start/stop
-- UnixFS add/cat roundtrip
-- Empty content roundtrip
-- Drop behavior (node stops automatically)
-- Listening addresses on online nodes
-- Invalid path rejection
-- Peer-to-peer data exchange between two online nodes
-- Block API put/get/stat roundtrip
+```bash
+make check          # fmt + clippy + rust tests + FFI tests
+make test-all       # rust tests + C/Rust FFI tests
+./scripts/cross-test.sh
+```
+
+### Test coverage
+
+- **Version string retrieval**
+- **Repo initialization and node start/stop**
+- **UnixFS add/cat roundtrip** — including empty content
+- **CID alignment** — `add_bytes("hello world")` must produce `Qmf412jQZiuVUtdgnB36FXFX7xg5V6KEbSJ4dpQuhkLyfD` (CIDv0 dag-pb sha2-256), matching Kubo's default profile and `kubo-sys/test/cli/add_test.go`
+- **Drop behavior** — node stops automatically when handle is dropped
+- **Listening addresses** on online nodes
+- **Invalid path rejection**
+- **Peer-to-peer data exchange** between two online nodes via Bitswap
+- **Block API** put/get/stat roundtrip
+
+### Cross-language test runners
+
+The FFI layer is validated from both sides:
+
+| Runner | Language | Location | Purpose |
+|--------|----------|----------|---------|
+| `cargo test` | Rust (safe API) | `src/lib.rs`, `tests/cli.rs` | Rust consumer-facing tests |
+| `testffi` | C (raw FFI) | `kubo-sys/ffi/cmd/testffi/main.c` | Validate C exports from Go side |
+| `testrust` | Rust (raw FFI) | `kubo-sys/ffi/cmd/testrust/main.rs` | Validate C exports from Rust side |
+
+Both `testffi` and `testrust` exercise the same functions with the same test vectors, confirming functional equivalence across languages.
+
+### Temp directories
+
+All tests use a project-local `./tmp/` directory instead of system temp (`/tmp` or `tempfile`). This avoids approval prompts and makes debugging easier. The directory is gitignored (`tmp/*`).
+
+## CI
+
+GitHub Actions runs:
+
+- Format, clippy, build, test on `ubuntu-latest`, `macos-latest`, `windows-latest`
+- `cargo-deny` for license/advisory checking
+- Submodule verification
+- **FFI tests** — builds the C archive and runs both `testffi` and `testrust`
+
+The workflow fetches submodules at full depth (`fetch-depth: 0`) so that commits on non-default branches are available.
 
 ## Adding New FFI Functions
 
@@ -175,7 +210,9 @@ Tests cover:
 3. Add the `extern "C"` declaration in `src/ffi.rs`.
 4. Add a safe wrapper in `src/lib.rs` (or extend `Node`).
 5. Add a test in `src/lib.rs` under `#[cfg(test)]`.
-6. Run `cargo fmt`, `cargo clippy`, and `cargo test`.
+6. Mirror the test in `kubo-sys/ffi/cmd/testffi/main.c` and `kubo-sys/ffi/cmd/testrust/main.rs`.
+7. Run `cargo fmt`, `cargo clippy`, and `cargo test`.
+8. Run `make check` or `./scripts/cross-test.sh` to verify alignment.
 
 ## Security & Stability Notes
 

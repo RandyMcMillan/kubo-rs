@@ -1,9 +1,15 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use kubo_rs::{Node, init_repo};
+use std::path::PathBuf;
+
+fn tmp_dir(name: &str) -> PathBuf {
+    let path = PathBuf::from("tmp").join("bench").join(name);
+    let _ = std::fs::remove_dir_all(&path);
+    path
+}
 
 fn bench_add_bytes(c: &mut Criterion) {
-    let tmp = tempfile::tempdir().unwrap();
-    let repo = tmp.path().join("repo");
+    let repo = tmp_dir("add_bytes_1mb").join("repo");
     init_repo(&repo).unwrap();
     let node = Node::start(&repo, false).unwrap();
 
@@ -19,8 +25,7 @@ fn bench_add_bytes(c: &mut Criterion) {
 }
 
 fn bench_add_bytes_small(c: &mut Criterion) {
-    let tmp = tempfile::tempdir().unwrap();
-    let repo = tmp.path().join("repo");
+    let repo = tmp_dir("add_bytes_11b").join("repo");
     init_repo(&repo).unwrap();
     let node = Node::start(&repo, false).unwrap();
 

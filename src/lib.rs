@@ -159,6 +159,14 @@ impl Drop for Node {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::path::PathBuf;
+
+    fn tmp_dir(name: &str) -> PathBuf {
+        let path = PathBuf::from("tmp").join("test").join(name);
+        let _ = fs::remove_dir_all(&path);
+        path
+    }
 
     #[test]
     fn test_version() {
@@ -169,8 +177,7 @@ mod tests {
 
     #[test]
     fn test_init_repo_and_start_node() {
-        let tmp = tempfile::tempdir().expect("tempdir");
-        let repo = tmp.path().join("repo");
+        let repo = tmp_dir("init_repo_and_start_node").join("repo");
 
         init_repo(&repo).expect("init repo should succeed");
         assert!(repo.exists(), "repo directory should exist");
@@ -184,8 +191,7 @@ mod tests {
 
     #[test]
     fn test_add_and_cat() {
-        let tmp = tempfile::tempdir().expect("tempdir");
-        let repo = tmp.path().join("repo");
+        let repo = tmp_dir("add_and_cat").join("repo");
 
         init_repo(&repo).expect("init repo should succeed");
         let node = Node::start(&repo, false).expect("start node should succeed");
@@ -201,9 +207,32 @@ mod tests {
     }
 
     #[test]
+    fn test_add_hello_world_cidv0_alignment() {
+        // Aligns with kubo-sys/test/cli/add_test.go:
+        // shortString = "hello world"
+        // shortStringCidV0 = "Qmf412jQZiuVUtdgnB36FXFX7xg5V6KEbSJ4dpQuhkLyfD"
+        let repo = tmp_dir("add_hello_world_cidv0").join("repo");
+
+        init_repo(&repo).expect("init repo should succeed");
+        let node = Node::start(&repo, false).expect("start node should succeed");
+
+        let cid = node
+            .add_bytes(b"hello world")
+            .expect("add_bytes should succeed");
+        assert_eq!(
+            cid, "Qmf412jQZiuVUtdgnB36FXFX7xg5V6KEbSJ4dpQuhkLyfD",
+            "CID for 'hello world' must match kubo default profile (CIDv0 dag-pb sha2-256)"
+        );
+
+        let fetched = node.cat(&cid).expect("cat should succeed");
+        assert_eq!(fetched, b"hello world");
+
+        node.stop().expect("stop should succeed");
+    }
+
+    #[test]
     fn test_listening_addrs_online() {
-        let tmp = tempfile::tempdir().expect("tempdir");
-        let repo = tmp.path().join("repo");
+        let repo = tmp_dir("listening_addrs_online").join("repo");
 
         init_repo(&repo).expect("init repo should succeed");
         let node = Node::start(&repo, true).expect("start node should succeed");
@@ -221,8 +250,7 @@ mod tests {
 
     #[test]
     fn test_drop_stops_node() {
-        let tmp = tempfile::tempdir().expect("tempdir");
-        let repo = tmp.path().join("repo");
+        let repo = tmp_dir("drop_stops_node").join("repo");
 
         init_repo(&repo).expect("init repo should succeed");
         {
@@ -236,8 +264,7 @@ mod tests {
 
     #[test]
     fn test_add_cat_empty() {
-        let tmp = tempfile::tempdir().expect("tempdir");
-        let repo = tmp.path().join("repo");
+        let repo = tmp_dir("add_cat_empty").join("repo");
 
         init_repo(&repo).expect("init repo should succeed");
         let node = Node::start(&repo, false).expect("start node should succeed");
@@ -261,9 +288,9 @@ mod tests {
 
     #[test]
     fn test_two_nodes_exchange_data() {
-        let tmp = tempfile::tempdir().expect("tempdir");
-        let repo_a = tmp.path().join("repo_a");
-        let repo_b = tmp.path().join("repo_b");
+        let base = tmp_dir("two_nodes_exchange_data");
+        let repo_a = base.join("repo_a");
+        let repo_b = base.join("repo_b");
 
         init_repo(&repo_a).expect("init repo_a should succeed");
         init_repo(&repo_b).expect("init repo_b should succeed");
@@ -297,8 +324,7 @@ mod tests {
 
     #[test]
     fn test_block_put_get_stat() {
-        let tmp = tempfile::tempdir().expect("tempdir");
-        let repo = tmp.path().join("repo");
+        let repo = tmp_dir("block_put_get_stat").join("repo");
 
         init_repo(&repo).expect("init repo should succeed");
         let node = Node::start(&repo, false).expect("start node should succeed");

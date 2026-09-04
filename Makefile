@@ -1,4 +1,4 @@
-.PHONY: all build build-bin build-go test bench fmt clippy clean check example p2p scripts
+.PHONY: all build build-bin build-go build-ffi test test-cli test-ffi test-ffi-c test-ffi-rust test-all bench fmt clippy clean clean-all check example p2p scripts cross-test
 
 all: fmt clippy test
 
@@ -16,6 +16,10 @@ build-release:
 build-go:
 	$(MAKE) -C kubo-sys build
 
+# FFI archive build
+build-ffi:
+	cd kubo-sys/ffi && go build -buildmode=c-archive -o ./tmp/libkubo_ffi.a ./ffi.go
+
 # Testing
 test:
 	cargo test
@@ -23,6 +27,32 @@ test:
 test-cli:
 	cargo test --test cli
 
+test-ffi-c: build-ffi
+	cd kubo-sys/ffi && \
+	if [ "$$(uname)" = "Darwin" ]; then \
+		cc -o cmd/testffi/testffi cmd/testffi/main.c -I./tmp ./tmp/libkubo_ffi.a -lpthread -ldl -framework Security -framework CoreFoundation -lresolv; \
+	else \
+		cc -o cmd/testffi/testffi cmd/testffi/main.c -I./tmp ./tmp/libkubo_ffi.a -lpthread -ldl; \
+	fi && \
+	./cmd/testffi/testffi
+
+test-ffi-rust: build-ffi
+	cd kubo-sys/ffi && \
+	if [ "$$(uname)" = "Darwin" ]; then \
+		rustc cmd/testrust/main.rs -L ./tmp -lkubo_ffi -o cmd/testrust/testrust \
+			-C link-arg="-framework" -C link-arg="Security" \
+			-C link-arg="-framework" -C link-arg="CoreFoundation" \
+			-lresolv -lpthread -ldl; \
+	else \
+		rustc cmd/testrust/main.rs -L ./tmp -lkubo_ffi -o cmd/testrust/testrust -lpthread -ldl; \
+	fi && \
+	./cmd/testrust/testrust
+
+test-ffi: test-ffi-c test-ffi-rust
+
+test-all: test test-ffi
+
+# Benchmarks
 bench:
 	cargo bench
 
@@ -33,12 +63,14 @@ fmt:
 clippy:
 	cargo clippy --all-targets -- -D warnings
 
-check: fmt clippy test
+check: fmt clippy test-all
 
 # Cleanup
 clean:
 	cargo clean
 	cd kubo-sys/ffi && go clean
+	cd kubo-sys/ffi && rm -f cmd/testffi/testffi cmd/testrust/testrust
+	cd kubo-sys/ffi && rm -rf ./tmp
 
 clean-all: clean
 	$(MAKE) -C kubo-sys clean
@@ -50,12 +82,16 @@ example:
 p2p:
 	cargo run --example p2p
 
-# Scripts
+# Cross-testing
 scripts:
 	@echo "Run one of:"
-	@echo "  ./scripts/test.sh      (Unix/macOS)"
-	@echo "  ./scripts/test.ps1     (Windows PowerShell)"
-	@echo "  python3 ./scripts/test.py  (cross-platform)"
+	@echo "  ./scripts/test.sh         (Unix/macOS)"
+	@echo "  ./scripts/test.ps1        (Windows PowerShell)"
+	@echo "  python3 ./scripts/test.py (cross-platform)"
+	@echo "  ./scripts/cross-test.sh   (Rust + FFI alignment tests)"
+
+cross-test:
+	./scripts/cross-test.sh
 
 # Help
 help:
@@ -63,14 +99,20 @@ help:
 	@echo "  build        - Build the Rust library"
 	@echo "  build-bin    - Build the kubo-rs CLI binary"
 	@echo "  build-go     - Build the Go ipfs binary (via kubo-sys/Makefile)"
+	@echo "  build-ffi    - Build the FFI C archive"
 	@echo "  test         - Run all Rust tests"
 	@echo "  test-cli     - Run CLI integration tests"
+	@echo "  test-ffi-c   - Build and run C FFI tests"
+	@echo "  test-ffi-rust- Build and run Rust raw-FFI tests"
+	@echo "  test-ffi     - Run both C and Rust FFI tests"
+	@echo "  test-all     - Run Rust tests + FFI tests"
 	@echo "  bench        - Run Criterion benchmarks"
 	@echo "  fmt          - Format Rust code"
 	@echo "  clippy       - Run Clippy lints"
-	@echo "  check        - Run fmt + clippy + test"
+	@echo "  check        - Run fmt + clippy + test-all"
 	@echo "  clean        - Clean Rust and FFI build artifacts"
 	@echo "  clean-all    - Clean everything including Go build"
 	@echo "  example      - Run the basic example"
 	@echo "  p2p          - Run the p2p example"
+	@echo "  cross-test   - Run cross-language alignment tests"
 	@echo "  scripts      - Show available test scripts"

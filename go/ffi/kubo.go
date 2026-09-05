@@ -780,7 +780,6 @@ func kubo_pin_ls(handle uint64) *C.char {
 	var lsErr error
 
 	go func() {
-		defer close(ch)
 		lsErr = h.api.Pin().Ls(h.ctx, ch)
 	}()
 

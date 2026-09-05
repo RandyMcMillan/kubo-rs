@@ -909,6 +909,67 @@ mod tests {
         node.stop().expect("stop should succeed");
     }
 
+    #[test]
+    fn test_pin_add_rm_ls() {
+        let repo = tmp_dir("pin_add_rm_ls").join("repo");
+
+        init_repo(&repo).expect("init repo should succeed");
+        let node = Node::start(&repo, false).expect("start node should succeed");
+
+        let data = b"pin me";
+        let cid = node.add_bytes(data).expect("add_bytes should succeed");
+
+        node.pin_add(&cid, true).expect("pin_add should succeed");
+
+        let pins = node.pin_ls().expect("pin_ls should succeed");
+        assert!(
+            pins.iter().any(|(p, _)| p.contains(&cid)),
+            "pinned cid should appear in pin_ls"
+        );
+
+        node.pin_rm(&cid, true).expect("pin_rm should succeed");
+
+        let pins_after = node.pin_ls().expect("pin_ls after rm should succeed");
+        assert!(
+            !pins_after.iter().any(|(p, _)| p.contains(&cid)),
+            "unpinned cid should not appear in pin_ls"
+        );
+
+        node.stop().expect("stop should succeed");
+    }
+
+    #[test]
+    fn test_swarm_disconnect() {
+        let base = tmp_dir("swarm_disconnect");
+        let repo_a = base.join("repo_a");
+        let repo_b = base.join("repo_b");
+
+        init_repo(&repo_a).expect("init_repo_a should succeed");
+        init_repo(&repo_b).expect("init_repo_b should succeed");
+
+        let node_a = Node::start(&repo_a, true).expect("start node_a should succeed");
+        let node_b = Node::start(&repo_b, true).expect("start node_b should succeed");
+
+        let peer_id_a = node_a.peer_id().expect("peer_id_a should succeed");
+        let addrs_a = node_a
+            .listening_addrs()
+            .expect("listening_addrs_a should succeed");
+        assert!(!addrs_a.is_empty(), "node_a should have addresses");
+
+        let dial_addr = format!("{}/p2p/{}", addrs_a[0], peer_id_a);
+        node_b
+            .connect(&dial_addr)
+            .expect("connect b->a should succeed");
+
+        // Disconnect and verify the peer is gone
+        node_b
+            .disconnect(&dial_addr)
+            .expect("disconnect should succeed");
+
+        node_a.stop().expect("stop node_a should succeed");
+        node_b.stop().expect("stop node_b should succeed");
+    }
+
     // -----------------------------------------------------------------------
     // libp2p tests
     // -----------------------------------------------------------------------

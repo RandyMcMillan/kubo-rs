@@ -125,6 +125,53 @@ enum IpfsCommands {
         /// Value to set (omit to read current value)
         value: Option<String>,
     },
+    /// Pin a CID or path
+    PinAdd {
+        /// Path to the repo
+        #[arg(short, long, default_value = ".ipfs")]
+        repo: PathBuf,
+        /// CID or /ipfs/… path to pin
+        cid: String,
+        /// Pin recursively (default)
+        #[arg(long, default_value = "true")]
+        recursive: bool,
+    },
+    /// Unpin a CID or path
+    PinRm {
+        /// Path to the repo
+        #[arg(short, long, default_value = ".ipfs")]
+        repo: PathBuf,
+        /// CID or /ipfs/… path to unpin
+        cid: String,
+        /// Unpin recursively
+        #[arg(long, default_value = "true")]
+        recursive: bool,
+    },
+    /// List pinned objects
+    PinLs {
+        /// Path to the repo
+        #[arg(short, long, default_value = ".ipfs")]
+        repo: PathBuf,
+    },
+    /// Publish an IPNS name
+    NamePublish {
+        /// Path to the repo
+        #[arg(short, long, default_value = ".ipfs")]
+        repo: PathBuf,
+        /// CID or /ipfs/… path to publish
+        cid: String,
+        /// Record lifetime in seconds
+        #[arg(short, long, default_value = "86400")]
+        lifetime: i64,
+    },
+    /// Resolve an IPNS name
+    NameResolve {
+        /// Path to the repo
+        #[arg(short, long, default_value = ".ipfs")]
+        repo: PathBuf,
+        /// IPNS name to resolve (e.g. /ipns/… or peer ID)
+        name: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -151,6 +198,30 @@ enum P2pCommands {
         /// Path to the repo
         #[arg(short, long, default_value = ".ipfs")]
         repo: PathBuf,
+    },
+    /// Disconnect from a peer by multiaddr
+    Disconnect {
+        /// Path to the repo
+        #[arg(short, long, default_value = ".ipfs")]
+        repo: PathBuf,
+        /// Multiaddr of the peer to disconnect from
+        addr: String,
+    },
+    /// Find a peer's addresses via DHT
+    DhtFindpeer {
+        /// Path to the repo
+        #[arg(short, long, default_value = ".ipfs")]
+        repo: PathBuf,
+        /// Peer ID to look up
+        peer_id: String,
+    },
+    /// Find providers for a CID via DHT
+    DhtFindprovs {
+        /// Path to the repo
+        #[arg(short, long, default_value = ".ipfs")]
+        repo: PathBuf,
+        /// CID to find providers for
+        cid: String,
     },
 }
 
@@ -353,6 +424,49 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                     println!("{}", serde_json::to_string_pretty(current)?);
                 }
             }
+            IpfsCommands::PinAdd {
+                repo,
+                cid,
+                recursive,
+            } => {
+                let node = Node::start(&repo, false)?;
+                node.pin_add(&cid, recursive)?;
+                println!("pinned {cid}");
+                node.stop()?;
+            }
+            IpfsCommands::PinRm {
+                repo,
+                cid,
+                recursive,
+            } => {
+                let node = Node::start(&repo, false)?;
+                node.pin_rm(&cid, recursive)?;
+                println!("unpinned {cid}");
+                node.stop()?;
+            }
+            IpfsCommands::PinLs { repo } => {
+                let node = Node::start(&repo, false)?;
+                for (path, typ) in node.pin_ls()? {
+                    println!("{path}\t{typ}");
+                }
+                node.stop()?;
+            }
+            IpfsCommands::NamePublish {
+                repo,
+                cid,
+                lifetime,
+            } => {
+                let node = Node::start(&repo, true)?;
+                let name = node.name_publish(&cid, lifetime)?;
+                println!("{name}");
+                node.stop()?;
+            }
+            IpfsCommands::NameResolve { repo, name } => {
+                let node = Node::start(&repo, true)?;
+                let resolved = node.name_resolve(&name)?;
+                println!("{resolved}");
+                node.stop()?;
+            }
         },
         Commands::P2p { command } => match command {
             P2pCommands::PeerId { path, online } => {
@@ -370,6 +484,31 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 let node = Node::start(&repo, true)?;
                 for addr in node.listening_addrs()? {
                     println!("{addr}");
+                }
+                node.stop()?;
+            }
+            P2pCommands::Disconnect { repo, addr } => {
+                let node = Node::start(&repo, true)?;
+                node.disconnect(&addr)?;
+                println!("disconnected from {addr}");
+                node.stop()?;
+            }
+            P2pCommands::DhtFindpeer { repo, peer_id } => {
+                let node = Node::start(&repo, true)?;
+                let (id, addrs) = node.dht_findpeer(&peer_id)?;
+                println!("{id}");
+                for addr in addrs {
+                    println!("  {addr}");
+                }
+                node.stop()?;
+            }
+            P2pCommands::DhtFindprovs { repo, cid } => {
+                let node = Node::start(&repo, true)?;
+                for (id, addrs) in node.dht_findprovs(&cid)? {
+                    println!("{id}");
+                    for addr in addrs {
+                        println!("  {addr}");
+                    }
                 }
                 node.stop()?;
             }

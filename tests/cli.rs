@@ -201,6 +201,74 @@ fn cli_config_json() {
 }
 
 #[test]
+fn cli_pin_add_rm_ls() {
+    let base = tmp_dir("pin_add_rm_ls");
+    let repo = base.join("repo");
+    let file = base.join("pin.txt");
+    std::fs::write(&file, b"pin me").unwrap();
+
+    kubo_rs()
+        .args(["ipfs", "init", repo.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    let add = kubo_rs()
+        .args([
+            "ipfs",
+            "add",
+            "--repo",
+            repo.to_str().unwrap(),
+            file.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(add.status.success());
+    let cid = String::from_utf8_lossy(&add.stdout).trim().to_string();
+
+    let pin = kubo_rs()
+        .args(["ipfs", "pin-add", "--repo", repo.to_str().unwrap(), &cid])
+        .output()
+        .unwrap();
+    assert!(
+        pin.status.success(),
+        "pin-add failed: {}",
+        String::from_utf8_lossy(&pin.stderr)
+    );
+
+    let ls = kubo_rs()
+        .args(["ipfs", "pin-ls", "--repo", repo.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(ls.status.success());
+    let ls_out = String::from_utf8_lossy(&ls.stdout);
+    assert!(
+        ls_out.contains(&cid),
+        "pin-ls should contain the pinned cid"
+    );
+
+    let rm = kubo_rs()
+        .args(["ipfs", "pin-rm", "--repo", repo.to_str().unwrap(), &cid])
+        .output()
+        .unwrap();
+    assert!(
+        rm.status.success(),
+        "pin-rm failed: {}",
+        String::from_utf8_lossy(&rm.stderr)
+    );
+
+    let ls_after = kubo_rs()
+        .args(["ipfs", "pin-ls", "--repo", repo.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(ls_after.status.success());
+    let ls_after_out = String::from_utf8_lossy(&ls_after.stdout);
+    assert!(
+        !ls_after_out.contains(&cid),
+        "pin-ls after rm should not contain the cid"
+    );
+}
+
+#[test]
 fn cli_p2p_peer_id_and_listen() {
     let repo = tmp_dir("p2p_peer_id_and_listen").join("repo");
 

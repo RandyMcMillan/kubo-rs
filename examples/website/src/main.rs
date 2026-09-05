@@ -109,11 +109,11 @@ fn main() -> io::Result<()> {
 
 fn ui(f: &mut Frame<'_>, state: &mut State) {
     render_intro(f, state);
-    // if state.intro_effect.running() {
-    //     render_intro(f, state);
-    // } else {
-    //     render_menu(f, state);
-    // }
+    //if state.intro_effect.running() {
+    //    render_intro(f, state);
+    //} else {
+    //    render_menu(f, state);
+    //}
 }
 
 fn handle_key_event(key: KeyEvent) {
@@ -134,21 +134,22 @@ fn render_intro(f: &mut Frame<'_>, state: &mut State) {
 	//widgets 
 	//
 	//dont mess with anything else!!
-    Clear.render(f.area(), f.buffer_mut());
-    let area = f.area().centered(Constraint::Length(33), Constraint::Length(2));
-    let main_text = Text::from(vec![
-        Line::from("| R A T Z I L L A |").bold(),
-        Line::from("Stomping through the web").italic(),
-    ]);
-    f.render_widget(main_text.light_green().centered(), area);
-    let link = Hyperlink::new("https://github.com/ratatui/ratzilla".red());
-    f.render_widget(link, area.offset(Offset { x: 0, y: 4 }));
-    f.render_effect(&mut state.intro_effect, area, Duration::from_millis(40));
+    //Clear.render(f.area(), f.buffer_mut());
+    let _area = f.area().centered(Constraint::Length(33), Constraint::Length(10));
+    //let main_text = Text::from(vec![
+    //    Line::from("| R A T Z I L L A |").bold(),
+    //    Line::from("Stomping through the web").italic(),
+    //]);
+    //f.render_widget(main_text.light_green().centered(), area);
+    //let link = Hyperlink::new("https://github.com/ratatui/ratzilla".red());
+    //f.render_widget(link, area.offset(Offset { x: 0, y: 4 }));
+    //f.render_effect(&mut state.intro_effect, area, Duration::from_millis(40));
 
     let info = state.info.borrow();
     let ipfs_area = Layout::vertical([
-        Constraint::Percentage(40),
-        Constraint::Percentage(60),
+        Constraint::Percentage(2),
+        Constraint::Percentage(96),
+        Constraint::Percentage(2),
     ]).split(f.area())[1];
 
     let status_text = if info.connected {
@@ -183,10 +184,19 @@ fn render_intro(f: &mut Frame<'_>, state: &mut State) {
         .block(Block::default().title(" Listening Addresses ").borders(Borders::ALL))
         .wrap(Wrap { trim: true });
 
-    let chunks = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
+    let chunks = Layout::horizontal(
+		[
+		Constraint::Percentage(2),
+		Constraint::Percentage(50),
+		//Constraint::Percentage(2),
+		//Constraint::Percentage(33)
+		//Constraint::Percentage(2)
+		Constraint::Percentage(60)
+		]
+		)
         .split(ipfs_area);
-    f.render_widget(status, chunks[0]);
-    f.render_widget(addrs, chunks[1]);
+    f.render_widget(status, chunks[1]);
+    f.render_widget(addrs, chunks[2]);
 }
 
 fn render_menu(f: &mut Frame<'_>, state: &mut State) {
@@ -205,19 +215,19 @@ fn render_menu(f: &mut Frame<'_>, state: &mut State) {
         Line::from(vec!["[".into(), "d".light_green(), "] Demo".into()]),
     ]);
 
-    f.render_widget(
-        Paragraph::new(text)
-            .alignment(Alignment::Center)
-            .wrap(Wrap { trim: false })
-            .block(
-                Block::bordered()
-                    .border_type(BorderType::Rounded)
-                    .title(" Welcome to Ratzilla ")
-                    .title_alignment(Alignment::Center),
-            ),
-        area,
-    );
-    f.render_effect(&mut state.menu_effect, area, Duration::from_millis(100));
+    //f.render_widget(
+    //    Paragraph::new(text)
+    //        .alignment(Alignment::Center)
+    //        .wrap(Wrap { trim: false })
+    //        .block(
+    //            Block::bordered()
+    //                .border_type(BorderType::Rounded)
+    //                .title(" Welcome to Ratzilla ")
+    //                .title_alignment(Alignment::Center),
+    //        ),
+    //    area,
+    //);
+    //f.render_effect(&mut state.menu_effect, area, Duration::from_millis(100));
 }
 
 async fn poll_api(info: &RefCell<NodeInfo>, api_base: &str) {

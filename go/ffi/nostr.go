@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/nbd-wtf/go-nostr"
@@ -246,4 +247,82 @@ func kubo_nostr_nip05_query(identifier *C.char) *C.char {
 
 	setError(nil)
 	return C.CString(profile.PublicKey)
+}
+
+var (
+	nostrRelaysMu    sync.RWMutex
+	nostrRelays      = make(map[uint64]*nostr.Relay)
+	nostrRelayNext   uint64 = 1
+)
+
+//export kubo_nostr_relay_connect
+func kubo_nostr_relay_connect(url *C.char) uint64 {
+	ctx, cancel := context.WithCancel(context.Background())
+	relay := nostr.NewRelay(ctx, C.GoString(url))
+
+	connectCtx, connectCancel := context.WithTimeout(ctx, 7*time.Second)
+	defer connectCancel()
+
+	if err := relay.Connect(connectCtx); err != nil {
+		cancel()
+		setError(fmt.Errorf("relay connect: %w", err))
+		return 0
+	}
+
+	nostrRelaysMu.Lock()
+	handle := nostrRelayNext
+	nostrRelayNext++
+	nostrRelays[handle] = relay
+	nostrRelaysMu.Unlock()
+
+	setError(nil)
+	return handle
+}
+
+//export kubo_nostr_relay_close
+func kubo_nostr_relay_close(handle uint64) int64 {
+	nostrRelaysMu.Lock()
+	relay, ok := nostrRelays[handle]
+	if ok {
+		delete(nostrRelays, handle)
+	}
+	nostrRelaysMu.Unlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid relay handle %d", handle))
+		return -1
+	}
+
+	relay.Close()
+	setError(nil)
+	return 0
+}
+
+//export kubo_nostr_relay_publish
+func kubo_nostr_relay_publish(handle uint64, eventJSON *C.char) int64 {
+	nostrRelaysMu.RLock()
+	relay, ok := nostrRelays[handle]
+	nostrRelaysMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid relay handle %d", handle))
+		return -1
+	}
+
+	var event nostr.Event
+	if err := json.Unmarshal([]byte(C.GoString(eventJSON)), &event); err != nil {
+		setError(fmt.Errorf("unmarshal event: %w", err))
+		return -1
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := relay.Publish(ctx, event); err != nil {
+		setError(fmt.Errorf("relay publish: %w", err))
+		return -1
+	}
+
+	setError(nil)
+	return 0
 }

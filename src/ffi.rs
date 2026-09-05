@@ -64,6 +64,9 @@ unsafe extern "C" {
     fn kubo_nostr_nip19_decode_entity(bech32: *const c_char) -> *mut c_char;
     fn kubo_nostr_nip05_verify(identifier: *const c_char, pubkey: *const c_char) -> i64;
     fn kubo_nostr_nip05_query(identifier: *const c_char) -> *mut c_char;
+    fn kubo_nostr_relay_connect(url: *const c_char) -> u64;
+    fn kubo_nostr_relay_close(handle: u64) -> i64;
+    fn kubo_nostr_relay_publish(handle: u64, event_json: *const c_char) -> i64;
 
     // git
     fn kubo_git_clone(url: *const c_char, path: *const c_char, bare: u8) -> i64;
@@ -430,6 +433,25 @@ pub fn nip05_query(identifier: &str) -> Result<String, Error> {
         ptr_to_string(kubo_nostr_nip05_query(c_identifier.as_ptr()))
             .ok_or_else(|| Error::Go(last_error()))
     }
+}
+
+pub fn relay_connect(url: &str) -> Result<u64, Error> {
+    let c_url = CString::new(url)?;
+    let handle = unsafe { kubo_nostr_relay_connect(c_url.as_ptr()) };
+    if handle == 0 {
+        Err(Error::Go(last_error()))
+    } else {
+        Ok(handle)
+    }
+}
+
+pub fn relay_close(handle: u64) -> Result<(), Error> {
+    unsafe { check_err(kubo_nostr_relay_close(handle)) }
+}
+
+pub fn relay_publish(handle: u64, event_json: &str) -> Result<(), Error> {
+    let c_json = CString::new(event_json)?;
+    unsafe { check_err(kubo_nostr_relay_publish(handle, c_json.as_ptr())) }
 }
 
 // ---------------------------------------------------------------------------

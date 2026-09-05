@@ -402,6 +402,33 @@ pub fn nostr_nip05_query(identifier: &str) -> Result<String, Error> {
     ffi::nip05_query(identifier)
 }
 
+/// Connect to a Nostr relay and return a handle.
+///
+/// # Errors
+///
+/// Returns an error if the connection fails.
+pub fn nostr_relay_connect(url: &str) -> Result<u64, Error> {
+    ffi::relay_connect(url)
+}
+
+/// Close a Nostr relay connection.
+///
+/// # Errors
+///
+/// Returns an error if the handle is invalid.
+pub fn nostr_relay_close(handle: u64) -> Result<(), Error> {
+    ffi::relay_close(handle)
+}
+
+/// Publish a Nostr event JSON to a relay.
+///
+/// # Errors
+///
+/// Returns an error if publish fails.
+pub fn nostr_relay_publish(handle: u64, event_json: &str) -> Result<(), Error> {
+    ffi::relay_publish(handle, event_json)
+}
+
 // ---------------------------------------------------------------------------
 // git
 // ---------------------------------------------------------------------------

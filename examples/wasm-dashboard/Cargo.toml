@@ -20,8 +20,11 @@ version = "0.3"
 features = [
   "console",
   "Window",
+  "Location",
   "Request",
   "RequestInit",
   "RequestMode",
   "Response",
+  "Url",
+  "UrlSearchParams",
 ]

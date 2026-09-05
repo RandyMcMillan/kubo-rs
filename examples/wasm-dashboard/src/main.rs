@@ -192,12 +192,16 @@ fn is_mixed_content(api_base: &str) -> bool {
 
 async fn poll_api(info: &RefCell<NodeInfo>, api_base: &str) {
     if is_mixed_content(api_base) {
+        let page = web_sys::window()
+            .and_then(|w| w.location().href().ok())
+            .unwrap_or_default();
         let mut i = info.borrow_mut();
         i.connected = false;
         i.error = Some(
-            "Mixed content blocked: HTTPS page cannot fetch HTTP API. \
-             Use http://localhost:8080 from 'trunk serve' instead of GitHub Pages."
-                .to_string(),
+            format!(
+                "Mixed content blocked: {page} is HTTPS but API is HTTP. \
+                 Open http://localhost:8080 from 'make run-wasm-dashboard' instead.",
+            ),
         );
         return;
     }

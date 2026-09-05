@@ -31,7 +31,13 @@ fn api_base() -> String {
         .and_then(|w| w.location().href().ok())
         .and_then(|href| web_sys::Url::new(&href).ok())
         .and_then(|url| url.search_params().get("api"))
-        .unwrap_or_else(|| "http://localhost:5001".to_string())
+        .unwrap_or_else(|| {
+            let hostname = web_sys::window()
+                .and_then(|w| w.location().hostname().ok())
+                .filter(|h| !h.is_empty())
+                .unwrap_or_else(|| "localhost".to_string());
+            format!("http://{}:5001", hostname)
+        })
 }
 
 fn main() -> io::Result<()> {
@@ -169,7 +175,25 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
+fn is_mixed_content(api_base: &str) -> bool {
+    web_sys::window()
+        .and_then(|w| w.location().protocol().ok())
+        .map(|proto| proto == "https:" && api_base.starts_with("http:"))
+        .unwrap_or(false)
+}
+
 async fn poll_api(info: &RefCell<NodeInfo>, api_base: &str) {
+    if is_mixed_content(api_base) {
+        let mut i = info.borrow_mut();
+        i.connected = false;
+        i.error = Some(
+            "Mixed content blocked: HTTPS page cannot fetch HTTP API. \
+             Use http://localhost:8080 from 'trunk serve' instead of GitHub Pages."
+                .to_string(),
+        );
+        return;
+    }
+
     match fetch_id(api_base).await {
         Ok(json) => {
             let mut i = info.borrow_mut();

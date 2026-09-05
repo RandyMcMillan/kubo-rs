@@ -91,6 +91,11 @@ fn handle_key_event(key: KeyEvent) {
 }
 
 fn render_intro(f: &mut Frame<'_>, state: &mut State) {
+
+	//this is where i want you to insert the ipfs interface
+	//widgets 
+	//
+	//dont mess with anything else!!
     Clear.render(f.area(), f.buffer_mut());
     let area = f.area().centered(Constraint::Length(33), Constraint::Length(2));
     let main_text = Text::from(vec![

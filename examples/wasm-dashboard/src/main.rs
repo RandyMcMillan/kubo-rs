@@ -143,7 +143,15 @@ fn main() -> io::Result<()> {
         let help = Paragraph::new(vec![
             Line::from(""),
             Line::from(vec![
-                Span::styled("Setup:", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                Span::styled("Quickstart:", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            ]),
+            Line::from("git clone https://github.com/RandyMcMillan/kubo-rs.git"),
+            Line::from("cd kubo-rs && git submodule update --init --recursive"),
+            Line::from("make build-go   # builds go/kubo-sys/cmd/ipfs/ipfs"),
+            Line::from("make run-wasm-dashboard   # starts daemon + serves dashboard"),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("Manual setup:", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
             ]),
             Line::from("1. Start a standard Kubo daemon on port 5001:"),
             Line::from("   ipfs daemon --api /ip4/127.0.0.1/tcp/5001"),

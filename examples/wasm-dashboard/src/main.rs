@@ -183,9 +183,13 @@ fn main() -> io::Result<()> {
             "2" => info_keys.borrow_mut().tab = 1,
             "3" => info_keys.borrow_mut().tab = 2,
             "4" => info_keys.borrow_mut().tab = 3,
-            "Tab" => {
+            "ArrowRight" | "Tab" => {
                 let mut i = info_keys.borrow_mut();
                 i.tab = (i.tab + 1) % 4;
+            }
+            "ArrowLeft" => {
+                let mut i = info_keys.borrow_mut();
+                i.tab = (i.tab + 3) % 4;
             }
             "t" | "T" => {
                 let new_theme = info_keys.borrow().theme.toggle();

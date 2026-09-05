@@ -92,7 +92,7 @@ fn handle_key_event(key: KeyEvent) {
 
 fn render_intro(f: &mut Frame<'_>, state: &mut State) {
     Clear.render(f.area(), f.buffer_mut());
-    let area = f.area().inner_centered(33, 2);
+    let area = f.area().centered(Constraint::Length(33), Constraint::Length(2));
     let main_text = Text::from(vec![
         Line::from("| R A T Z I L L A |").bold(),
         Line::from("Stomping through the web").italic(),

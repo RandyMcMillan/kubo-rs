@@ -6,6 +6,8 @@ Demonstrates the ability to generate the necessary bindings for a rust lib compi
 
 The sample app now also exercises real `kubo-rs` functionality by creating a temporary repo, starting an offline node, adding bytes, and reading them back through the FFI layer.
 
+The Xcode sample UI is now a desktop-style dashboard with a sidebar, live status cards, and a refresh action so it feels closer to IPFS Desktop than a plain demo screen.
+
 ## pre-reqs
 1. [cargo](https://rustup.rs/)
 1. xcode from [Apple app store](https://apps.apple.com/us/app/xcode/id497799835)

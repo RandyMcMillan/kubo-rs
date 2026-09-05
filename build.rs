@@ -15,8 +15,10 @@ fn main() {
     let target_parts: Vec<&str> = target.split('-').collect();
     let host_os = host_parts.get(2).copied().unwrap_or("unknown");
     let target_os = target_parts.get(2).copied().unwrap_or("unknown");
+    let host_vendor = host_parts.get(1).copied().unwrap_or("unknown");
+    let target_vendor = target_parts.get(1).copied().unwrap_or("unknown");
 
-    let both_darwin = host_os == "apple" && target_os == "apple";
+    let both_darwin = host_vendor == "apple" && target_vendor == "apple";
     let both_linux = host_os == "linux" && target_os == "linux";
     let both_windows = host_os == "windows" && target_os == "windows";
 
@@ -92,7 +94,8 @@ fn main() {
     println!("cargo:rerun-if-changed=go/ffi/go.mod");
     println!("cargo:rerun-if-changed=go/ffi/go.sum");
 
-    let status = Command::new(&go)
+    let mut go_build = Command::new(&go);
+    go_build
         .current_dir(&ffi_dir)
         .env("CGO_ENABLED", "1")
         .env("GOOS", goos)
@@ -103,9 +106,16 @@ fn main() {
             "-buildmode=c-archive",
             "-o",
             archive.to_str().unwrap(),
-        ])
-        .status()
-        .expect("failed to run `go build` for FFI");
+        ]);
+
+    // When cross-compiling for iOS (or Catalyst) the Go toolchain needs an
+    // Apple-specific C cross-compiler. Without this, `clang` defaults to the
+    // host macOS target and the linker rejects the resulting object files.
+    if let Some((cc, cxx)) = apple_compiler(&target) {
+        go_build.env("CC", &cc).env("CXX", &cxx);
+    }
+
+    let status = go_build.status().expect("failed to run `go build` for FFI");
 
     if !status.success() {
         panic!("`go build` for go/ffi failed");
@@ -152,7 +162,13 @@ fn main() {
 fn parse_target(target: &str) -> (&str, &str) {
     let parts: Vec<&str> = target.split('-').collect();
     let arch = parts[0];
-    let os = parts.get(2).copied().unwrap_or("unknown");
+
+    // Apple iOS variants (ios, ios-sim, ios-macabi) all map to Go's "ios".
+    let os = if parts.len() >= 3 && parts[1] == "apple" && parts[2].starts_with("ios") {
+        "ios"
+    } else {
+        parts.get(2).copied().unwrap_or("unknown")
+    };
 
     let goarch = match arch {
         "x86_64" => "amd64",
@@ -166,4 +182,46 @@ fn parse_target(target: &str) -> (&str, &str) {
     };
 
     (os, goarch)
+}
+
+/// Return the (CC, CXX) commands for Apple cross-compilation when the host
+/// is macOS and the target is a non-macOS Apple platform (iOS, simulator,
+/// or Mac Catalyst). Uses `xcrun` to select the correct SDK and target.
+fn apple_compiler(target: &str) -> Option<(String, String)> {
+    if std::env::consts::OS != "macos" {
+        return None;
+    }
+
+    let parts: Vec<&str> = target.split('-').collect();
+    if parts.len() < 3 || parts[1] != "apple" {
+        return None;
+    }
+
+    let arch = parts[0];
+    let os = parts[2];
+    let variant = parts.get(3).copied();
+
+    // (SDK, optional explicit -target flag)
+    let (sdk, target_flag): (&str, &str) = match (arch, os, variant) {
+        // iOS Device
+        ("aarch64", "ios", None) => ("iphoneos", ""),
+        // iOS Simulator (x86_64 iOS is always simulator)
+        ("x86_64", "ios", None) => ("iphonesimulator", ""),
+        ("aarch64", "ios", Some("sim")) => ("iphonesimulator", ""),
+        // Mac Catalyst
+        ("aarch64", "ios", Some("macabi")) => ("macosx", "-target arm64-apple-ios-macabi"),
+        ("x86_64", "ios", Some("macabi")) => ("macosx", "-target x86_64-apple-ios-macabi"),
+        // macOS – Go can use the host compiler for same-family builds
+        (_, "darwin", _) => return None,
+        _ => return None,
+    };
+
+    let cc = format!("xcrun -sdk {} clang {}", sdk, target_flag)
+        .trim()
+        .to_string();
+    let cxx = format!("xcrun -sdk {} clang++ {}", sdk, target_flag)
+        .trim()
+        .to_string();
+
+    Some((cc, cxx))
 }

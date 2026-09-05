@@ -108,6 +108,11 @@ fn main() {
             archive.to_str().unwrap(),
         ]);
 
+    // Prevent Apple deployment-target env vars from leaking into the Go build
+    // and confusing the host compiler when the Rust target is macOS.
+    go_build.env_remove("IPHONEOS_DEPLOYMENT_TARGET");
+    go_build.env_remove("MACOSX_DEPLOYMENT_TARGET");
+
     // When cross-compiling for iOS (or Catalyst) the Go toolchain needs an
     // Apple-specific C cross-compiler. Without this, `clang` defaults to the
     // host macOS target and the linker rejects the resulting object files.

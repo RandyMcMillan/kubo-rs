@@ -23,6 +23,9 @@ SWIFT_PROJECT=swiftyrustlib
 SWIFT_PROJECT_NAME=RustyLib
 SWIFT_CORE_NAME=RustyCore
 
+# Align the minimum iOS version for Rust/Go cross-compilation.
+export IPHONEOS_DEPLOYMENT_TARGET="${IPHONEOS_DEPLOYMENT_TARGET:-14.0}"
+
 cd $MY_CRATE
 
 # step 1 - compile rust library and generate bindings

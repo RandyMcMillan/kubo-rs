@@ -236,7 +236,7 @@ fn run_app(
                                     if let Err(e) = dash.node.connect(&addr) {
                                         dash.log("connect", &format!("failed: {e}"));
                                     } else {
-                                        dash.log("connect", &format!("{addr}"));
+                                        dash.log("connect", &addr);
                                     }
                                 }
                                 dash.modal = Modal::None;

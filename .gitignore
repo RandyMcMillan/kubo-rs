@@ -19,3 +19,13 @@ Cargo.lock
 # OS
 .DS_Store
 Thumbs.db
+
+# .ipfs
+
+.ipfs/autoconf/*
+.ipfs/blocks/*
+.ipfs/blocks/X3/*
+.ipfs/config
+.ipfs/datastore/**
+.ipfs/datastore_spec
+.ipfs/telemetry_uuid

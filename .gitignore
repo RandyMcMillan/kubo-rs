@@ -29,3 +29,5 @@ Thumbs.db
 .ipfs/datastore/**
 .ipfs/datastore_spec
 .ipfs/telemetry_uuid
+
+examples/website/dist/

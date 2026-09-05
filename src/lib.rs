@@ -527,6 +527,15 @@ impl Repository {
         ffi::git_repo_status(self.handle)
     }
 
+    /// Compare two trees and return the diff patch.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if either tree cannot be read or the diff fails.
+    pub fn diff_trees(&self, old_hash: &str, new_hash: &str) -> Result<String, Error> {
+        ffi::git_repo_diff_trees(self.handle, old_hash, new_hash)
+    }
+
     /// Release the handle.
     ///
     /// # Errors

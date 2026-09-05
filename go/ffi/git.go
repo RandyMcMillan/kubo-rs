@@ -322,3 +322,42 @@ func kubo_git_repo_status(handle uint64) *C.char {
 	setError(nil)
 	return C.CString(status.String())
 }
+
+//export kubo_git_repo_diff_trees
+func kubo_git_repo_diff_trees(handle uint64, old_hash *C.char, new_hash *C.char) *C.char {
+	gitReposMu.RLock()
+	repo, ok := gitRepos[handle]
+	gitReposMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid git handle %d", handle))
+		return nil
+	}
+
+	oldTree, err := repo.TreeObject(plumbing.NewHash(C.GoString(old_hash)))
+	if err != nil {
+		setError(fmt.Errorf("git old tree lookup: %w", err))
+		return nil
+	}
+
+	newTree, err := repo.TreeObject(plumbing.NewHash(C.GoString(new_hash)))
+	if err != nil {
+		setError(fmt.Errorf("git new tree lookup: %w", err))
+		return nil
+	}
+
+	changes, err := oldTree.Diff(newTree)
+	if err != nil {
+		setError(fmt.Errorf("git diff tree: %w", err))
+		return nil
+	}
+
+	patch, err := changes.Patch()
+	if err != nil {
+		setError(fmt.Errorf("git patch: %w", err))
+		return nil
+	}
+
+	setError(nil)
+	return C.CString(patch.String())
+}

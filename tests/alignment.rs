@@ -1040,6 +1040,89 @@ fn test_git_status_alignment() {
     repo_go.close().expect("go close failed");
 }
 
+#[test]
+fn test_git_diff_trees_alignment() {
+    let path = tmp_path("git_diff_trees_alignment");
+
+    // Init via Go FFI.
+    kubo_rs::git_init(path.to_str().unwrap(), false).expect("go git init failed");
+
+    // Create two commits with git2.
+    let repo_rs = git2::Repository::open(&path).expect("git2 open failed");
+    let sig = git2::Signature::now("Test", "test@example.com").expect("signature failed");
+
+    // First commit.
+    let tree_id_1 = {
+        let mut index = repo_rs.index().expect("index failed");
+        let blob_id = repo_rs.blob(b"hello v1").expect("blob failed");
+        index
+            .add_frombuffer(
+                &git2::IndexEntry {
+                    ctime: git2::IndexTime::new(0, 0),
+                    mtime: git2::IndexTime::new(0, 0),
+                    dev: 0,
+                    ino: 0,
+                    mode: 0o100644,
+                    uid: 0,
+                    gid: 0,
+                    file_size: 0,
+                    id: blob_id,
+                    flags: 0,
+                    flags_extended: 0,
+                    path: b"file.txt".to_vec(),
+                },
+                b"hello v1",
+            )
+            .expect("add failed");
+        index.write_tree().expect("write tree failed")
+    };
+    let tree_1 = repo_rs.find_tree(tree_id_1).expect("find tree 1 failed");
+    let _commit_1 = repo_rs
+        .commit(Some("HEAD"), &sig, &sig, "commit 1", &tree_1, &[])
+        .expect("commit 1 failed");
+
+    // Second commit.
+    let tree_id_2 = {
+        let mut index = repo_rs.index().expect("index failed");
+        let blob_id = repo_rs.blob(b"hello v2").expect("blob failed");
+        index
+            .add_frombuffer(
+                &git2::IndexEntry {
+                    ctime: git2::IndexTime::new(0, 0),
+                    mtime: git2::IndexTime::new(0, 0),
+                    dev: 0,
+                    ino: 0,
+                    mode: 0o100644,
+                    uid: 0,
+                    gid: 0,
+                    file_size: 0,
+                    id: blob_id,
+                    flags: 0,
+                    flags_extended: 0,
+                    path: b"file.txt".to_vec(),
+                },
+                b"hello v2",
+            )
+            .expect("add failed");
+        index.write_tree().expect("write tree failed")
+    };
+
+    // Diff via Go FFI.
+    let repo_go = kubo_rs::Repository::open(&path).expect("go open failed");
+    let diff_go = repo_go
+        .diff_trees(&tree_id_1.to_string(), &tree_id_2.to_string())
+        .expect("go diff failed");
+
+    // Verify the diff contains expected changes.
+    assert!(
+        diff_go.contains("hello v1") && diff_go.contains("hello v2"),
+        "diff should show content change: got {}",
+        diff_go
+    );
+
+    repo_go.close().expect("go close failed");
+}
+
 // ---------------------------------------------------------------------------
 // nostr:// URL alignment (gnostr ideas)
 // ---------------------------------------------------------------------------

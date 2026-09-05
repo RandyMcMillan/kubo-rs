@@ -32,7 +32,7 @@ jobs:
       - name: Build wasm-dashboard
         run: |
           cd examples/wasm-dashboard
-          trunk build --public-url /kubo-rs/
+          trunk build --public-url /
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

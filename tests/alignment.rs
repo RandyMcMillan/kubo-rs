@@ -240,9 +240,9 @@ fn test_nostr_kind_event_round_trip_for_each_kind() {
 
     for &(kind_val, desc) in representative_kinds {
         let event_json = kubo_rs::nostr_event_sign(&sk, desc, kind_val)
-            .expect(&format!("go sign failed for kind {}", kind_val));
+            .unwrap_or_else(|_| panic!("go sign failed for kind {}", kind_val));
         let event: Event = serde_json::from_str(&event_json)
-            .expect(&format!("rust parse failed for kind {}", kind_val));
+            .unwrap_or_else(|_| panic!("rust parse failed for kind {}", kind_val));
         assert_eq!(
             event.kind.as_u16() as i32,
             kind_val,
@@ -252,7 +252,7 @@ fn test_nostr_kind_event_round_trip_for_each_kind() {
         );
         event
             .verify()
-            .expect(&format!("rust verify failed for kind {}", kind_val));
+            .unwrap_or_else(|_| panic!("rust verify failed for kind {}", kind_val));
     }
 }
 

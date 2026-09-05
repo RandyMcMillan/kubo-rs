@@ -88,33 +88,10 @@ dashboard:
 	cargo run --example dashboard
 
 wasm-dashboard:
-	@rustup target list --installed | grep -q wasm32-unknown-unknown || rustup target add wasm32-unknown-unknown
-	@which trunk >/dev/null 2>&1 || cargo install trunk
-	cd examples/wasm-dashboard && env -u NO_COLOR trunk build
+	./scripts/wasm-dashboard.sh --build-only 2>/dev/null || ./scripts/wasm-dashboard.sh
 
 run-wasm-dashboard:
-	@rustup target list --installed | grep -q wasm32-unknown-unknown || rustup target add wasm32-unknown-unknown
-	@which trunk >/dev/null 2>&1 || cargo install trunk
-	@echo ""
-	@echo "Starting WASM dashboard at http://localhost:8080"
-	@echo ""
-	@echo "Setup:"
-	@echo "  1. Ensure a Kubo daemon binary is available:"
-	@echo "     make build-go   (builds go/kubo-sys/cmd/ipfs/ipfs)"
-	@echo "     or use a system 'ipfs' binary"
-	@echo ""
-	@echo "  2. Start the daemon with API on port 5001:"
-	@echo "     IPFS_PATH=.ipfs go/kubo-sys/cmd/ipfs/ipfs daemon --api /ip4/127.0.0.1/tcp/5001"
-	@echo ""
-	@echo "  3. Enable CORS:"
-	@echo "     IPFS_PATH=.ipfs go/kubo-sys/cmd/ipfs/ipfs config --json API.HTTPHeaders.Access-Control-Allow-Origin '\"[\"http://localhost:8080\"]\"'"
-	@echo ""
-	@echo "  4. Restart daemon and reload the page"
-	@echo ""
-	@echo "Note: the kubo-rs embedded node does not expose the HTTP API."
-	@echo "This dashboard requires a standard Kubo (Go) daemon on port 5001."
-	@echo ""
-	cd examples/wasm-dashboard && env -u NO_COLOR trunk serve
+	./scripts/wasm-dashboard.sh
 
 # Cross-testing
 scripts:

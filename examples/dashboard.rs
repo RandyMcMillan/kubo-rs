@@ -124,7 +124,12 @@ impl Dashboard {
 
     fn log(&mut self, action: &str, detail: &str) {
         let now = self.tick_count / 4;
-        let time = format!("{:02}:{:02}:{:02}", (now / 3600) % 24, (now / 60) % 60, now % 60);
+        let time = format!(
+            "{:02}:{:02}:{:02}",
+            (now / 3600) % 24,
+            (now / 60) % 60,
+            now % 60
+        );
         self.log.push((time, format!("{action}: {detail}")));
         if self.log.len() > 200 {
             self.log.remove(0);
@@ -134,7 +139,8 @@ impl Dashboard {
     fn add_demo_content(&mut self) {
         let data = b"dashboard demo - hello ipfs";
         if let Ok(cid) = self.node.add_bytes(data) {
-            self.files.push((cid.clone(), "hello.txt".to_string(), data.len()));
+            self.files
+                .push((cid.clone(), "hello.txt".to_string(), data.len()));
             self.log("add", &format!("{cid} ({len} bytes)", len = data.len()));
         }
         let block_data = b"raw block for dashboard";
@@ -280,12 +286,15 @@ fn run_app(
                                 dash.files.clear();
                                 dash.log("files", "cleared file list");
                             }
-                            KeyCode::Char('v') if dash.tab == Tab::Files && !dash.files.is_empty() => {
+                            KeyCode::Char('v')
+                                if dash.tab == Tab::Files && !dash.files.is_empty() =>
+                            {
                                 let idx = dash.selected_file.min(dash.files.len() - 1);
                                 let cid = dash.files[idx].0.clone();
                                 match dash.node.cat(&cid) {
                                     Ok(data) => {
-                                        dash.view_content = String::from_utf8_lossy(&data).to_string();
+                                        dash.view_content =
+                                            String::from_utf8_lossy(&data).to_string();
                                         dash.modal = Modal::ViewContent;
                                     }
                                     Err(e) => dash.log("cat", &format!("{cid} failed: {e}")),
@@ -294,7 +303,10 @@ fn run_app(
                             KeyCode::Up if dash.tab == Tab::Files && dash.selected_file > 0 => {
                                 dash.selected_file -= 1;
                             }
-                            KeyCode::Down if dash.tab == Tab::Files && dash.selected_file + 1 < dash.files.len() => {
+                            KeyCode::Down
+                                if dash.tab == Tab::Files
+                                    && dash.selected_file + 1 < dash.files.len() =>
+                            {
                                 dash.selected_file += 1;
                             }
                             KeyCode::Char('c') if dash.tab == Tab::Peers => {

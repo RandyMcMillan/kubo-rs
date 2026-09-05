@@ -41,6 +41,7 @@ unsafe extern "C" {
     fn kubo_libp2p_host_peer_id(handle: u64) -> *mut c_char;
     fn kubo_libp2p_host_listening_addrs(handle: u64) -> *mut c_char;
     fn kubo_libp2p_host_connect(handle: u64, addr: *const c_char) -> i64;
+    fn kubo_libp2p_host_ping(handle: u64, peer_id: *const c_char) -> i64;
 
     // nostr
     fn kubo_nostr_generate_key() -> *mut c_char;
@@ -60,6 +61,8 @@ unsafe extern "C" {
         relays: *const c_char,
     ) -> *mut c_char;
     fn kubo_nostr_nip19_decode_entity(bech32: *const c_char) -> *mut c_char;
+    fn kubo_nostr_nip05_verify(identifier: *const c_char, pubkey: *const c_char) -> i64;
+    fn kubo_nostr_nip05_query(identifier: *const c_char) -> *mut c_char;
 
     // git
     fn kubo_git_clone(url: *const c_char, path: *const c_char, bare: u8) -> i64;
@@ -265,6 +268,16 @@ pub fn host_connect(handle: u64, addr: &str) -> Result<(), Error> {
     unsafe { check_err(kubo_libp2p_host_connect(handle, c_addr.as_ptr())) }
 }
 
+pub fn host_ping(handle: u64, peer_id: &str) -> Result<i64, Error> {
+    let c_peer_id = CString::new(peer_id)?;
+    let ms = unsafe { kubo_libp2p_host_ping(handle, c_peer_id.as_ptr()) };
+    if ms < 0 {
+        Err(Error::Go(last_error()))
+    } else {
+        Ok(ms)
+    }
+}
+
 // ---------------------------------------------------------------------------
 // nostr
 // ---------------------------------------------------------------------------
@@ -375,6 +388,24 @@ pub fn nip19_decode_entity(bech32: &str) -> Result<String, Error> {
     let c_bech32 = CString::new(bech32)?;
     unsafe {
         ptr_to_string(kubo_nostr_nip19_decode_entity(c_bech32.as_ptr()))
+            .ok_or_else(|| Error::Go(last_error()))
+    }
+}
+
+pub fn nip05_verify(identifier: &str, pubkey: &str) -> Result<bool, Error> {
+    let c_identifier = CString::new(identifier)?;
+    let c_pubkey = CString::new(pubkey)?;
+    match unsafe { kubo_nostr_nip05_verify(c_identifier.as_ptr(), c_pubkey.as_ptr()) } {
+        1 => Ok(true),
+        0 => Ok(false),
+        _ => Err(Error::Go(last_error())),
+    }
+}
+
+pub fn nip05_query(identifier: &str) -> Result<String, Error> {
+    let c_identifier = CString::new(identifier)?;
+    unsafe {
+        ptr_to_string(kubo_nostr_nip05_query(c_identifier.as_ptr()))
             .ok_or_else(|| Error::Go(last_error()))
     }
 }

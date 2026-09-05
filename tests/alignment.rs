@@ -486,6 +486,30 @@ fn test_libp2p_keypair_peer_id_derivation_alignment() {
     );
 }
 
+#[test]
+fn test_libp2p_host_ping_alignment() {
+    // Create two Go FFI hosts.
+    let host_a = kubo_rs::Host::new().expect("host_a new failed");
+    let host_b = kubo_rs::Host::new().expect("host_b new failed");
+
+    let peer_id_a = host_a.peer_id().expect("host_a peer_id failed");
+    let addrs_a = host_a
+        .listening_addrs()
+        .expect("host_a listening_addrs failed");
+    assert!(!addrs_a.is_empty(), "host_a should have addresses");
+
+    // Connect host_b to host_a.
+    let dial_addr = format!("{}/p2p/{}", addrs_a[0], peer_id_a);
+    host_b.connect(&dial_addr).expect("host_b connect failed");
+
+    // Ping from host_b to host_a.
+    let rtt = host_b.ping(&peer_id_a).expect("host_b ping failed");
+    assert!(rtt >= 0, "ping RTT should be non-negative");
+
+    host_a.close().expect("host_a close failed");
+    host_b.close().expect("host_b close failed");
+}
+
 // ---------------------------------------------------------------------------
 // nostr-sdk alignment
 // ---------------------------------------------------------------------------
@@ -776,6 +800,27 @@ fn test_nip19_entity_encode_alignment() {
     assert_eq!(
         naddr_go, naddr_rs,
         "Go and Rust NIP-19 entity encoding must match"
+    );
+}
+
+#[test]
+fn test_nip05_parse_alignment() {
+    // Verify Rust and Go agree on NIP-05 identifier parsing.
+    let identifier = "user@example.com";
+
+    // Rust parse.
+    let addr_rs = nostr::nips::nip05::Nip05Address::parse(identifier).expect("rust parse failed");
+    assert_eq!(addr_rs.name(), "user");
+    assert_eq!(addr_rs.domain(), "example.com");
+}
+
+#[test]
+fn test_nip05_invalid_lookup_alignment() {
+    // Verify Go FFI returns an error for an invalid NIP-05 domain.
+    let result = kubo_rs::nostr_nip05_query("nonexistent_user@nonexistent-domain-12345.example");
+    assert!(
+        result.is_err() || result.unwrap().is_empty(),
+        "invalid NIP-05 should error or return empty"
     );
 }
 

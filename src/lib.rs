@@ -227,6 +227,15 @@ impl Host {
         ffi::host_connect(self.handle, addr)
     }
 
+    /// Ping a connected peer and return the round-trip time in milliseconds.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the ping fails.
+    pub fn ping(&self, peer_id: &str) -> Result<i64, Error> {
+        ffi::host_ping(self.handle, peer_id)
+    }
+
     /// Close the host and consume the handle.
     ///
     /// # Errors
@@ -362,6 +371,26 @@ pub fn nostr_nip19_encode_entity(
 /// Returns an error if the bech32 string is invalid or not an naddr.
 pub fn nostr_nip19_decode_entity(bech32: &str) -> Result<String, Error> {
     ffi::nip19_decode_entity(bech32)
+}
+
+/// Verify a NIP-05 identifier matches a public key.
+///
+/// Returns `true` if the identifier resolves to the given pubkey.
+///
+/// # Errors
+///
+/// Returns an error if the lookup fails.
+pub fn nostr_nip05_verify(identifier: &str, pubkey: &str) -> Result<bool, Error> {
+    ffi::nip05_verify(identifier, pubkey)
+}
+
+/// Query the public key for a NIP-05 identifier.
+///
+/// # Errors
+///
+/// Returns an error if the lookup fails.
+pub fn nostr_nip05_query(identifier: &str) -> Result<String, Error> {
+    ffi::nip05_query(identifier)
 }
 
 // ---------------------------------------------------------------------------

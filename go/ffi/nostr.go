@@ -7,10 +7,13 @@ package main
 import "C"
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/nbd-wtf/go-nostr"
+	"github.com/nbd-wtf/go-nostr/nip05"
 	"github.com/nbd-wtf/go-nostr/nip19"
 )
 
@@ -208,4 +211,39 @@ func kubo_nostr_nip19_decode_entity(bech32 *C.char) *C.char {
 	}
 	setError(nil)
 	return C.CString(string(result))
+}
+
+//export kubo_nostr_nip05_verify
+func kubo_nostr_nip05_verify(identifier *C.char, pubkey *C.char) int64 {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	profile, err := nip05.QueryIdentifier(ctx, C.GoString(identifier))
+	if err != nil {
+		setError(fmt.Errorf("nip05 query: %w", err))
+		return -1
+	}
+
+	if profile.PublicKey != C.GoString(pubkey) {
+		setError(fmt.Errorf("nip05 pubkey mismatch"))
+		return 0
+	}
+
+	setError(nil)
+	return 1
+}
+
+//export kubo_nostr_nip05_query
+func kubo_nostr_nip05_query(identifier *C.char) *C.char {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	profile, err := nip05.QueryIdentifier(ctx, C.GoString(identifier))
+	if err != nil {
+		setError(fmt.Errorf("nip05 query: %w", err))
+		return nil
+	}
+
+	setError(nil)
+	return C.CString(profile.PublicKey)
 }

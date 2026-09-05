@@ -11,10 +11,12 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	ma "github.com/multiformats/go-multiaddr"
 )
 
@@ -146,4 +148,34 @@ func kubo_libp2p_host_connect(handle uint64, addr *C.char) int64 {
 
 	setError(nil)
 	return 0
+}
+
+//export kubo_libp2p_host_ping
+func kubo_libp2p_host_ping(handle uint64, peer_id *C.char) int64 {
+	libp2pHostsMu.RLock()
+	h, ok := libp2pHosts[handle]
+	libp2pHostsMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid libp2p handle %d", handle))
+		return -1
+	}
+
+	pid, err := peer.Decode(C.GoString(peer_id))
+	if err != nil {
+		setError(fmt.Errorf("decode peer id: %w", err))
+		return -1
+	}
+
+	ctx, cancel := context.WithTimeout(h.ctx, 10*time.Second)
+	defer cancel()
+
+	result := <-ping.Ping(ctx, h.host, pid)
+	if result.Error != nil {
+		setError(fmt.Errorf("ping: %w", result.Error))
+		return -1
+	}
+
+	setError(nil)
+	return int64(result.RTT.Milliseconds())
 }

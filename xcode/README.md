@@ -4,6 +4,8 @@
 
 Demonstrates the ability to generate the necessary bindings for a rust lib compiled for an apple target to be embedded and called by a Swift project in Xcode.
 
+The sample app now also exercises real `kubo-rs` functionality by creating a temporary repo, starting an offline node, adding bytes, and reading them back through the FFI layer.
+
 ## pre-reqs
 1. [cargo](https://rustup.rs/)
 1. xcode from [Apple app store](https://apps.apple.com/us/app/xcode/id497799835)

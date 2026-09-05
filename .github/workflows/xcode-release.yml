@@ -1,0 +1,56 @@
+name: Xcode Release
+
+on:
+  push:
+    tags:
+      - '**[0-9]+.[0-9]+.[0-9]+*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-xcframework:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,aarch64-apple-ios-macabi
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.5"
+          cache: false
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('go/kubo-sys/go.sum', 'go/ffi/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-
+
+      - name: Populate Rust cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+        with:
+          shared-key: stable-cache
+
+      - name: Build XCFramework
+        run: cd xcode && make rust
+
+      - name: Zip XCFramework
+        run: |
+          cd xcode/rustylib
+          zip -r rustylib_framework.xcframework.zip rustylib_framework.xcframework
+
+      - name: Upload XCFramework to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: xcode/rustylib/rustylib_framework.xcframework.zip

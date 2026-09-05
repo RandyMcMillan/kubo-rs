@@ -20,7 +20,7 @@ build-go:
 
 # FFI archive build
 build-ffi:
-	cd go/kubo-sys/ffi && go build -buildmode=c-archive -o ./tmp/libkubo_ffi.a ./ffi.go
+	cd go/ffi && go build -buildmode=c-archive -o ./tmp/libkubo_ffi.a .
 
 # Testing
 test:
@@ -30,7 +30,7 @@ test-cli:
 	cargo test --test cli
 
 test-ffi-c: build-ffi
-	cd go/kubo-sys/ffi && \
+	cd go/ffi && \
 	if [ "$$(uname)" = "Darwin" ]; then \
 		cc -o cmd/testffi/testffi cmd/testffi/main.c -I./tmp ./tmp/libkubo_ffi.a -lpthread -ldl -framework Security -framework CoreFoundation -lresolv; \
 	else \
@@ -39,7 +39,7 @@ test-ffi-c: build-ffi
 	./cmd/testffi/testffi
 
 test-ffi-rust: build-ffi
-	cd go/kubo-sys/ffi && \
+	cd go/ffi && \
 	if [ "$$(uname)" = "Darwin" ]; then \
 		rustc cmd/testrust/main.rs -L ./tmp -lkubo_ffi -o cmd/testrust/testrust \
 			-C link-arg="-framework" -C link-arg="Security" \
@@ -70,9 +70,9 @@ check: fmt clippy test-all
 # Cleanup
 clean:
 	cargo clean
-	cd go/kubo-sys/ffi && go clean
-	cd go/kubo-sys/ffi && rm -f cmd/testffi/testffi cmd/testrust/testrust
-	cd go/kubo-sys/ffi && rm -rf ./tmp
+	cd go/ffi && go clean
+	cd go/ffi && rm -f cmd/testffi/testffi cmd/testrust/testrust
+	cd go/ffi && rm -rf ./tmp
 
 clean-all: clean
 	$(MAKE) -C go/kubo-sys clean

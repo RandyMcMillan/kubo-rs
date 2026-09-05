@@ -15,43 +15,43 @@ cargo test --test cli --verbose
 
 echo
 echo "=== 3. Build FFI archive ==="
-cd go/kubo-sys/ffi
-go build -buildmode=c-archive -o ./tmp/libkubo_ffi.a ./ffi.go
-cd ../../..
+cd go/ffi
+go build -buildmode=c-archive -o ./tmp/libkubo_ffi.a .
+cd ../..
 
 echo
 echo "=== 4. C FFI tests ==="
 if [ "$(uname)" = "Darwin" ]; then
-  cc -o go/kubo-sys/ffi/cmd/testffi/testffi \
-    go/kubo-sys/ffi/cmd/testffi/main.c \
-    -Igo/kubo-sys/ffi/tmp \
-    go/kubo-sys/ffi/tmp/libkubo_ffi.a \
+  cc -o go/ffi/cmd/testffi/testffi \
+    go/ffi/cmd/testffi/main.c \
+    -Igo/ffi/tmp \
+    go/ffi/tmp/libkubo_ffi.a \
     -lpthread -ldl -framework Security -framework CoreFoundation -lresolv
 else
-  cc -o go/kubo-sys/ffi/cmd/testffi/testffi \
-    go/kubo-sys/ffi/cmd/testffi/main.c \
-    -Igo/kubo-sys/ffi/tmp \
-    go/kubo-sys/ffi/tmp/libkubo_ffi.a \
+  cc -o go/ffi/cmd/testffi/testffi \
+    go/ffi/cmd/testffi/main.c \
+    -Igo/ffi/tmp \
+    go/ffi/tmp/libkubo_ffi.a \
     -lpthread -ldl
 fi
-./go/kubo-sys/ffi/cmd/testffi/testffi
+./go/ffi/cmd/testffi/testffi
 
 echo
 echo "=== 5. Rust raw-FFI tests ==="
 if [ "$(uname)" = "Darwin" ]; then
-  rustc go/kubo-sys/ffi/cmd/testrust/main.rs \
-    -L go/kubo-sys/ffi/tmp -lkubo_ffi \
-    -o go/kubo-sys/ffi/cmd/testrust/testrust \
+  rustc go/ffi/cmd/testrust/main.rs \
+    -L go/ffi/tmp -lkubo_ffi \
+    -o go/ffi/cmd/testrust/testrust \
     -C link-arg="-framework" -C link-arg="Security" \
     -C link-arg="-framework" -C link-arg="CoreFoundation" \
     -lresolv -lpthread -ldl
 else
-  rustc go/kubo-sys/ffi/cmd/testrust/main.rs \
-    -L go/kubo-sys/ffi/tmp -lkubo_ffi \
-    -o go/kubo-sys/ffi/cmd/testrust/testrust \
+  rustc go/ffi/cmd/testrust/main.rs \
+    -L go/ffi/tmp -lkubo_ffi \
+    -o go/ffi/cmd/testrust/testrust \
     -lpthread -ldl
 fi
-./go/kubo-sys/ffi/cmd/testrust/testrust
+./go/ffi/cmd/testrust/testrust
 
 echo
 echo "=== ALL CROSS-TESTS PASSED ==="

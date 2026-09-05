@@ -185,6 +185,24 @@ fn main() {
         println!("cargo:rustc-link-lib=framework=Security");
         println!("cargo:rustc-link-lib=framework=CoreFoundation");
         println!("cargo:rustc-link-lib=resolv");
+
+        // Ensure the Rust linker uses the same deployment target as the Go C
+        // compiler so that symbols like ___chkstk_darwin (iOS 12+) are
+        // available when the Go code references them.
+        if os == "ios" {
+            let deployment_target = env::var("IPHONEOS_DEPLOYMENT_TARGET")
+                .unwrap_or_else(|_| "14.0".to_string());
+            let flag = if target.contains("macabi") {
+                format!("-mmacosx-version-min={}", deployment_target)
+            } else if target.contains("ios-sim")
+                || target.starts_with("x86_64-apple-ios")
+            {
+                format!("-mios-simulator-version-min={}", deployment_target)
+            } else {
+                format!("-miphoneos-version-min={}", deployment_target)
+            };
+            println!("cargo:rustc-link-arg={}", flag);
+        }
     }
 }
 

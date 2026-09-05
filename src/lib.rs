@@ -176,6 +176,186 @@ impl Drop for Node {
     }
 }
 
+// ---------------------------------------------------------------------------
+// libp2p
+// ---------------------------------------------------------------------------
+
+/// A standalone libp2p host (not tied to a Kubo node).
+///
+/// When dropped, the host is closed.
+pub struct Host {
+    handle: u64,
+}
+
+impl Host {
+    /// Create a new libp2p host listening on a local TCP port.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the host cannot be created.
+    pub fn new() -> Result<Self, Error> {
+        let handle = ffi::host_new()?;
+        Ok(Host { handle })
+    }
+
+    /// Return the host's peer ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the peer ID cannot be read.
+    pub fn peer_id(&self) -> Result<String, Error> {
+        ffi::host_peer_id(self.handle)
+    }
+
+    /// Return the host's listening addresses.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the addresses cannot be read.
+    pub fn listening_addrs(&self) -> Result<Vec<String>, Error> {
+        ffi::host_listening_addrs(self.handle)
+    }
+
+    /// Connect to a peer by multiaddr.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection fails.
+    pub fn connect(&self, addr: &str) -> Result<(), Error> {
+        ffi::host_connect(self.handle, addr)
+    }
+
+    /// Close the host and consume the handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if close fails.
+    pub fn close(self) -> Result<(), Error> {
+        let result = ffi::host_close(self.handle);
+        std::mem::forget(self);
+        result
+    }
+}
+
+impl Drop for Host {
+    fn drop(&mut self) {
+        let _ = ffi::host_close(self.handle);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// nostr
+// ---------------------------------------------------------------------------
+
+/// Generate a new Nostr secret key (hex-encoded).
+///
+/// # Errors
+///
+/// Returns an error if key generation fails.
+pub fn nostr_generate_key() -> Result<String, Error> {
+    ffi::generate_key()
+}
+
+/// Derive the public key from a secret key.
+///
+/// # Errors
+///
+/// Returns an error if the secret key is invalid.
+pub fn nostr_get_public_key(sk: &str) -> Result<String, Error> {
+    ffi::get_public_key(sk)
+}
+
+/// Sign a Nostr event.
+///
+/// Returns the event as a JSON string.
+///
+/// # Errors
+///
+/// Returns an error if signing fails.
+pub fn nostr_event_sign(sk: &str, content: &str, kind: i32) -> Result<String, Error> {
+    ffi::event_sign(sk, content, kind)
+}
+
+/// Verify a Nostr event JSON string.
+///
+/// # Errors
+///
+/// Returns an error if the JSON is malformed or the signature check errors.
+pub fn nostr_event_verify(json: &str) -> Result<bool, Error> {
+    ffi::event_verify(json)
+}
+
+// ---------------------------------------------------------------------------
+// git
+// ---------------------------------------------------------------------------
+
+/// Clone a Git repository.
+///
+/// # Errors
+///
+/// Returns an error if cloning fails.
+pub fn git_clone(url: &str, path: &str, bare: bool) -> Result<(), Error> {
+    ffi::git_clone_repo(url, path, bare)
+}
+
+/// Initialize a new Git repository.
+///
+/// # Errors
+///
+/// Returns an error if initialization fails.
+pub fn git_init(path: &str, bare: bool) -> Result<(), Error> {
+    ffi::git_init_repo(path, bare)
+}
+
+/// An opened Git repository handle.
+///
+/// When dropped, the handle is released.
+pub struct Repository {
+    handle: u64,
+}
+
+impl Repository {
+    /// Open an existing Git repository.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the repository cannot be opened.
+    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
+        let path = path.as_ref().to_str().ok_or(Error::InvalidPath)?;
+        if path.contains('\0') {
+            return Err(Error::InvalidPath);
+        }
+        let handle = ffi::git_open_repo(path)?;
+        Ok(Repository { handle })
+    }
+
+    /// Return the hash of the current HEAD commit.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if HEAD cannot be resolved.
+    pub fn head(&self) -> Result<String, Error> {
+        ffi::git_repo_head_hash(self.handle)
+    }
+
+    /// Release the handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if release fails.
+    pub fn close(self) -> Result<(), Error> {
+        let result = ffi::git_repo_release(self.handle);
+        std::mem::forget(self);
+        result
+    }
+}
+
+impl Drop for Repository {
+    fn drop(&mut self) {
+        let _ = ffi::git_repo_release(self.handle);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -312,8 +492,8 @@ mod tests {
         let repo_a = base.join("repo_a");
         let repo_b = base.join("repo_b");
 
-        init_repo(&repo_a).expect("init repo_a should succeed");
-        init_repo(&repo_b).expect("init repo_b should succeed");
+        init_repo(&repo_a).expect("init_repo_a should succeed");
+        init_repo(&repo_b).expect("init_repo_b should succeed");
 
         let node_a = Node::start(&repo_a, true).expect("start node_a should succeed");
         let node_b = Node::start(&repo_b, true).expect("start node_b should succeed");
@@ -348,8 +528,8 @@ mod tests {
         let repo_a = base.join("repo_a");
         let repo_b = base.join("repo_b");
 
-        init_repo(&repo_a).expect("init repo_a should succeed");
-        init_repo(&repo_b).expect("init repo_b should succeed");
+        init_repo(&repo_a).expect("init_repo_a should succeed");
+        init_repo(&repo_b).expect("init_repo_b should succeed");
 
         let node_a = Node::start(&repo_a, true).expect("start node_a should succeed");
         let node_b = Node::start(&repo_b, true).expect("start node_b should succeed");
@@ -367,7 +547,9 @@ mod tests {
 
         let peers_a = node_a.swarm_peers().expect("swarm_peers a should succeed");
         assert!(
-            peers_a.iter().any(|(id, _)| id == &peer_id_a || id == &node_b.peer_id().unwrap()),
+            peers_a
+                .iter()
+                .any(|(id, _)| id == &peer_id_a || id == &node_b.peer_id().unwrap()),
             "node_a should see node_b or itself in peer list"
         );
 
@@ -396,5 +578,95 @@ mod tests {
         assert_eq!(fetched, data, "retrieved block should match");
 
         node.stop().expect("stop should succeed");
+    }
+
+    // -----------------------------------------------------------------------
+    // libp2p tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_libp2p_host_lifecycle() {
+        let host = Host::new().expect("host new should succeed");
+        let peer_id = host.peer_id().expect("peer_id should succeed");
+        assert!(!peer_id.is_empty(), "peer_id should not be empty");
+
+        let addrs = host
+            .listening_addrs()
+            .expect("listening_addrs should succeed");
+        assert!(!addrs.is_empty(), "host should have listening addresses");
+
+        host.close().expect("close should succeed");
+    }
+
+    #[test]
+    fn test_libp2p_host_drop() {
+        {
+            let _host = Host::new().expect("host new should succeed");
+        }
+        // Dropping should not panic.
+        let host = Host::new().expect("second host new should succeed");
+        host.close().expect("close should succeed");
+    }
+
+    // -----------------------------------------------------------------------
+    // nostr tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_nostr_key_generation() {
+        let sk = nostr_generate_key().expect("generate key should succeed");
+        assert_eq!(sk.len(), 64, "secret key should be 64 hex chars");
+
+        let pk = nostr_get_public_key(&sk).expect("get public key should succeed");
+        assert_eq!(pk.len(), 64, "public key should be 64 hex chars");
+    }
+
+    #[test]
+    fn test_nostr_sign_and_verify() {
+        let sk = nostr_generate_key().expect("generate key should succeed");
+
+        let event_json = nostr_event_sign(&sk, "hello nostr", 1).expect("sign should succeed");
+        assert!(
+            event_json.contains("hello nostr"),
+            "event should contain content"
+        );
+
+        let valid = nostr_event_verify(&event_json).expect("verify should succeed");
+        assert!(valid, "signature should be valid");
+    }
+
+    #[test]
+    fn test_nostr_verify_invalid() {
+        let valid = nostr_event_verify(
+            r#"{"id":"bad","pubkey":"bad","created_at":0,"kind":1,"tags":[],"content":"x","sig":"bad"}"#,
+        );
+        assert!(
+            matches!(valid, Ok(false) | Err(_)),
+            "invalid event should not verify"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // git tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_git_init_and_open() {
+        let path = tmp_dir("git_init_and_open").join("repo");
+
+        git_init(path.to_str().unwrap(), false).expect("git init should succeed");
+        assert!(path.join(".git").exists(), ".git directory should exist");
+
+        let repo = Repository::open(&path).expect("open should succeed");
+        repo.close().expect("close should succeed");
+    }
+
+    #[test]
+    fn test_git_init_bare() {
+        let path = tmp_dir("git_init_bare").join("repo.git");
+
+        git_init(path.to_str().unwrap(), true).expect("git init bare should succeed");
+        // In a bare repo the path itself is the git dir.
+        assert!(path.join("HEAD").exists(), "bare repo should have HEAD");
     }
 }

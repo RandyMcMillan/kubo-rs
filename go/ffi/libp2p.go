@@ -1,0 +1,149 @@
+package main
+
+/*
+#include <stdlib.h>
+#include <stdint.h>
+*/
+import "C"
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"sync"
+
+	"github.com/libp2p/go-libp2p"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peer"
+	ma "github.com/multiformats/go-multiaddr"
+)
+
+var (
+	libp2pHostsMu    sync.RWMutex
+	libp2pHosts      = make(map[uint64]*libp2pHostHandle)
+	libp2pNextHandle uint64 = 1
+)
+
+type libp2pHostHandle struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+	host   host.Host
+}
+
+//export libp2p_host_new
+func libp2p_host_new() uint64 {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	h, err := libp2p.New(libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
+	if err != nil {
+		cancel()
+		setError(fmt.Errorf("libp2p new: %w", err))
+		return 0
+	}
+
+	handle := &libp2pHostHandle{
+		ctx:    ctx,
+		cancel: cancel,
+		host:   h,
+	}
+
+	libp2pHostsMu.Lock()
+	hid := libp2pNextHandle
+	libp2pNextHandle++
+	libp2pHosts[hid] = handle
+	libp2pHostsMu.Unlock()
+
+	setError(nil)
+	return hid
+}
+
+//export libp2p_host_close
+func libp2p_host_close(handle uint64) int64 {
+	libp2pHostsMu.Lock()
+	h, ok := libp2pHosts[handle]
+	if ok {
+		delete(libp2pHosts, handle)
+	}
+	libp2pHostsMu.Unlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid libp2p handle %d", handle))
+		return -1
+	}
+
+	h.cancel()
+	if err := h.host.Close(); err != nil {
+		setError(fmt.Errorf("close host: %w", err))
+		return -1
+	}
+
+	setError(nil)
+	return 0
+}
+
+//export libp2p_host_peer_id
+func libp2p_host_peer_id(handle uint64) *C.char {
+	libp2pHostsMu.RLock()
+	h, ok := libp2pHosts[handle]
+	libp2pHostsMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid libp2p handle %d", handle))
+		return nil
+	}
+
+	return C.CString(h.host.ID().String())
+}
+
+//export libp2p_host_listening_addrs
+func libp2p_host_listening_addrs(handle uint64) *C.char {
+	libp2pHostsMu.RLock()
+	h, ok := libp2pHosts[handle]
+	libp2pHostsMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid libp2p handle %d", handle))
+		return nil
+	}
+
+	var parts []string
+	for _, a := range h.host.Addrs() {
+		parts = append(parts, a.String())
+	}
+
+	setError(nil)
+	return C.CString(strings.Join(parts, "\n"))
+}
+
+//export libp2p_host_connect
+func libp2p_host_connect(handle uint64, addr *C.char) int64 {
+	libp2pHostsMu.RLock()
+	h, ok := libp2pHosts[handle]
+	libp2pHostsMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid libp2p handle %d", handle))
+		return -1
+	}
+
+	addrStr := C.GoString(addr)
+	maddr, err := ma.NewMultiaddr(addrStr)
+	if err != nil {
+		setError(fmt.Errorf("parse multiaddr: %w", err))
+		return -1
+	}
+
+	info, err := peer.AddrInfoFromP2pAddr(maddr)
+	if err != nil {
+		setError(fmt.Errorf("extract peer info: %w", err))
+		return -1
+	}
+
+	if err := h.host.Connect(h.ctx, *info); err != nil {
+		setError(fmt.Errorf("connect: %w", err))
+		return -1
+	}
+
+	setError(nil)
+	return 0
+}

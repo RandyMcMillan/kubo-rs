@@ -25,12 +25,12 @@ fn main() {
             "kubo-rs FFI build script does not support cross-compilation \
              for this target/host pair. TARGET ({}) != HOST ({}). \
              To cross-compile, set up a C cross-toolchain and \
-             manually compile go/kubo-sys/ffi/ with CGO_ENABLED=1.",
+             manually compile go/ffi/ with CGO_ENABLED=1.",
             target, host
         );
     }
 
-    // Verify the submodule is present.
+    // Verify the submodules are present.
     let kubo_sys = PathBuf::from("go/kubo-sys");
     if !kubo_sys.join("go.mod").exists() {
         panic!(
@@ -52,40 +52,45 @@ fn main() {
         );
     }
 
-    // Pin GOTOOLCHAIN to the Go version declared in go/kubo-sys/go.mod so that
+    // Pin GOTOOLCHAIN to the Go version declared in go/ffi/go.mod so that
     // the build is reproducible even when the host has a newer Go installed.
-    let go_mod_text = std::fs::read_to_string(kubo_sys.join("go.mod"))
-        .expect("failed to read go/kubo-sys/go.mod");
+    let ffi_dir = PathBuf::from("go/ffi");
+    let go_mod_text =
+        std::fs::read_to_string(ffi_dir.join("go.mod")).expect("failed to read go/ffi/go.mod");
     let toolchain = go_mod_text
         .lines()
         .find_map(|line| {
             line.strip_prefix("go ")
                 .map(|ver| format!("go{}", ver.trim()))
         })
-        .expect("no 'go' directive found in go/kubo-sys/go.mod");
+        .expect("no 'go' directive found in go/ffi/go.mod");
 
     // Map Rust target to Go os/arch.
     let (goos, goarch) = parse_target(&target);
 
-    let ffi_dir = kubo_sys.join("ffi");
-
     // Go's c-archive naming depends on the platform toolchain:
     //   Unix / MinGW: libkubo_ffi.a
     //   Windows MSVC: kubo_ffi.lib
+    // The header is always named after the stem (without lib/.lib suffix).
     let os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     let env = env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
     let (archive_name, header_name) = if os == "windows" && env == "msvc" {
         ("kubo_ffi.lib", "kubo_ffi.h")
     } else {
-        ("libkubo_ffi.a", "libkubo_ffi.h")
+        ("libkubo_ffi.a", "kubo_ffi.h")
     };
     let archive = out_dir.join(archive_name);
     let header = out_dir.join(header_name);
 
     // Only rebuild when Go sources change.
-    println!("cargo:rerun-if-changed=go/kubo-sys/ffi/ffi.go");
-    println!("cargo:rerun-if-changed=go/kubo-sys/ffi/go.mod");
-    println!("cargo:rerun-if-changed=go/kubo-sys/ffi/go.sum");
+    println!("cargo:rerun-if-changed=go/ffi/kubo.go");
+    println!("cargo:rerun-if-changed=go/ffi/libp2p.go");
+    println!("cargo:rerun-if-changed=go/ffi/nostr.go");
+    println!("cargo:rerun-if-changed=go/ffi/git.go");
+    println!("cargo:rerun-if-changed=go/ffi/error.go");
+    println!("cargo:rerun-if-changed=go/ffi/main.go");
+    println!("cargo:rerun-if-changed=go/ffi/go.mod");
+    println!("cargo:rerun-if-changed=go/ffi/go.sum");
 
     let status = Command::new(&go)
         .current_dir(&ffi_dir)
@@ -103,15 +108,25 @@ fn main() {
         .expect("failed to run `go build` for FFI");
 
     if !status.success() {
-        panic!("`go build` for go/kubo-sys/ffi failed");
+        panic!("`go build` for go/ffi failed");
     }
 
     if !archive.exists() {
         panic!("FFI archive not created: {:?}", archive);
     }
-    if !header.exists() {
-        panic!("FFI header not created: {:?}", header);
-    }
+
+    // Go's c-archive header naming varies by toolchain version:
+    // some produce kubo_ffi.h, others libkubo_ffi.h. Accept either.
+    let _header = if header.exists() {
+        header
+    } else {
+        let alt = out_dir.join("libkubo_ffi.h");
+        if alt.exists() {
+            alt
+        } else {
+            panic!("FFI header not created: expected {:?} or {:?}", header, alt);
+        }
+    };
 
     println!(
         "cargo:rustc-link-search=native={}",

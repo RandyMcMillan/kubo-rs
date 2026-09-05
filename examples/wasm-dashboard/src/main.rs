@@ -31,13 +31,7 @@ fn api_base() -> String {
         .and_then(|w| w.location().href().ok())
         .and_then(|href| web_sys::Url::new(&href).ok())
         .and_then(|url| url.search_params().get("api"))
-        .unwrap_or_else(|| {
-            let hostname = web_sys::window()
-                .and_then(|w| w.location().hostname().ok())
-                .filter(|h| !h.is_empty())
-                .unwrap_or_else(|| "localhost".to_string());
-            format!("http://{}:5001", hostname)
-        })
+        .unwrap_or_else(|| "http://127.0.0.1:5001".to_string())
 }
 
 fn main() -> io::Result<()> {
@@ -183,29 +177,7 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-fn is_mixed_content(api_base: &str) -> bool {
-    web_sys::window()
-        .and_then(|w| w.location().protocol().ok())
-        .map(|proto| proto == "https:" && api_base.starts_with("http:"))
-        .unwrap_or(false)
-}
-
 async fn poll_api(info: &RefCell<NodeInfo>, api_base: &str) {
-    if is_mixed_content(api_base) {
-        let page = web_sys::window()
-            .and_then(|w| w.location().href().ok())
-            .unwrap_or_default();
-        let mut i = info.borrow_mut();
-        i.connected = false;
-        i.error = Some(
-            format!(
-                "Mixed content blocked: {page} is HTTPS but API is HTTP. \
-                 Open http://localhost:8080 from 'make run-wasm-dashboard' instead.",
-            ),
-        );
-        return;
-    }
-
     match fetch_id(api_base).await {
         Ok(json) => {
             let mut i = info.borrow_mut();

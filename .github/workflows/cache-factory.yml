@@ -123,6 +123,6 @@ jobs:
 
       - name: Populate Go module cache
         run: |
-          cd go/kubo-sys/ffi
+          cd go/ffi
           go mod download
-          go build -buildmode=c-archive -o tmp/libkubo_ffi.a ./ffi.go
+          go build -buildmode=c-archive -o tmp/libkubo_ffi.a .

@@ -31,7 +31,7 @@ fn api_base() -> String {
         .and_then(|w| w.location().href().ok())
         .and_then(|href| web_sys::Url::new(&href).ok())
         .and_then(|url| url.search_params().get("api"))
-        .unwrap_or_else(|| "http://127.0.0.1:5001".to_string())
+        .unwrap_or_else(|| "http://localhost:5001".to_string())
 }
 
 fn main() -> io::Result<()> {
@@ -188,13 +188,12 @@ async fn poll_api(info: &RefCell<NodeInfo>, api_base: &str) {
                     .collect();
             }
         }
-        Err(_) => {
+        Err(e) => {
             let mut i = info.borrow_mut();
             i.connected = false;
             i.error = Some(
                 format!(
-                    "Cannot connect to {}/api/v0/id. \
-                     Start a standard Kubo daemon (ipfs daemon) with CORS enabled.",
+                    "Cannot connect to {}/api/v0/id. Error: {e:?}",
                     api_base
                 ),
             );

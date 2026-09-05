@@ -36,6 +36,14 @@ unsafe extern "C" {
         out_len: *mut usize,
     ) -> i64;
     fn kubo_block_stat(handle: u64, cid_str: *const c_char) -> i64;
+    fn kubo_swarm_disconnect(handle: u64, addr: *const c_char) -> i64;
+    fn kubo_pin_add(handle: u64, cid_str: *const c_char, recursive: u8) -> i64;
+    fn kubo_pin_rm(handle: u64, cid_str: *const c_char, recursive: u8) -> i64;
+    fn kubo_pin_ls(handle: u64) -> *mut c_char;
+    fn kubo_dht_findpeer(handle: u64, peer_id: *const c_char) -> *mut c_char;
+    fn kubo_dht_findprovs(handle: u64, cid_str: *const c_char) -> *mut c_char;
+    fn kubo_name_publish(handle: u64, cid_str: *const c_char, lifetime_sec: i64) -> *mut c_char;
+    fn kubo_name_resolve(handle: u64, name_str: *const c_char) -> *mut c_char;
 
     // libp2p
     fn kubo_libp2p_host_new() -> u64;
@@ -261,6 +269,92 @@ pub fn block_stat(handle: u64, cid: &str) -> Result<usize, Error> {
         Err(Error::Go(last_error()))
     } else {
         Ok(size as usize)
+    }
+}
+
+pub fn swarm_disconnect(handle: u64, addr: &str) -> Result<(), Error> {
+    let c_addr = CString::new(addr)?;
+    unsafe { check_err(kubo_swarm_disconnect(handle, c_addr.as_ptr())) }
+}
+
+pub fn pin_add(handle: u64, cid: &str, recursive: bool) -> Result<(), Error> {
+    let c_cid = CString::new(cid)?;
+    unsafe { check_err(kubo_pin_add(handle, c_cid.as_ptr(), recursive as u8)) }
+}
+
+pub fn pin_rm(handle: u64, cid: &str, recursive: bool) -> Result<(), Error> {
+    let c_cid = CString::new(cid)?;
+    unsafe { check_err(kubo_pin_rm(handle, c_cid.as_ptr(), recursive as u8)) }
+}
+
+pub fn pin_ls(handle: u64) -> Result<Vec<(String, String)>, Error> {
+    let raw = unsafe { ptr_to_string(kubo_pin_ls(handle)).ok_or_else(|| Error::Go(last_error()))? };
+    Ok(raw
+        .lines()
+        .map(|s| {
+            let mut parts = s.splitn(2, '\t');
+            let path = parts.next().unwrap_or("").to_string();
+            let typ = parts.next().unwrap_or("").to_string();
+            (path, typ)
+        })
+        .collect())
+}
+
+pub fn dht_findpeer(handle: u64, peer_id: &str) -> Result<(String, Vec<String>), Error> {
+    let c_peer_id = CString::new(peer_id)?;
+    let raw = unsafe {
+        ptr_to_string(kubo_dht_findpeer(handle, c_peer_id.as_ptr()))
+            .ok_or_else(|| Error::Go(last_error()))?
+    };
+    let mut parts = raw.splitn(2, '\t');
+    let id = parts.next().unwrap_or("").to_string();
+    let addrs = parts
+        .next()
+        .unwrap_or("")
+        .split(',')
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+        .collect();
+    Ok((id, addrs))
+}
+
+pub fn dht_findprovs(handle: u64, cid: &str) -> Result<Vec<(String, Vec<String>)>, Error> {
+    let c_cid = CString::new(cid)?;
+    let raw = unsafe {
+        ptr_to_string(kubo_dht_findprovs(handle, c_cid.as_ptr()))
+            .ok_or_else(|| Error::Go(last_error()))?
+    };
+    Ok(raw
+        .lines()
+        .filter(|s| !s.is_empty())
+        .map(|s| {
+            let mut parts = s.splitn(2, '\t');
+            let id = parts.next().unwrap_or("").to_string();
+            let addrs = parts
+                .next()
+                .unwrap_or("")
+                .split(',')
+                .filter(|s| !s.is_empty())
+                .map(String::from)
+                .collect();
+            (id, addrs)
+        })
+        .collect())
+}
+
+pub fn name_publish(handle: u64, cid: &str, lifetime_sec: i64) -> Result<String, Error> {
+    let c_cid = CString::new(cid)?;
+    unsafe {
+        ptr_to_string(kubo_name_publish(handle, c_cid.as_ptr(), lifetime_sec))
+            .ok_or_else(|| Error::Go(last_error()))
+    }
+}
+
+pub fn name_resolve(handle: u64, name: &str) -> Result<String, Error> {
+    let c_name = CString::new(name)?;
+    unsafe {
+        ptr_to_string(kubo_name_resolve(handle, c_name.as_ptr()))
+            .ok_or_else(|| Error::Go(last_error()))
     }
 }
 

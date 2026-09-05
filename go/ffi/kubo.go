@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/ipfs/boxo/files"
@@ -648,4 +649,297 @@ func kubo_block_stat(handle uint64, cidStr *C.char) int64 {
 
 	setError(nil)
 	return int64(stat.Size())
+}
+
+// ---------------------------------------------------------------------------
+// Swarm
+// ---------------------------------------------------------------------------
+
+//export kubo_swarm_disconnect
+func kubo_swarm_disconnect(handle uint64, addr *C.char) int64 {
+	nodesMu.RLock()
+	h, ok := nodes[handle]
+	nodesMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid handle %d", handle))
+		return -1
+	}
+
+	addrStr := C.GoString(addr)
+	maddr, err := ma.NewMultiaddr(addrStr)
+	if err != nil {
+		setError(fmt.Errorf("parse multiaddr: %w", err))
+		return -1
+	}
+
+	if err := h.api.Swarm().Disconnect(h.ctx, maddr); err != nil {
+		setError(fmt.Errorf("disconnect: %w", err))
+		return -1
+	}
+
+	setError(nil)
+	return 0
+}
+
+// ---------------------------------------------------------------------------
+// Pin
+// ---------------------------------------------------------------------------
+
+//export kubo_pin_add
+func kubo_pin_add(handle uint64, cidStr *C.char, recursive C.uint8_t) int64 {
+	nodesMu.RLock()
+	h, ok := nodes[handle]
+	nodesMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid handle %d", handle))
+		return -1
+	}
+
+	cidStrGo := C.GoString(cidStr)
+	var p path.Path
+	var err error
+
+	if strings.HasPrefix(cidStrGo, "/ipfs/") || strings.HasPrefix(cidStrGo, "/ipns/") {
+		p, err = path.NewPath(cidStrGo)
+	} else {
+		var c cid.Cid
+		c, err = cid.Decode(cidStrGo)
+		if err == nil {
+			p = path.FromCid(c)
+		}
+	}
+	if err != nil {
+		setError(fmt.Errorf("parse path: %w", err))
+		return -1
+	}
+
+	opts := []options.PinAddOption{options.Pin.Recursive(recursive != 0)}
+	if err := h.api.Pin().Add(h.ctx, p, opts...); err != nil {
+		setError(fmt.Errorf("pin add: %w", err))
+		return -1
+	}
+
+	setError(nil)
+	return 0
+}
+
+//export kubo_pin_rm
+func kubo_pin_rm(handle uint64, cidStr *C.char, recursive C.uint8_t) int64 {
+	nodesMu.RLock()
+	h, ok := nodes[handle]
+	nodesMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid handle %d", handle))
+		return -1
+	}
+
+	cidStrGo := C.GoString(cidStr)
+	var p path.Path
+	var err error
+
+	if strings.HasPrefix(cidStrGo, "/ipfs/") || strings.HasPrefix(cidStrGo, "/ipns/") {
+		p, err = path.NewPath(cidStrGo)
+	} else {
+		var c cid.Cid
+		c, err = cid.Decode(cidStrGo)
+		if err == nil {
+			p = path.FromCid(c)
+		}
+	}
+	if err != nil {
+		setError(fmt.Errorf("parse path: %w", err))
+		return -1
+	}
+
+	opts := []options.PinRmOption{options.Pin.RmRecursive(recursive != 0)}
+	if err := h.api.Pin().Rm(h.ctx, p, opts...); err != nil {
+		setError(fmt.Errorf("pin rm: %w", err))
+		return -1
+	}
+
+	setError(nil)
+	return 0
+}
+
+//export kubo_pin_ls
+func kubo_pin_ls(handle uint64) *C.char {
+	nodesMu.RLock()
+	h, ok := nodes[handle]
+	nodesMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid handle %d", handle))
+		return nil
+	}
+
+	ch := make(chan coreiface.Pin)
+	var pins []string
+	var lsErr error
+
+	go func() {
+		defer close(ch)
+		lsErr = h.api.Pin().Ls(h.ctx, ch)
+	}()
+
+	for pin := range ch {
+		pins = append(pins, pin.Path().String()+"\t"+pin.Type())
+	}
+
+	if lsErr != nil {
+		setError(fmt.Errorf("pin ls: %w", lsErr))
+		return nil
+	}
+
+	setError(nil)
+	return C.CString(strings.Join(pins, "\n"))
+}
+
+// ---------------------------------------------------------------------------
+// DHT / Routing
+// ---------------------------------------------------------------------------
+
+//export kubo_dht_findpeer
+func kubo_dht_findpeer(handle uint64, peerIDStr *C.char) *C.char {
+	nodesMu.RLock()
+	h, ok := nodes[handle]
+	nodesMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid handle %d", handle))
+		return nil
+	}
+
+	pid, err := peer.Decode(C.GoString(peerIDStr))
+	if err != nil {
+		setError(fmt.Errorf("decode peer id: %w", err))
+		return nil
+	}
+
+	info, err := h.api.Routing().FindPeer(h.ctx, pid)
+	if err != nil {
+		setError(fmt.Errorf("find peer: %w", err))
+		return nil
+	}
+
+	var addrs []string
+	for _, a := range info.Addrs {
+		addrs = append(addrs, a.String())
+	}
+
+	result := fmt.Sprintf("%s\t%s", info.ID.String(), strings.Join(addrs, ","))
+	setError(nil)
+	return C.CString(result)
+}
+
+//export kubo_dht_findprovs
+func kubo_dht_findprovs(handle uint64, cidStr *C.char) *C.char {
+	nodesMu.RLock()
+	h, ok := nodes[handle]
+	nodesMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid handle %d", handle))
+		return nil
+	}
+
+	c, err := cid.Decode(C.GoString(cidStr))
+	if err != nil {
+		setError(fmt.Errorf("decode cid: %w", err))
+		return nil
+	}
+
+	p := path.FromCid(c)
+	ctx, cancel := context.WithTimeout(h.ctx, 30*time.Second)
+	defer cancel()
+
+	provCh, err := h.api.Routing().FindProviders(ctx, p)
+	if err != nil {
+		setError(fmt.Errorf("find providers: %w", err))
+		return nil
+	}
+
+	var providers []string
+	for info := range provCh {
+		var addrs []string
+		for _, a := range info.Addrs {
+			addrs = append(addrs, a.String())
+		}
+		providers = append(providers, info.ID.String()+"\t"+strings.Join(addrs, ","))
+	}
+
+	setError(nil)
+	return C.CString(strings.Join(providers, "\n"))
+}
+
+// ---------------------------------------------------------------------------
+// Name / IPNS
+// ---------------------------------------------------------------------------
+
+//export kubo_name_publish
+func kubo_name_publish(handle uint64, cidStr *C.char, lifetimeSec C.int64_t) *C.char {
+	nodesMu.RLock()
+	h, ok := nodes[handle]
+	nodesMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid handle %d", handle))
+		return nil
+	}
+
+	cidStrGo := C.GoString(cidStr)
+	var p path.Path
+	var err error
+
+	if strings.HasPrefix(cidStrGo, "/ipfs/") || strings.HasPrefix(cidStrGo, "/ipns/") {
+		p, err = path.NewPath(cidStrGo)
+	} else {
+		var c cid.Cid
+		c, err = cid.Decode(cidStrGo)
+		if err == nil {
+			p = path.FromCid(c)
+		}
+	}
+	if err != nil {
+		setError(fmt.Errorf("parse path: %w", err))
+		return nil
+	}
+
+	lifetime := time.Duration(lifetimeSec) * time.Second
+	opts := []options.NamePublishOption{options.Name.ValidTime(lifetime)}
+	name, err := h.api.Name().Publish(h.ctx, p, opts...)
+	if err != nil {
+		setError(fmt.Errorf("name publish: %w", err))
+		return nil
+	}
+
+	setError(nil)
+	return C.CString(name.String())
+}
+
+//export kubo_name_resolve
+func kubo_name_resolve(handle uint64, nameStr *C.char) *C.char {
+	nodesMu.RLock()
+	h, ok := nodes[handle]
+	nodesMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid handle %d", handle))
+		return nil
+	}
+
+	name := C.GoString(nameStr)
+	ctx, cancel := context.WithTimeout(h.ctx, 30*time.Second)
+	defer cancel()
+
+	resolved, err := h.api.Name().Resolve(ctx, name)
+	if err != nil {
+		setError(fmt.Errorf("name resolve: %w", err))
+		return nil
+	}
+
+	setError(nil)
+	return C.CString(resolved.String())
 }

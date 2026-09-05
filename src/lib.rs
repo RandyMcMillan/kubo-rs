@@ -181,6 +181,89 @@ impl Node {
         ffi::block_stat(self.handle, cid)
     }
 
+    /// Disconnect from a peer by multiaddr.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the disconnection fails.
+    pub fn disconnect(&self, addr: &str) -> Result<(), Error> {
+        ffi::swarm_disconnect(self.handle, addr)
+    }
+
+    /// Pin a CID or `/ipfs/…` path.
+    ///
+    /// `recursive=true` pins the entire referenced tree.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the pin operation fails.
+    pub fn pin_add(&self, cid: &str, recursive: bool) -> Result<(), Error> {
+        ffi::pin_add(self.handle, cid, recursive)
+    }
+
+    /// Unpin a CID or `/ipfs/…` path.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the unpin operation fails.
+    pub fn pin_rm(&self, cid: &str, recursive: bool) -> Result<(), Error> {
+        ffi::pin_rm(self.handle, cid, recursive)
+    }
+
+    /// Return the list of pinned objects.
+    ///
+    /// Each tuple contains the path and the pin type (e.g. "recursive",
+    /// "direct", "indirect").
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the pin list cannot be read.
+    pub fn pin_ls(&self) -> Result<Vec<(String, String)>, Error> {
+        ffi::pin_ls(self.handle)
+    }
+
+    /// Query the DHT for a peer's addresses.
+    ///
+    /// Returns the peer ID and a list of multiaddrs.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the lookup fails.
+    pub fn dht_findpeer(&self, peer_id: &str) -> Result<(String, Vec<String>), Error> {
+        ffi::dht_findpeer(self.handle, peer_id)
+    }
+
+    /// Query the DHT for providers of a CID.
+    ///
+    /// Returns a list of (peer_id, addresses) tuples.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the lookup fails.
+    pub fn dht_findprovs(&self, cid: &str) -> Result<Vec<(String, Vec<String>)>, Error> {
+        ffi::dht_findprovs(self.handle, cid)
+    }
+
+    /// Publish an IPNS name pointing to a CID.
+    ///
+    /// `lifetime_sec` controls how long the record is valid.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if publishing fails.
+    pub fn name_publish(&self, cid: &str, lifetime_sec: i64) -> Result<String, Error> {
+        ffi::name_publish(self.handle, cid, lifetime_sec)
+    }
+
+    /// Resolve an IPNS name to a path.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if resolution fails.
+    pub fn name_resolve(&self, name: &str) -> Result<String, Error> {
+        ffi::name_resolve(self.handle, name)
+    }
+
     /// Shut the node down and consume the handle.
     ///
     /// # Errors

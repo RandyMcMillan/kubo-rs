@@ -172,21 +172,31 @@ struct ContentView: View {
     }
 
     private var sidebar: some View {
-        List(selection: $store.selection) {
+        List {
             Section {
                 ForEach(DashboardSection.allCases) { section in
-                    Label {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(section.title)
-                            Text(section.subtitle)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                    Button {
+                        store.selection = section
+                    } label: {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(section.title)
+                                Text(section.subtitle)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: section.icon)
+                                .symbolRenderingMode(.hierarchical)
                         }
-                    } icon: {
-                        Image(systemName: section.icon)
-                            .symbolRenderingMode(.hierarchical)
                     }
-                    .tag(section)
+                    .buttonStyle(.plain)
+                    .background(
+                        store.selection == section
+                            ? Color.accentColor.opacity(0.12)
+                            : Color.clear
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
             } header: {
                 VStack(alignment: .leading, spacing: 10) {

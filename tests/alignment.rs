@@ -505,6 +505,172 @@ fn test_nostr_sdk_event_parses_go_signed_event() {
 }
 
 // ---------------------------------------------------------------------------
+// NIP-34 (Git Stuff) alignment
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_nip34_kind_values_alignment() {
+    // NIP-34 defines git-related kinds. Verify Rust and Go agree.
+    let cases: &[(Kind, i32, &str)] = &[
+        (Kind::GitPatch, 1617, "KindPatch"),
+        (Kind::GitPullRequest, 1618, "KindPullRequest"),
+        (Kind::GitPullRequestUpdate, 1619, "KindPullRequestUpdate"),
+        (Kind::GitIssue, 1621, "KindIssue"),
+        (Kind::GitReply, 1622, "KindReply"),
+        (Kind::GitStatusOpen, 1630, "KindStatusOpen"),
+        (Kind::GitStatusApplied, 1631, "KindStatusApplied"),
+        (Kind::GitStatusClosed, 1632, "KindStatusClosed"),
+        (Kind::GitStatusDraft, 1633, "KindStatusDraft"),
+        (
+            Kind::GitRepoAnnouncement,
+            30617,
+            "KindRepositoryAnnouncement",
+        ),
+        (Kind::RepoState, 30618, "KindRepositoryState"),
+    ];
+
+    for (rust_kind, expected_value, go_name) in cases {
+        let actual = rust_kind.as_u16() as i32;
+        assert_eq!(
+            actual, *expected_value,
+            "NIP-34 Kind mismatch: Rust {:?} ({}) != Go {} ({})",
+            rust_kind, actual, go_name, expected_value
+        );
+    }
+}
+
+#[test]
+fn test_nip34_repo_announcement_rust_to_go() {
+    // Construct a NIP-34 repository announcement event in Rust with
+    // proper tags and verify the Go FFI accepts it.
+    let keys = Keys::generate();
+    let unsigned = UnsignedEvent::new(
+        keys.public_key(),
+        Timestamp::now(),
+        Kind::GitRepoAnnouncement,
+        [
+            Tag::parse(["d", "my-repo"]).unwrap(),
+            Tag::parse(["name", "My Repository"]).unwrap(),
+            Tag::parse(["description", "A test repo"]).unwrap(),
+            Tag::parse(["clone", "https://example.com/repo.git"]).unwrap(),
+        ],
+        "",
+    );
+    let event = keys.sign_event(unsigned).expect("rust sign failed");
+    let event_json = serde_json::to_string(&event).expect("rust serialize failed");
+
+    let ok = kubo_rs::nostr_event_verify(&event_json).expect("go verify failed");
+    assert!(
+        ok,
+        "go FFI must verify rust-signed NIP-34 repo announcement"
+    );
+}
+
+#[test]
+fn test_nip34_repo_state_rust_to_go() {
+    let keys = Keys::generate();
+    let unsigned = UnsignedEvent::new(
+        keys.public_key(),
+        Timestamp::now(),
+        Kind::RepoState,
+        [
+            Tag::parse(["d", "my-repo"]).unwrap(),
+            Tag::parse(["HEAD", "ref: refs/heads/main"]).unwrap(),
+            Tag::parse(["refs/heads/main", "abc123"]).unwrap(),
+            Tag::parse(["refs/tags/v1.0", "def456"]).unwrap(),
+        ],
+        "",
+    );
+    let event = keys.sign_event(unsigned).expect("rust sign failed");
+    let event_json = serde_json::to_string(&event).expect("rust serialize failed");
+
+    let ok = kubo_rs::nostr_event_verify(&event_json).expect("go verify failed");
+    assert!(ok, "go FFI must verify rust-signed NIP-34 repo state");
+}
+
+#[test]
+fn test_nip34_patch_rust_to_go() {
+    let keys = Keys::generate();
+    let unsigned = UnsignedEvent::new(
+        keys.public_key(),
+        Timestamp::now(),
+        Kind::GitPatch,
+        [Tag::parse(["a", "30617:abcdef:my-repo"]).unwrap()],
+        "diff --git a/file.txt b/file.txt\n--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-old\n+new\n",
+    );
+    let event = keys.sign_event(unsigned).expect("rust sign failed");
+    let event_json = serde_json::to_string(&event).expect("rust serialize failed");
+
+    let ok = kubo_rs::nostr_event_verify(&event_json).expect("go verify failed");
+    assert!(ok, "go FFI must verify rust-signed NIP-34 patch");
+}
+
+#[test]
+fn test_nip34_issue_and_status_rust_to_go() {
+    let keys = Keys::generate();
+
+    for &(kind, desc) in &[
+        (Kind::GitIssue, "issue"),
+        (Kind::GitReply, "reply"),
+        (Kind::GitStatusOpen, "status-open"),
+        (Kind::GitStatusApplied, "status-applied"),
+        (Kind::GitStatusClosed, "status-closed"),
+        (Kind::GitStatusDraft, "status-draft"),
+    ] {
+        let unsigned = UnsignedEvent::new(
+            keys.public_key(),
+            Timestamp::now(),
+            kind,
+            [Tag::parse(["e", "abc123"]).unwrap()],
+            format!("{} description", desc),
+        );
+        let event = keys.sign_event(unsigned).expect("rust sign failed");
+        let event_json = serde_json::to_string(&event).expect("rust serialize failed");
+
+        let ok = kubo_rs::nostr_event_verify(&event_json)
+            .unwrap_or_else(|_| panic!("go verify failed for NIP-34 {}", desc));
+        assert!(ok, "go FFI must verify rust-signed NIP-34 {}", desc);
+    }
+}
+
+#[test]
+fn test_nip34_go_to_rust_round_trip() {
+    // Sign NIP-34 events via Go FFI and parse/verify them with Rust.
+    let sk = kubo_rs::nostr_generate_key().expect("go keygen failed");
+
+    let kinds: &[(i32, &str)] = &[
+        (30617, "repo announcement"),
+        (30618, "repo state"),
+        (1617, "patch"),
+        (1618, "pull request"),
+        (1619, "pr update"),
+        (1621, "issue"),
+        (1622, "reply"),
+        (1630, "status open"),
+        (1631, "status applied"),
+        (1632, "status closed"),
+        (1633, "status draft"),
+    ];
+
+    for &(kind_val, desc) in kinds {
+        let event_json = kubo_rs::nostr_event_sign(&sk, desc, kind_val)
+            .unwrap_or_else(|_| panic!("go sign failed for NIP-34 {}", desc));
+        let event: Event = serde_json::from_str(&event_json)
+            .unwrap_or_else(|_| panic!("rust parse failed for NIP-34 {}", desc));
+        assert_eq!(
+            event.kind.as_u16() as i32,
+            kind_val,
+            "NIP-34 kind {} ({}) must survive round-trip",
+            kind_val,
+            desc
+        );
+        event
+            .verify()
+            .unwrap_or_else(|_| panic!("rust verify failed for NIP-34 {}", desc));
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 

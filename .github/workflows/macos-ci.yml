@@ -168,6 +168,58 @@ jobs:
         env:
           RUSTDOCFLAGS: -D warnings
 
+  xcode-build:
+    needs: select-matrix
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJson(needs.select-matrix.outputs.matrix) }}
+        rust:
+          - stable
+    runs-on: ${{ matrix.os }}
+    if: needs.select-matrix.outputs.matrix != '[]'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Init submodules
+        run: |
+          git submodule sync
+          git submodule update --init
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,aarch64-apple-ios-macabi
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.5"
+          cache: false
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('go/kubo-sys/go.sum', 'go/ffi/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-
+
+      - name: Populate Rust cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+        with:
+          shared-key: stable-cache
+
+      - name: Build Rust library, bindings, and XCFramework
+        run: cd xcode && make rust
+
+      - name: Build iOS app
+        run: cd xcode && make app
+
   ffi-tests:
     needs: select-matrix
     strategy:

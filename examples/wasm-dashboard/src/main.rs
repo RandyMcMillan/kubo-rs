@@ -210,10 +210,10 @@ fn main() -> io::Result<()> {
         let t = info.theme;
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .margin(2)
+            .margin(0)
             .constraints([
                 Constraint::Length(3),
-                Constraint::Length(12),
+                Constraint::Length(10),
                 Constraint::Length(8),
                 Constraint::Min(0),
             ])

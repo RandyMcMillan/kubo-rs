@@ -31,15 +31,16 @@
         --solarized-cyan: #2aa198;
         --solarized-green: #859900;
       }
-      body {
+      html, body {
         margin: 0;
-        width: 100%;
+        padding: 0;
+        width: 100vw;
         height: 100vh;
+        overflow: hidden;
+      }
+      body {
         display: flex;
         flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        align-content: center;
         background-color: var(--solarized-base03);
         color: var(--solarized-base0);
       }
@@ -47,10 +48,28 @@
         background-color: var(--solarized-base3);
         color: var(--solarized-base00);
       }
+      body > pre, body > div {
+        width: 100% !important;
+        height: 100% !important;
+        flex: 1;
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
       pre {
         font-family: "Fira Code", monospace;
         font-size: 14px;
-        margin: 0px;
+        line-height: 1.2;
+      }
+      @media (max-width: 600px) {
+        pre {
+          font-size: 10px;
+        }
+      }
+      @media (max-width: 400px) {
+        pre {
+          font-size: 8px;
+        }
       }
     </style>
   </head>

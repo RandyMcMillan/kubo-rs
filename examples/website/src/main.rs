@@ -1,11 +1,13 @@
+use std::cell::RefCell;
 use std::io;
+use std::rc::Rc;
 
 use layout::{Flex, Offset};
 use ratzilla::{
     event::{KeyCode, KeyEvent},
     ratatui::{
         prelude::*,
-        widgets::{Block, BorderType, Clear, Paragraph, Wrap},
+        widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
     },
     utils::open_url,
     widgets::Hyperlink,
@@ -17,10 +19,34 @@ use tachyonfx::{
     CenteredShrink, Duration, Effect, EffectRenderer, EffectTimer, Interpolation, Motion, 
 };
 use ratzilla::backend::webgl2::{SelectionMode, WebGl2BackendOptions};
+use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::{spawn_local, JsFuture};
+use gloo_timers::future::IntervalStream;
+use futures::StreamExt;
+
+#[derive(Clone, Default)]
+struct NodeInfo {
+    peer_id: String,
+    version: String,
+    addresses: Vec<String>,
+    connected: bool,
+    error: Option<String>,
+    api_base: String,
+}
+
+fn api_base() -> String {
+    web_sys::window()
+        .and_then(|w| w.location().href().ok())
+        .and_then(|href| web_sys::Url::new(&href).ok())
+        .and_then(|url| url.search_params().get("api"))
+        .unwrap_or_else(|| "http://127.0.0.1:5001".to_string())
+}
 
 struct State {
     intro_effect: Effect,
     menu_effect: Effect,
+    info: Rc<RefCell<NodeInfo>>,
 }
 
 impl Default for State {
@@ -49,6 +75,7 @@ impl Default for State {
                 fx::coalesce((3000, Interpolation::SineOut)),
                 fx::sleep(1000),
             ]),
+            info: Rc::new(RefCell::new(NodeInfo::default())),
         }
     }
 }
@@ -64,6 +91,17 @@ fn main() -> io::Result<()> {
         .build_terminal()?;
 
     let mut state = State::default();
+    let api_base = api_base();
+    state.info.borrow_mut().api_base = api_base.clone();
+
+    let info_poll = state.info.clone();
+    spawn_local(async move {
+        let mut interval = IntervalStream::new(2000);
+        while interval.next().await.is_some() {
+            poll_api(&info_poll, &api_base).await;
+        }
+    });
+
     terminal.on_key_event(move |key| handle_key_event(key))?;
     terminal.draw_web(move |f| ui(f, &mut state));
     Ok(())
@@ -106,6 +144,49 @@ fn render_intro(f: &mut Frame<'_>, state: &mut State) {
     let link = Hyperlink::new("https://github.com/ratatui/ratzilla".red());
     f.render_widget(link, area.offset(Offset { x: 0, y: 4 }));
     f.render_effect(&mut state.intro_effect, area, Duration::from_millis(40));
+
+    let info = state.info.borrow();
+    let ipfs_area = Layout::vertical([
+        Constraint::Percentage(40),
+        Constraint::Percentage(60),
+    ]).split(f.area())[1];
+
+    let status_text = if info.connected {
+        format!("Connected to {}", info.api_base)
+    } else if let Some(ref err) = info.error {
+        format!("Error: {err}")
+    } else {
+        format!("Connecting to {} ...", info.api_base)
+    };
+
+    let status = Paragraph::new(vec![
+        Line::from(vec![Span::raw("Status: "), Span::raw(status_text)]),
+        Line::from(""),
+        Line::from(vec![
+            Span::raw("Peer ID:  "),
+            Span::raw(if info.peer_id.is_empty() { "-".to_string() } else { info.peer_id.clone() }),
+        ]),
+        Line::from(vec![
+            Span::raw("Version:  "),
+            Span::raw(if info.version.is_empty() { "-".to_string() } else { info.version.clone() }),
+        ]),
+    ])
+    .block(Block::default().title(" Node Identity ").borders(Borders::ALL))
+    .wrap(Wrap { trim: true });
+
+    let addrs_text = if info.addresses.is_empty() {
+        "No addresses available".to_string()
+    } else {
+        info.addresses.join("\n")
+    };
+    let addrs = Paragraph::new(addrs_text)
+        .block(Block::default().title(" Listening Addresses ").borders(Borders::ALL))
+        .wrap(Wrap { trim: true });
+
+    let chunks = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(ipfs_area);
+    f.render_widget(status, chunks[0]);
+    f.render_widget(addrs, chunks[1]);
 }
 
 fn render_menu(f: &mut Frame<'_>, state: &mut State) {
@@ -137,4 +218,51 @@ fn render_menu(f: &mut Frame<'_>, state: &mut State) {
         area,
     );
     f.render_effect(&mut state.menu_effect, area, Duration::from_millis(100));
+}
+
+async fn poll_api(info: &RefCell<NodeInfo>, api_base: &str) {
+    match fetch_id(api_base).await {
+        Ok(json) => {
+            let mut i = info.borrow_mut();
+            i.connected = true;
+            i.error = None;
+            if let Some(id) = json.get("ID").and_then(|v| v.as_str()) {
+                i.peer_id = id.to_string();
+            }
+            if let Some(ver) = json.get("AgentVersion").and_then(|v| v.as_str()) {
+                i.version = ver.to_string();
+            }
+            if let Some(addrs) = json.get("Addresses").and_then(|v| v.as_array()) {
+                i.addresses = addrs
+                    .iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect();
+            }
+        }
+        Err(e) => {
+            let mut i = info.borrow_mut();
+            i.connected = false;
+            i.error = Some(format!(
+                "Cannot connect to {}/api/v0/id. Error: {e:?}",
+                api_base
+            ));
+        }
+    }
+}
+
+async fn fetch_id(api_base: &str) -> Result<serde_json::Value, JsValue> {
+    let window = web_sys::window().ok_or("no window")?;
+    let opts = web_sys::RequestInit::new();
+    opts.set_method("POST");
+    opts.set_mode(web_sys::RequestMode::Cors);
+
+    let url = format!("{}/api/v0/id", api_base);
+    let request = web_sys::Request::new_with_str_and_init(&url, &opts)?;
+
+    let resp_value = JsFuture::from(window.fetch_with_request(&request)).await?;
+    let resp: web_sys::Response = resp_value.dyn_into()?;
+    let text = JsFuture::from(resp.text()?).await?;
+    let text_str = text.as_string().ok_or("invalid text")?;
+
+    serde_json::from_str(&text_str).map_err(|e| JsValue::from_str(&e.to_string()))
 }

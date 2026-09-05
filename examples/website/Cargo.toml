@@ -10,6 +10,24 @@ tachyonfx = { version = "0.23.0", default-features = false, features = ["wasm"] 
 console_error_panic_hook = "0.1.7"
 examples-shared = { version = "0.1.0", path = "../shared" }
 critical-section = { version = "1.2", features = ["std"] }
+serde_json = "1"
+wasm-bindgen = "0.2.108"
+wasm-bindgen-futures = "0.4.54"
+gloo-timers = { version = "0.3", features = ["futures"] }
+futures = "0.3"
+
+[dependencies.web-sys]
+version = "0.3"
+features = [
+  "Window",
+  "Location",
+  "Request",
+  "RequestInit",
+  "RequestMode",
+  "Response",
+  "Url",
+  "UrlSearchParams",
+]
 
 [patch.crates-io]
 tui-textarea = { git = "https://github.com/0xferrous/tui-textarea", rev = "b6bf812d1f5edab4f311f56d405a47341e9423cf" }

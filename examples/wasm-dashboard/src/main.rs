@@ -23,10 +23,23 @@ struct NodeInfo {
     addresses: Vec<String>,
     connected: bool,
     error: Option<String>,
+    api_base: String,
+}
+
+fn api_base() -> String {
+    web_sys::window()
+        .and_then(|w| w.location().href().ok())
+        .and_then(|href| web_sys::Url::new(&href).ok())
+        .and_then(|url| url.search_params().get("api"))
+        .unwrap_or_else(|| "http://127.0.0.1:5001".to_string())
 }
 
 fn main() -> io::Result<()> {
-    let info = Rc::new(RefCell::new(NodeInfo::default()));
+    let api_base = api_base();
+    let info = Rc::new(RefCell::new(NodeInfo {
+        api_base: api_base.clone(),
+        ..NodeInfo::default()
+    }));
     let backend = DomBackend::new()?;
     let terminal = Terminal::new(backend)?;
 
@@ -35,7 +48,7 @@ fn main() -> io::Result<()> {
     spawn_local(async move {
         let mut interval = IntervalStream::new(2000);
         while interval.next().await.is_some() {
-            poll_api(&info_poll).await;
+            poll_api(&info_poll, &api_base).await;
         }
     });
 
@@ -46,7 +59,7 @@ fn main() -> io::Result<()> {
             .margin(2)
             .constraints([
                 Constraint::Length(3),
-                Constraint::Length(10),
+                Constraint::Length(12),
                 Constraint::Length(8),
                 Constraint::Min(0),
             ])
@@ -60,11 +73,11 @@ fn main() -> io::Result<()> {
 
         let status_color = if info.connected { Color::Green } else { Color::Red };
         let status_text = if info.connected {
-            format!("Connected to Kubo API")
+            format!("Connected to {}", info.api_base)
         } else if let Some(ref err) = info.error {
             format!("Error: {err}")
         } else {
-            format!("Connecting to http://127.0.0.1:5001 ...")
+            format!("Connecting to {} ...", info.api_base)
         };
 
         let status = Paragraph::new(vec![
@@ -135,6 +148,12 @@ fn main() -> io::Result<()> {
             Line::from(""),
             Line::from("Note: this dashboard uses the Kubo HTTP API (port 5001)."),
             Line::from("The kubo-rs embedded node does not expose this API."),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("Custom API:", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            ]),
+            Line::from("Add ?api=<url> to use a different endpoint."),
+            Line::from("Example: ?api=http://192.168.1.100:5001"),
         ])
         .block(
             Block::default()
@@ -150,8 +169,8 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-async fn poll_api(info: &RefCell<NodeInfo>) {
-    match fetch_id().await {
+async fn poll_api(info: &RefCell<NodeInfo>, api_base: &str) {
+    match fetch_id(api_base).await {
         Ok(json) => {
             let mut i = info.borrow_mut();
             i.connected = true;
@@ -173,24 +192,24 @@ async fn poll_api(info: &RefCell<NodeInfo>) {
             let mut i = info.borrow_mut();
             i.connected = false;
             i.error = Some(
-                "Cannot connect to http://127.0.0.1:5001/api/v0/id. \
-                 Start a standard Kubo daemon (ipfs daemon) with CORS enabled."
-                    .to_string(),
+                format!(
+                    "Cannot connect to {}/api/v0/id. \
+                     Start a standard Kubo daemon (ipfs daemon) with CORS enabled.",
+                    api_base
+                ),
             );
         }
     }
 }
 
-async fn fetch_id() -> Result<serde_json::Value, JsValue> {
+async fn fetch_id(api_base: &str) -> Result<serde_json::Value, JsValue> {
     let window = web_sys::window().ok_or("no window")?;
     let opts = web_sys::RequestInit::new();
     opts.set_method("POST");
     opts.set_mode(web_sys::RequestMode::Cors);
 
-    let request = web_sys::Request::new_with_str_and_init(
-        "http://127.0.0.1:5001/api/v0/id",
-        &opts,
-    )?;
+    let url = format!("{}/api/v0/id", api_base);
+    let request = web_sys::Request::new_with_str_and_init(&url, &opts)?;
 
     let resp_value = JsFuture::from(window.fetch_with_request(&request)).await?;
     let resp: web_sys::Response = resp_value.dyn_into()?;

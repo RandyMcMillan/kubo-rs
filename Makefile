@@ -91,11 +91,13 @@ wasm-dashboard:
 	./scripts/wasm-dashboard.sh --build-only 2>/dev/null || ./scripts/wasm-dashboard.sh
 
 run-wasm-dashboard:
+	pkill -f "trunk serve" 2>/dev/null || true
 	./scripts/wasm-dashboard.sh
 
 build-wasm-dashboard-release:
 	@rustup target list --installed | grep -q wasm32-unknown-unknown || rustup target add wasm32-unknown-unknown
 	@which trunk >/dev/null 2>&1 || cargo install trunk
+	pkill -f "trunk serve" 2>/dev/null || true
 	cd examples/wasm-dashboard && env -u NO_COLOR trunk build --public-url /kubo-rs/
 
 # Cross-testing

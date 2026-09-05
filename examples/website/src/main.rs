@@ -186,12 +186,9 @@ fn render_intro(f: &mut Frame<'_>, state: &mut State) {
 
     let chunks = Layout::horizontal(
 		[
-		Constraint::Percentage(2),
-		Constraint::Percentage(50),
-		//Constraint::Percentage(2),
-		//Constraint::Percentage(33)
-		//Constraint::Percentage(2)
-		Constraint::Percentage(60)
+		Constraint::Percentage(2), //spacing correction
+		Constraint::Percentage(50),//spacing correction
+		Constraint::Percentage(60) //spacing correction
 		]
 		)
         .split(ipfs_area);

@@ -76,7 +76,7 @@ jobs:
       - name: Init submodules
         run: |
           git submodule sync
-          git submodule update --init
+          git submodule update --init --recursive
 
       - name: Install Rust (Unix)
         if: runner.os != 'Windows'

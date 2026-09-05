@@ -5,9 +5,9 @@ use std::slice;
 #[link(name = "kubo_ffi", kind = "static")]
 unsafe extern "C" {
     // Shared utilities
-    fn ffi_last_error() -> *mut c_char;
-    fn ffi_free_string(s: *mut c_char);
-    fn ffi_free_buffer(buf: *mut u8);
+    fn kubo_ffi_last_error() -> *mut c_char;
+    fn kubo_ffi_free_string(s: *mut c_char);
+    fn kubo_ffi_free_buffer(buf: *mut u8);
 
     // Kubo
     fn kubo_version() -> *mut c_char;
@@ -36,24 +36,24 @@ unsafe extern "C" {
     fn kubo_block_stat(handle: u64, cid_str: *const c_char) -> i64;
 
     // libp2p
-    fn libp2p_host_new() -> u64;
-    fn libp2p_host_close(handle: u64) -> i64;
-    fn libp2p_host_peer_id(handle: u64) -> *mut c_char;
-    fn libp2p_host_listening_addrs(handle: u64) -> *mut c_char;
-    fn libp2p_host_connect(handle: u64, addr: *const c_char) -> i64;
+    fn kubo_libp2p_host_new() -> u64;
+    fn kubo_libp2p_host_close(handle: u64) -> i64;
+    fn kubo_libp2p_host_peer_id(handle: u64) -> *mut c_char;
+    fn kubo_libp2p_host_listening_addrs(handle: u64) -> *mut c_char;
+    fn kubo_libp2p_host_connect(handle: u64, addr: *const c_char) -> i64;
 
     // nostr
-    fn nostr_generate_key() -> *mut c_char;
-    fn nostr_get_public_key(sk: *const c_char) -> *mut c_char;
-    fn nostr_event_sign(sk: *const c_char, content: *const c_char, kind: i32) -> *mut c_char;
-    fn nostr_event_verify(json_str: *const c_char) -> i64;
+    fn kubo_nostr_generate_key() -> *mut c_char;
+    fn kubo_nostr_get_public_key(sk: *const c_char) -> *mut c_char;
+    fn kubo_nostr_event_sign(sk: *const c_char, content: *const c_char, kind: i32) -> *mut c_char;
+    fn kubo_nostr_event_verify(json_str: *const c_char) -> i64;
 
     // git
-    fn git_clone(url: *const c_char, path: *const c_char, bare: u8) -> i64;
-    fn git_init(path: *const c_char, bare: u8) -> i64;
-    fn git_open(path: *const c_char) -> u64;
-    fn git_repo_head(handle: u64) -> *mut c_char;
-    fn git_repo_free(handle: u64) -> i64;
+    fn kubo_git_clone(url: *const c_char, path: *const c_char, bare: u8) -> i64;
+    fn kubo_git_init(path: *const c_char, bare: u8) -> i64;
+    fn kubo_git_open(path: *const c_char) -> u64;
+    fn kubo_git_repo_head(handle: u64) -> *mut c_char;
+    fn kubo_git_repo_free(handle: u64) -> i64;
 }
 
 fn check_err(code: i64) -> Result<(), Error> {
@@ -66,12 +66,12 @@ fn check_err(code: i64) -> Result<(), Error> {
 
 fn last_error() -> String {
     unsafe {
-        let ptr = ffi_last_error();
+        let ptr = kubo_ffi_last_error();
         if ptr.is_null() {
             "unknown error".to_string()
         } else {
             let msg = CStr::from_ptr(ptr).to_string_lossy().into_owned();
-            ffi_free_string(ptr);
+            kubo_ffi_free_string(ptr);
             msg
         }
     }
@@ -83,7 +83,7 @@ fn ptr_to_string(ptr: *mut c_char) -> Option<String> {
     } else {
         unsafe {
             let s = CStr::from_ptr(ptr).to_string_lossy().into_owned();
-            ffi_free_string(ptr);
+            kubo_ffi_free_string(ptr);
             Some(s)
         }
     }
@@ -168,7 +168,7 @@ pub fn unixfs_cat(handle: u64, cid: &str) -> Result<Vec<u8>, Error> {
             Ok(Vec::new())
         } else {
             let buf = slice::from_raw_parts(out, out_len).to_vec();
-            ffi_free_buffer(out);
+            kubo_ffi_free_buffer(out);
             Ok(buf)
         }
     }
@@ -192,7 +192,7 @@ pub fn block_get(handle: u64, cid: &str) -> Result<Vec<u8>, Error> {
             Ok(Vec::new())
         } else {
             let buf = slice::from_raw_parts(out, out_len).to_vec();
-            ffi_free_buffer(out);
+            kubo_ffi_free_buffer(out);
             Ok(buf)
         }
     }
@@ -213,7 +213,7 @@ pub fn block_stat(handle: u64, cid: &str) -> Result<usize, Error> {
 // ---------------------------------------------------------------------------
 
 pub fn host_new() -> Result<u64, Error> {
-    let handle = unsafe { libp2p_host_new() };
+    let handle = unsafe { kubo_libp2p_host_new() };
     if handle == 0 {
         Err(Error::Go(last_error()))
     } else {
@@ -222,23 +222,26 @@ pub fn host_new() -> Result<u64, Error> {
 }
 
 pub fn host_close(handle: u64) -> Result<(), Error> {
-    unsafe { check_err(libp2p_host_close(handle)) }
+    unsafe { check_err(kubo_libp2p_host_close(handle)) }
 }
 
 pub fn host_peer_id(handle: u64) -> Result<String, Error> {
-    unsafe { ptr_to_string(libp2p_host_peer_id(handle)).ok_or_else(|| Error::Go(last_error())) }
+    unsafe {
+        ptr_to_string(kubo_libp2p_host_peer_id(handle)).ok_or_else(|| Error::Go(last_error()))
+    }
 }
 
 pub fn host_listening_addrs(handle: u64) -> Result<Vec<String>, Error> {
     let raw = unsafe {
-        ptr_to_string(libp2p_host_listening_addrs(handle)).ok_or_else(|| Error::Go(last_error()))?
+        ptr_to_string(kubo_libp2p_host_listening_addrs(handle))
+            .ok_or_else(|| Error::Go(last_error()))?
     };
     Ok(raw.lines().map(|s| s.to_string()).collect())
 }
 
 pub fn host_connect(handle: u64, addr: &str) -> Result<(), Error> {
     let c_addr = CString::new(addr)?;
-    unsafe { check_err(libp2p_host_connect(handle, c_addr.as_ptr())) }
+    unsafe { check_err(kubo_libp2p_host_connect(handle, c_addr.as_ptr())) }
 }
 
 // ---------------------------------------------------------------------------
@@ -246,13 +249,14 @@ pub fn host_connect(handle: u64, addr: &str) -> Result<(), Error> {
 // ---------------------------------------------------------------------------
 
 pub fn generate_key() -> Result<String, Error> {
-    unsafe { ptr_to_string(nostr_generate_key()).ok_or_else(|| Error::Go(last_error())) }
+    unsafe { ptr_to_string(kubo_nostr_generate_key()).ok_or_else(|| Error::Go(last_error())) }
 }
 
 pub fn get_public_key(sk: &str) -> Result<String, Error> {
     let c_sk = CString::new(sk)?;
     unsafe {
-        ptr_to_string(nostr_get_public_key(c_sk.as_ptr())).ok_or_else(|| Error::Go(last_error()))
+        ptr_to_string(kubo_nostr_get_public_key(c_sk.as_ptr()))
+            .ok_or_else(|| Error::Go(last_error()))
     }
 }
 
@@ -260,14 +264,18 @@ pub fn event_sign(sk: &str, content: &str, kind: i32) -> Result<String, Error> {
     let c_sk = CString::new(sk)?;
     let c_content = CString::new(content)?;
     unsafe {
-        ptr_to_string(nostr_event_sign(c_sk.as_ptr(), c_content.as_ptr(), kind))
-            .ok_or_else(|| Error::Go(last_error()))
+        ptr_to_string(kubo_nostr_event_sign(
+            c_sk.as_ptr(),
+            c_content.as_ptr(),
+            kind,
+        ))
+        .ok_or_else(|| Error::Go(last_error()))
     }
 }
 
 pub fn event_verify(json: &str) -> Result<bool, Error> {
     let c_json = CString::new(json)?;
-    match unsafe { nostr_event_verify(c_json.as_ptr()) } {
+    match unsafe { kubo_nostr_event_verify(c_json.as_ptr()) } {
         1 => Ok(true),
         0 => Ok(false),
         _ => Err(Error::Go(last_error())),
@@ -281,17 +289,17 @@ pub fn event_verify(json: &str) -> Result<bool, Error> {
 pub fn git_clone_repo(url: &str, path: &str, bare: bool) -> Result<(), Error> {
     let c_url = CString::new(url)?;
     let c_path = CString::new(path)?;
-    unsafe { check_err(git_clone(c_url.as_ptr(), c_path.as_ptr(), bare as u8)) }
+    unsafe { check_err(kubo_git_clone(c_url.as_ptr(), c_path.as_ptr(), bare as u8)) }
 }
 
 pub fn git_init_repo(path: &str, bare: bool) -> Result<(), Error> {
     let c_path = CString::new(path)?;
-    unsafe { check_err(git_init(c_path.as_ptr(), bare as u8)) }
+    unsafe { check_err(kubo_git_init(c_path.as_ptr(), bare as u8)) }
 }
 
 pub fn git_open_repo(path: &str) -> Result<u64, Error> {
     let c_path = CString::new(path)?;
-    let handle = unsafe { git_open(c_path.as_ptr()) };
+    let handle = unsafe { kubo_git_open(c_path.as_ptr()) };
     if handle == 0 {
         Err(Error::Go(last_error()))
     } else {
@@ -300,9 +308,9 @@ pub fn git_open_repo(path: &str) -> Result<u64, Error> {
 }
 
 pub fn git_repo_head_hash(handle: u64) -> Result<String, Error> {
-    unsafe { ptr_to_string(git_repo_head(handle)).ok_or_else(|| Error::Go(last_error())) }
+    unsafe { ptr_to_string(kubo_git_repo_head(handle)).ok_or_else(|| Error::Go(last_error())) }
 }
 
 pub fn git_repo_release(handle: u64) -> Result<(), Error> {
-    unsafe { check_err(git_repo_free(handle)) }
+    unsafe { check_err(kubo_git_repo_free(handle)) }
 }

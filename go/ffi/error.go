@@ -27,8 +27,8 @@ func setError(err error) {
 	}
 }
 
-//export ffi_last_error
-func ffi_last_error() *C.char {
+//export kubo_ffi_last_error
+func kubo_ffi_last_error() *C.char {
 	lastErrorMu.Lock()
 	defer lastErrorMu.Unlock()
 	if lastError == "" {
@@ -37,12 +37,12 @@ func ffi_last_error() *C.char {
 	return C.CString(lastError)
 }
 
-//export ffi_free_string
-func ffi_free_string(s *C.char) {
+//export kubo_ffi_free_string
+func kubo_ffi_free_string(s *C.char) {
 	C.free(unsafe.Pointer(s))
 }
 
-//export ffi_free_buffer
-func ffi_free_buffer(buf *C.uint8_t) {
+//export kubo_ffi_free_buffer
+func kubo_ffi_free_buffer(buf *C.uint8_t) {
 	C.free(unsafe.Pointer(buf))
 }

@@ -30,8 +30,8 @@ type libp2pHostHandle struct {
 	host   host.Host
 }
 
-//export libp2p_host_new
-func libp2p_host_new() uint64 {
+//export kubo_libp2p_host_new
+func kubo_libp2p_host_new() uint64 {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	h, err := libp2p.New(libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
@@ -57,8 +57,8 @@ func libp2p_host_new() uint64 {
 	return hid
 }
 
-//export libp2p_host_close
-func libp2p_host_close(handle uint64) int64 {
+//export kubo_libp2p_host_close
+func kubo_libp2p_host_close(handle uint64) int64 {
 	libp2pHostsMu.Lock()
 	h, ok := libp2pHosts[handle]
 	if ok {
@@ -81,8 +81,8 @@ func libp2p_host_close(handle uint64) int64 {
 	return 0
 }
 
-//export libp2p_host_peer_id
-func libp2p_host_peer_id(handle uint64) *C.char {
+//export kubo_libp2p_host_peer_id
+func kubo_libp2p_host_peer_id(handle uint64) *C.char {
 	libp2pHostsMu.RLock()
 	h, ok := libp2pHosts[handle]
 	libp2pHostsMu.RUnlock()
@@ -95,8 +95,8 @@ func libp2p_host_peer_id(handle uint64) *C.char {
 	return C.CString(h.host.ID().String())
 }
 
-//export libp2p_host_listening_addrs
-func libp2p_host_listening_addrs(handle uint64) *C.char {
+//export kubo_libp2p_host_listening_addrs
+func kubo_libp2p_host_listening_addrs(handle uint64) *C.char {
 	libp2pHostsMu.RLock()
 	h, ok := libp2pHosts[handle]
 	libp2pHostsMu.RUnlock()
@@ -115,8 +115,8 @@ func libp2p_host_listening_addrs(handle uint64) *C.char {
 	return C.CString(strings.Join(parts, "\n"))
 }
 
-//export libp2p_host_connect
-func libp2p_host_connect(handle uint64, addr *C.char) int64 {
+//export kubo_libp2p_host_connect
+func kubo_libp2p_host_connect(handle uint64, addr *C.char) int64 {
 	libp2pHostsMu.RLock()
 	h, ok := libp2pHosts[handle]
 	libp2pHostsMu.RUnlock()

@@ -13,8 +13,8 @@ import (
 	"github.com/nbd-wtf/go-nostr"
 )
 
-//export nostr_generate_key
-func nostr_generate_key() *C.char {
+//export kubo_nostr_generate_key
+func kubo_nostr_generate_key() *C.char {
 	key := nostr.GeneratePrivateKey()
 	if key == "" {
 		setError(fmt.Errorf("failed to generate key"))
@@ -24,8 +24,8 @@ func nostr_generate_key() *C.char {
 	return C.CString(key)
 }
 
-//export nostr_get_public_key
-func nostr_get_public_key(sk *C.char) *C.char {
+//export kubo_nostr_get_public_key
+func kubo_nostr_get_public_key(sk *C.char) *C.char {
 	pk, err := nostr.GetPublicKey(C.GoString(sk))
 	if err != nil {
 		setError(fmt.Errorf("get public key: %w", err))
@@ -35,8 +35,8 @@ func nostr_get_public_key(sk *C.char) *C.char {
 	return C.CString(pk)
 }
 
-//export nostr_event_sign
-func nostr_event_sign(sk *C.char, content *C.char, kind C.int) *C.char {
+//export kubo_nostr_event_sign
+func kubo_nostr_event_sign(sk *C.char, content *C.char, kind C.int) *C.char {
 	evt := nostr.Event{
 		CreatedAt: nostr.Now(),
 		Kind:      int(kind),
@@ -59,8 +59,8 @@ func nostr_event_sign(sk *C.char, content *C.char, kind C.int) *C.char {
 	return C.CString(string(jsonBytes))
 }
 
-//export nostr_event_verify
-func nostr_event_verify(jsonStr *C.char) int64 {
+//export kubo_nostr_event_verify
+func kubo_nostr_event_verify(jsonStr *C.char) int64 {
 	var evt nostr.Event
 	if err := json.Unmarshal([]byte(C.GoString(jsonStr)), &evt); err != nil {
 		setError(fmt.Errorf("unmarshal event: %w", err))

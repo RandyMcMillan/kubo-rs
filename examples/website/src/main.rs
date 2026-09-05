@@ -128,12 +128,23 @@ fn handle_key_event(key: KeyEvent) {
     }
 }
 
+fn _render_text(f: &mut Frame<'_>, state: &mut State) {
+
+    Clear.render(f.area(), f.buffer_mut());
+    let area = f.area().centered(Constraint::Length(33), Constraint::Length(10));
+    let main_text = Text::from(vec![
+        Line::from("| R A T Z I L L A |").bold(),
+        Line::from("Stomping through the web").italic(),
+    ]);
+    f.render_widget(main_text.light_green().centered(), area);
+    let link = Hyperlink::new("https://github.com/ratatui/ratzilla".red());
+    f.render_widget(link, area.offset(Offset { x: 0, y: 4 }));
+    f.render_effect(&mut state.intro_effect, area, Duration::from_millis(40));
+}
 fn render_intro(f: &mut Frame<'_>, state: &mut State) {
 
-	//this is where i want you to insert the ipfs interface
-	//widgets 
-	//
-	//dont mess with anything else!!
+   //_render_text(f, state);
+
     //Clear.render(f.area(), f.buffer_mut());
     let _area = f.area().centered(Constraint::Length(33), Constraint::Length(10));
     //let main_text = Text::from(vec![

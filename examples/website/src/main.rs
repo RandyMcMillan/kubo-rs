@@ -145,12 +145,26 @@ fn render_intro(f: &mut Frame<'_>, state: &mut State) {
     //f.render_widget(link, area.offset(Offset { x: 0, y: 4 }));
     //f.render_effect(&mut state.intro_effect, area, Duration::from_millis(40));
 
+
     let info = state.info.borrow();
+
+
+	//your pallette
+	//your pallette
+	//your pallette
+
+
     let ipfs_area = Layout::vertical([
         Constraint::Percentage(2),
         Constraint::Percentage(96),
         Constraint::Percentage(2),
     ]).split(f.area())[1];
+
+
+	//your pallette end
+	//your pallette end
+	//your pallette end
+
 
     let status_text = if info.connected {
         format!("Connected to {}", info.api_base)
@@ -186,12 +200,30 @@ fn render_intro(f: &mut Frame<'_>, state: &mut State) {
 
     let chunks = Layout::horizontal(
 		[
+		//first in
 		Constraint::Percentage(2), //spacing correction
+
+
+
+
+		//your pallette
+		//your pallette
+		//your pallette
+		//your pallette
 		Constraint::Percentage(50),//spacing correction
 		Constraint::Percentage(60) //spacing correction
+		//your pallette end
+		//your pallette end
+		//your pallette end
+		//your pallette end
+
+
+
+
 		]
 		)
         .split(ipfs_area);
+
     f.render_widget(status, chunks[1]);
     f.render_widget(addrs, chunks[2]);
 }

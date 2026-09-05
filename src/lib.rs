@@ -236,6 +236,15 @@ impl Host {
         ffi::host_ping(self.handle, peer_id)
     }
 
+    /// Return the list of protocols supported by this host.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the protocol list cannot be read.
+    pub fn protocols(&self) -> Result<Vec<String>, Error> {
+        ffi::host_protocols(self.handle)
+    }
+
     /// Close the host and consume the handle.
     ///
     /// # Errors
@@ -480,6 +489,33 @@ impl Repository {
     /// Returns an error if the branch cannot be created.
     pub fn create_branch(&self, name: &str, commit_hash: &str) -> Result<(), Error> {
         ffi::git_repo_create_branch(self.handle, name, commit_hash)
+    }
+
+    /// Look up a commit by hash and return its message.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the commit cannot be found.
+    pub fn commit_message(&self, hash: &str) -> Result<String, Error> {
+        ffi::git_repo_commit_lookup(self.handle, hash)
+    }
+
+    /// Return the entries of a tree as (name, hash) tuples.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the tree cannot be read.
+    pub fn tree_entries(&self, hash: &str) -> Result<Vec<(String, String)>, Error> {
+        ffi::git_repo_tree_entries(self.handle, hash)
+    }
+
+    /// Read the contents of a blob by hash.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the blob cannot be read.
+    pub fn blob_read(&self, hash: &str) -> Result<Vec<u8>, Error> {
+        ffi::git_repo_blob_read(self.handle, hash)
     }
 
     /// Release the handle.

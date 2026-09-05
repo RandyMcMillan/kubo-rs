@@ -42,6 +42,7 @@ unsafe extern "C" {
     fn kubo_libp2p_host_listening_addrs(handle: u64) -> *mut c_char;
     fn kubo_libp2p_host_connect(handle: u64, addr: *const c_char) -> i64;
     fn kubo_libp2p_host_ping(handle: u64, peer_id: *const c_char) -> i64;
+    fn kubo_libp2p_host_protocols(handle: u64) -> *mut c_char;
 
     // nostr
     fn kubo_nostr_generate_key() -> *mut c_char;
@@ -77,6 +78,14 @@ unsafe extern "C" {
         handle: u64,
         name: *const c_char,
         commit_hash: *const c_char,
+    ) -> i64;
+    fn kubo_git_repo_commit_lookup(handle: u64, hash: *const c_char) -> *mut c_char;
+    fn kubo_git_repo_tree_entries(handle: u64, hash: *const c_char) -> *mut c_char;
+    fn kubo_git_repo_blob_read(
+        handle: u64,
+        hash: *const c_char,
+        out: *mut *mut u8,
+        out_len: *mut usize,
     ) -> i64;
 }
 
@@ -278,6 +287,13 @@ pub fn host_ping(handle: u64, peer_id: &str) -> Result<i64, Error> {
     }
 }
 
+pub fn host_protocols(handle: u64) -> Result<Vec<String>, Error> {
+    let raw = unsafe {
+        ptr_to_string(kubo_libp2p_host_protocols(handle)).ok_or_else(|| Error::Go(last_error()))?
+    };
+    Ok(raw.lines().map(|s| s.to_string()).collect())
+}
+
 // ---------------------------------------------------------------------------
 // nostr
 // ---------------------------------------------------------------------------
@@ -474,5 +490,47 @@ pub fn git_repo_create_branch(handle: u64, name: &str, commit_hash: &str) -> Res
             c_name.as_ptr(),
             c_hash.as_ptr(),
         ))
+    }
+}
+
+pub fn git_repo_commit_lookup(handle: u64, hash: &str) -> Result<String, Error> {
+    let c_hash = CString::new(hash)?;
+    unsafe {
+        ptr_to_string(kubo_git_repo_commit_lookup(handle, c_hash.as_ptr()))
+            .ok_or_else(|| Error::Go(last_error()))
+    }
+}
+
+pub fn git_repo_tree_entries(handle: u64, hash: &str) -> Result<Vec<(String, String)>, Error> {
+    let c_hash = CString::new(hash)?;
+    let raw = unsafe {
+        ptr_to_string(kubo_git_repo_tree_entries(handle, c_hash.as_ptr()))
+            .ok_or_else(|| Error::Go(last_error()))?
+    };
+    Ok(raw
+        .lines()
+        .map(|s| {
+            let mut parts = s.splitn(2, '\t');
+            let name = parts.next().unwrap_or("").to_string();
+            let hash = parts.next().unwrap_or("").to_string();
+            (name, hash)
+        })
+        .collect())
+}
+
+pub fn git_repo_blob_read(handle: u64, hash: &str) -> Result<Vec<u8>, Error> {
+    let c_hash = CString::new(hash)?;
+    unsafe {
+        let mut out: *mut u8 = std::ptr::null_mut();
+        let mut out_len: usize = 0;
+        let code = kubo_git_repo_blob_read(handle, c_hash.as_ptr(), &mut out, &mut out_len);
+        check_err(code)?;
+        if out.is_null() || out_len == 0 {
+            Ok(Vec::new())
+        } else {
+            let buf = slice::from_raw_parts(out, out_len).to_vec();
+            kubo_ffi_free_buffer(out);
+            Ok(buf)
+        }
     }
 }

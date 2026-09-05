@@ -8,6 +8,7 @@ import "C"
 
 import (
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 
@@ -199,6 +200,96 @@ func kubo_git_repo_create_branch(handle uint64, name *C.char, commit_hash *C.cha
 	if err := repo.Storer.SetReference(ref); err != nil {
 		setError(fmt.Errorf("git create branch: %w", err))
 		return -1
+	}
+
+	setError(nil)
+	return 0
+}
+
+//export kubo_git_repo_commit_lookup
+func kubo_git_repo_commit_lookup(handle uint64, hash *C.char) *C.char {
+	gitReposMu.RLock()
+	repo, ok := gitRepos[handle]
+	gitReposMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid git handle %d", handle))
+		return nil
+	}
+
+	commit, err := repo.CommitObject(plumbing.NewHash(C.GoString(hash)))
+	if err != nil {
+		setError(fmt.Errorf("git commit lookup: %w", err))
+		return nil
+	}
+
+	msg := commit.Message
+	setError(nil)
+	return C.CString(msg)
+}
+
+//export kubo_git_repo_tree_entries
+func kubo_git_repo_tree_entries(handle uint64, hash *C.char) *C.char {
+	gitReposMu.RLock()
+	repo, ok := gitRepos[handle]
+	gitReposMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid git handle %d", handle))
+		return nil
+	}
+
+	tree, err := repo.TreeObject(plumbing.NewHash(C.GoString(hash)))
+	if err != nil {
+		setError(fmt.Errorf("git tree lookup: %w", err))
+		return nil
+	}
+
+	var parts []string
+	for _, e := range tree.Entries {
+		parts = append(parts, fmt.Sprintf("%s\t%s", e.Name, e.Hash.String()))
+	}
+
+	setError(nil)
+	return C.CString(strings.Join(parts, "\n"))
+}
+
+//export kubo_git_repo_blob_read
+func kubo_git_repo_blob_read(handle uint64, hash *C.char, out **C.uint8_t, outLen *C.size_t) int64 {
+	gitReposMu.RLock()
+	repo, ok := gitRepos[handle]
+	gitReposMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid git handle %d", handle))
+		return -1
+	}
+
+	blob, err := repo.BlobObject(plumbing.NewHash(C.GoString(hash)))
+	if err != nil {
+		setError(fmt.Errorf("git blob lookup: %w", err))
+		return -1
+	}
+
+	reader, err := blob.Reader()
+	if err != nil {
+		setError(fmt.Errorf("git blob reader: %w", err))
+		return -1
+	}
+	defer reader.Close()
+
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		setError(fmt.Errorf("git blob read: %w", err))
+		return -1
+	}
+
+	if len(data) == 0 {
+		*out = nil
+		*outLen = 0
+	} else {
+		*out = (*C.uint8_t)(C.CBytes(data))
+		*outLen = C.size_t(len(data))
 	}
 
 	setError(nil)

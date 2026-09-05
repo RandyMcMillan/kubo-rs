@@ -510,6 +510,23 @@ fn test_libp2p_host_ping_alignment() {
     host_b.close().expect("host_b close failed");
 }
 
+#[test]
+fn test_libp2p_host_protocols_alignment() {
+    let host = kubo_rs::Host::new().expect("host new failed");
+    let protos = host.protocols().expect("protocols failed");
+
+    // A fresh libp2p host should support at least ping and identify.
+    assert!(
+        protos
+            .iter()
+            .any(|p| p.contains("ping") || p.contains("identify")),
+        "host should support basic protocols: got {:?}",
+        protos
+    );
+
+    host.close().expect("close failed");
+}
+
 // ---------------------------------------------------------------------------
 // nostr-sdk alignment
 // ---------------------------------------------------------------------------
@@ -932,6 +949,40 @@ fn test_git_branches_and_remotes_alignment() {
     assert!(
         branches_go_after.contains(&"feature".to_string()),
         "new branch must appear in go FFI branch list"
+    );
+
+    // Commit message alignment.
+    let msg_go = repo_go
+        .commit_message(&commit_id.to_string())
+        .expect("go commit lookup failed");
+    assert_eq!(msg_go, "initial", "commit message must align");
+
+    // Tree entries alignment.
+    let entries_go = repo_go
+        .tree_entries(&tree_id.to_string())
+        .expect("go tree entries failed");
+    let entries_rs: Vec<(String, String)> = tree
+        .iter()
+        .map(|e| (e.name().unwrap_or("").to_string(), e.id().to_string()))
+        .collect();
+    assert_eq!(
+        entries_go, entries_rs,
+        "tree entries must align between go-git FFI and git2"
+    );
+
+    // Blob read alignment.
+    let blob_obj = tree.get_name("hello.txt").expect("blob entry missing");
+    let blob_go = repo_go
+        .blob_read(&blob_obj.id().to_string())
+        .expect("go blob read failed");
+    let blob_rs = repo_rs
+        .find_blob(blob_obj.id())
+        .expect("git2 find blob failed")
+        .content()
+        .to_vec();
+    assert_eq!(
+        blob_go, blob_rs,
+        "blob content must align between go-git FFI and git2"
     );
 
     repo_go.close().expect("go close failed");

@@ -179,3 +179,24 @@ func kubo_libp2p_host_ping(handle uint64, peer_id *C.char) int64 {
 	setError(nil)
 	return int64(result.RTT.Milliseconds())
 }
+
+//export kubo_libp2p_host_protocols
+func kubo_libp2p_host_protocols(handle uint64) *C.char {
+	libp2pHostsMu.RLock()
+	h, ok := libp2pHosts[handle]
+	libp2pHostsMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid libp2p handle %d", handle))
+		return nil
+	}
+
+	protos := h.host.Mux().Protocols()
+	var names []string
+	for _, p := range protos {
+		names = append(names, string(p))
+	}
+
+	setError(nil)
+	return C.CString(strings.Join(names, "\n"))
+}

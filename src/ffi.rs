@@ -47,6 +47,19 @@ unsafe extern "C" {
     fn kubo_nostr_get_public_key(sk: *const c_char) -> *mut c_char;
     fn kubo_nostr_event_sign(sk: *const c_char, content: *const c_char, kind: i32) -> *mut c_char;
     fn kubo_nostr_event_verify(json_str: *const c_char) -> i64;
+    fn kubo_nostr_nip19_encode_pubkey(hex: *const c_char) -> *mut c_char;
+    fn kubo_nostr_nip19_decode_pubkey(bech32: *const c_char) -> *mut c_char;
+    fn kubo_nostr_nip19_encode_seckey(hex: *const c_char) -> *mut c_char;
+    fn kubo_nostr_nip19_decode_seckey(bech32: *const c_char) -> *mut c_char;
+    fn kubo_nostr_nip19_encode_note(hex: *const c_char) -> *mut c_char;
+    fn kubo_nostr_nip19_decode_note(bech32: *const c_char) -> *mut c_char;
+    fn kubo_nostr_nip19_encode_entity(
+        pubkey: *const c_char,
+        kind: i32,
+        identifier: *const c_char,
+        relays: *const c_char,
+    ) -> *mut c_char;
+    fn kubo_nostr_nip19_decode_entity(bech32: *const c_char) -> *mut c_char;
 
     // git
     fn kubo_git_clone(url: *const c_char, path: *const c_char, bare: u8) -> i64;
@@ -54,6 +67,14 @@ unsafe extern "C" {
     fn kubo_git_open(path: *const c_char) -> u64;
     fn kubo_git_repo_head(handle: u64) -> *mut c_char;
     fn kubo_git_repo_free(handle: u64) -> i64;
+    fn kubo_git_repo_is_bare(handle: u64) -> i64;
+    fn kubo_git_repo_branches(handle: u64) -> *mut c_char;
+    fn kubo_git_repo_remotes(handle: u64) -> *mut c_char;
+    fn kubo_git_repo_create_branch(
+        handle: u64,
+        name: *const c_char,
+        commit_hash: *const c_char,
+    ) -> i64;
 }
 
 fn check_err(code: i64) -> Result<(), Error> {
@@ -282,6 +303,82 @@ pub fn event_verify(json: &str) -> Result<bool, Error> {
     }
 }
 
+pub fn nip19_encode_pubkey(hex: &str) -> Result<String, Error> {
+    let c_hex = CString::new(hex)?;
+    unsafe {
+        ptr_to_string(kubo_nostr_nip19_encode_pubkey(c_hex.as_ptr()))
+            .ok_or_else(|| Error::Go(last_error()))
+    }
+}
+
+pub fn nip19_decode_pubkey(bech32: &str) -> Result<String, Error> {
+    let c_bech32 = CString::new(bech32)?;
+    unsafe {
+        ptr_to_string(kubo_nostr_nip19_decode_pubkey(c_bech32.as_ptr()))
+            .ok_or_else(|| Error::Go(last_error()))
+    }
+}
+
+pub fn nip19_encode_seckey(hex: &str) -> Result<String, Error> {
+    let c_hex = CString::new(hex)?;
+    unsafe {
+        ptr_to_string(kubo_nostr_nip19_encode_seckey(c_hex.as_ptr()))
+            .ok_or_else(|| Error::Go(last_error()))
+    }
+}
+
+pub fn nip19_decode_seckey(bech32: &str) -> Result<String, Error> {
+    let c_bech32 = CString::new(bech32)?;
+    unsafe {
+        ptr_to_string(kubo_nostr_nip19_decode_seckey(c_bech32.as_ptr()))
+            .ok_or_else(|| Error::Go(last_error()))
+    }
+}
+
+pub fn nip19_encode_note(hex: &str) -> Result<String, Error> {
+    let c_hex = CString::new(hex)?;
+    unsafe {
+        ptr_to_string(kubo_nostr_nip19_encode_note(c_hex.as_ptr()))
+            .ok_or_else(|| Error::Go(last_error()))
+    }
+}
+
+pub fn nip19_decode_note(bech32: &str) -> Result<String, Error> {
+    let c_bech32 = CString::new(bech32)?;
+    unsafe {
+        ptr_to_string(kubo_nostr_nip19_decode_note(c_bech32.as_ptr()))
+            .ok_or_else(|| Error::Go(last_error()))
+    }
+}
+
+pub fn nip19_encode_entity(
+    pubkey: &str,
+    kind: i32,
+    identifier: &str,
+    relays: &str,
+) -> Result<String, Error> {
+    let c_pubkey = CString::new(pubkey)?;
+    let c_identifier = CString::new(identifier)?;
+    let c_relays = CString::new(relays)?;
+    unsafe {
+        ptr_to_string(kubo_nostr_nip19_encode_entity(
+            c_pubkey.as_ptr(),
+            kind,
+            c_identifier.as_ptr(),
+            c_relays.as_ptr(),
+        ))
+        .ok_or_else(|| Error::Go(last_error()))
+    }
+}
+
+pub fn nip19_decode_entity(bech32: &str) -> Result<String, Error> {
+    let c_bech32 = CString::new(bech32)?;
+    unsafe {
+        ptr_to_string(kubo_nostr_nip19_decode_entity(c_bech32.as_ptr()))
+            .ok_or_else(|| Error::Go(last_error()))
+    }
+}
+
 // ---------------------------------------------------------------------------
 // git
 // ---------------------------------------------------------------------------
@@ -313,4 +410,38 @@ pub fn git_repo_head_hash(handle: u64) -> Result<String, Error> {
 
 pub fn git_repo_release(handle: u64) -> Result<(), Error> {
     unsafe { check_err(kubo_git_repo_free(handle)) }
+}
+
+pub fn git_repo_is_bare(handle: u64) -> Result<bool, Error> {
+    match unsafe { kubo_git_repo_is_bare(handle) } {
+        1 => Ok(true),
+        0 => Ok(false),
+        _ => Err(Error::Go(last_error())),
+    }
+}
+
+pub fn git_repo_branches(handle: u64) -> Result<Vec<String>, Error> {
+    let raw = unsafe {
+        ptr_to_string(kubo_git_repo_branches(handle)).ok_or_else(|| Error::Go(last_error()))?
+    };
+    Ok(raw.lines().map(|s| s.to_string()).collect())
+}
+
+pub fn git_repo_remotes(handle: u64) -> Result<Vec<String>, Error> {
+    let raw = unsafe {
+        ptr_to_string(kubo_git_repo_remotes(handle)).ok_or_else(|| Error::Go(last_error()))?
+    };
+    Ok(raw.lines().map(|s| s.to_string()).collect())
+}
+
+pub fn git_repo_create_branch(handle: u64, name: &str, commit_hash: &str) -> Result<(), Error> {
+    let c_name = CString::new(name)?;
+    let c_hash = CString::new(commit_hash)?;
+    unsafe {
+        check_err(kubo_git_repo_create_branch(
+            handle,
+            c_name.as_ptr(),
+            c_hash.as_ptr(),
+        ))
+    }
 }

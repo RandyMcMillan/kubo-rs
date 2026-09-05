@@ -11,6 +11,8 @@ pub enum Error {
     InvalidHandle,
     /// A string argument contained a null byte.
     InvalidString,
+    /// The provided string is not a valid nostr URL.
+    InvalidNostrUrl,
 }
 
 impl fmt::Display for Error {
@@ -20,6 +22,7 @@ impl fmt::Display for Error {
             Error::Go(msg) => write!(f, "{msg}"),
             Error::InvalidHandle => write!(f, "invalid node handle"),
             Error::InvalidString => write!(f, "string contains a null byte"),
+            Error::InvalidNostrUrl => write!(f, "invalid nostr URL"),
         }
     }
 }

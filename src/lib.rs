@@ -17,9 +17,11 @@
 
 mod error;
 mod ffi;
+pub mod nostr_url;
 
 pub use error::Error;
 pub use ffi::version;
+pub use nostr_url::NostrUrl;
 
 use std::path::Path;
 
@@ -285,6 +287,83 @@ pub fn nostr_event_verify(json: &str) -> Result<bool, Error> {
     ffi::event_verify(json)
 }
 
+/// Encode a hex public key to NIP-19 bech32 (`npub`).
+///
+/// # Errors
+///
+/// Returns an error if the hex key is invalid.
+pub fn nostr_nip19_encode_pubkey(hex: &str) -> Result<String, Error> {
+    ffi::nip19_encode_pubkey(hex)
+}
+
+/// Decode a NIP-19 bech32 public key (`npub`) to hex.
+///
+/// # Errors
+///
+/// Returns an error if the bech32 string is invalid or not an npub.
+pub fn nostr_nip19_decode_pubkey(bech32: &str) -> Result<String, Error> {
+    ffi::nip19_decode_pubkey(bech32)
+}
+
+/// Encode a hex secret key to NIP-19 bech32 (`nsec`).
+///
+/// # Errors
+///
+/// Returns an error if the hex key is invalid.
+pub fn nostr_nip19_encode_seckey(hex: &str) -> Result<String, Error> {
+    ffi::nip19_encode_seckey(hex)
+}
+
+/// Decode a NIP-19 bech32 secret key (`nsec`) to hex.
+///
+/// # Errors
+///
+/// Returns an error if the bech32 string is invalid or not an nsec.
+pub fn nostr_nip19_decode_seckey(bech32: &str) -> Result<String, Error> {
+    ffi::nip19_decode_seckey(bech32)
+}
+
+/// Encode a hex event ID to NIP-19 bech32 (`note`).
+///
+/// # Errors
+///
+/// Returns an error if the hex id is invalid.
+pub fn nostr_nip19_encode_note(hex: &str) -> Result<String, Error> {
+    ffi::nip19_encode_note(hex)
+}
+
+/// Decode a NIP-19 bech32 event ID (`note`) to hex.
+///
+/// # Errors
+///
+/// Returns an error if the bech32 string is invalid or not a note.
+pub fn nostr_nip19_decode_note(bech32: &str) -> Result<String, Error> {
+    ffi::nip19_decode_note(bech32)
+}
+
+/// Encode a NIP-33 entity coordinate to bech32 (`naddr`).
+///
+/// # Errors
+///
+/// Returns an error if the parameters are invalid.
+pub fn nostr_nip19_encode_entity(
+    pubkey: &str,
+    kind: i32,
+    identifier: &str,
+    relays: &str,
+) -> Result<String, Error> {
+    ffi::nip19_encode_entity(pubkey, kind, identifier, relays)
+}
+
+/// Decode a NIP-33 entity coordinate (`naddr`) to JSON.
+///
+/// # Errors
+///
+/// Returns an error if the bech32 string is invalid or not an naddr.
+pub fn nostr_nip19_decode_entity(bech32: &str) -> Result<String, Error> {
+    ffi::nip19_decode_entity(bech32)
+}
+
 // ---------------------------------------------------------------------------
 // git
 // ---------------------------------------------------------------------------
@@ -336,6 +415,42 @@ impl Repository {
     /// Returns an error if HEAD cannot be resolved.
     pub fn head(&self) -> Result<String, Error> {
         ffi::git_repo_head_hash(self.handle)
+    }
+
+    /// Return whether the repository is bare.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the handle is invalid.
+    pub fn is_bare(&self) -> Result<bool, Error> {
+        ffi::git_repo_is_bare(self.handle)
+    }
+
+    /// Return the list of branch names.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the branch list cannot be read.
+    pub fn branches(&self) -> Result<Vec<String>, Error> {
+        ffi::git_repo_branches(self.handle)
+    }
+
+    /// Return the list of remote names.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the remote list cannot be read.
+    pub fn remotes(&self) -> Result<Vec<String>, Error> {
+        ffi::git_repo_remotes(self.handle)
+    }
+
+    /// Create a new branch pointing to the given commit hash.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the branch cannot be created.
+    pub fn create_branch(&self, name: &str, commit_hash: &str) -> Result<(), Error> {
+        ffi::git_repo_create_branch(self.handle, name, commit_hash)
     }
 
     /// Release the handle.

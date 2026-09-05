@@ -671,6 +671,254 @@ fn test_nip34_go_to_rust_round_trip() {
 }
 
 // ---------------------------------------------------------------------------
+// NIP-19 alignment
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_nip19_pubkey_encode_alignment() {
+    let sk = kubo_rs::nostr_generate_key().expect("go keygen failed");
+    let pk = kubo_rs::nostr_get_public_key(&sk).expect("go pubkey failed");
+
+    // Encode via Go FFI.
+    let npub_go = kubo_rs::nostr_nip19_encode_pubkey(&pk).expect("go encode failed");
+    assert!(npub_go.starts_with("npub1"), "npub must start with npub1");
+
+    // Decode via Go FFI.
+    let pk_decoded = kubo_rs::nostr_nip19_decode_pubkey(&npub_go).expect("go decode failed");
+    assert_eq!(pk_decoded, pk, "round-trip must preserve pubkey");
+
+    // Encode via Rust nostr crate and compare.
+    let npub_rs = PublicKey::from_hex(&pk)
+        .expect("rust parse failed")
+        .to_bech32()
+        .expect("rust encode failed");
+    assert_eq!(
+        npub_go, npub_rs,
+        "Go and Rust NIP-19 pubkey encoding must match"
+    );
+}
+
+#[test]
+fn test_nip19_seckey_encode_alignment() {
+    let sk = kubo_rs::nostr_generate_key().expect("go keygen failed");
+
+    // Encode via Go FFI.
+    let nsec_go = kubo_rs::nostr_nip19_encode_seckey(&sk).expect("go encode failed");
+    assert!(nsec_go.starts_with("nsec1"), "nsec must start with nsec1");
+
+    // Decode via Go FFI.
+    let sk_decoded = kubo_rs::nostr_nip19_decode_seckey(&nsec_go).expect("go decode failed");
+    assert_eq!(sk_decoded, sk, "round-trip must preserve seckey");
+
+    // Encode via Rust nostr crate and compare.
+    let nsec_rs = Keys::parse(&sk)
+        .expect("rust parse failed")
+        .secret_key()
+        .to_bech32()
+        .expect("rust encode failed");
+    assert_eq!(
+        nsec_go, nsec_rs,
+        "Go and Rust NIP-19 seckey encoding must match"
+    );
+}
+
+#[test]
+fn test_nip19_note_encode_alignment() {
+    let fake_id = "a".repeat(64);
+
+    // Encode via Go FFI.
+    let note_go = kubo_rs::nostr_nip19_encode_note(&fake_id).expect("go encode failed");
+    assert!(note_go.starts_with("note1"), "note must start with note1");
+
+    // Decode via Go FFI.
+    let id_decoded = kubo_rs::nostr_nip19_decode_note(&note_go).expect("go decode failed");
+    assert_eq!(id_decoded, fake_id, "round-trip must preserve id");
+
+    // Encode via Rust nostr crate and compare.
+    let note_rs = EventId::from_hex(&fake_id)
+        .expect("rust parse failed")
+        .to_bech32()
+        .expect("rust encode failed");
+    assert_eq!(
+        note_go, note_rs,
+        "Go and Rust NIP-19 note encoding must match"
+    );
+}
+
+#[test]
+fn test_nip19_entity_encode_alignment() {
+    let pk = kubo_rs::nostr_generate_key().expect("go keygen failed");
+    let pubkey = kubo_rs::nostr_get_public_key(&pk).expect("go pubkey failed");
+
+    // Encode via Go FFI (no relay).
+    let naddr_go = kubo_rs::nostr_nip19_encode_entity(&pubkey, 30617, "my-repo", "")
+        .expect("go encode failed");
+    assert!(
+        naddr_go.starts_with("naddr1"),
+        "naddr must start with naddr1"
+    );
+
+    // Decode via Go FFI.
+    let json = kubo_rs::nostr_nip19_decode_entity(&naddr_go).expect("go decode failed");
+    assert!(
+        json.contains("my-repo"),
+        "decoded entity must contain identifier"
+    );
+    assert!(json.contains(&pubkey), "decoded entity must contain pubkey");
+
+    // Encode via Rust nostr crate and compare.
+    let coord = Coordinate::new(
+        Kind::GitRepoAnnouncement,
+        PublicKey::from_hex(&pubkey).expect("rust parse failed"),
+    )
+    .identifier("my-repo");
+    let naddr_rs = coord.to_bech32().expect("rust encode failed");
+    assert_eq!(
+        naddr_go, naddr_rs,
+        "Go and Rust NIP-19 entity encoding must match"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Git extended alignment
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_git_bare_alignment() {
+    let path = tmp_path("git_bare_alignment");
+
+    // Init bare repo via Go FFI.
+    kubo_rs::git_init(path.to_str().unwrap(), true).expect("go git init bare failed");
+
+    // Check via Go FFI.
+    let repo_go = kubo_rs::Repository::open(&path).expect("go open failed");
+    assert!(
+        repo_go.is_bare().expect("go is_bare failed"),
+        "go FFI must report bare"
+    );
+    repo_go.close().expect("go close failed");
+
+    // Check via git2.
+    let repo_rs = git2::Repository::open(&path).expect("git2 open failed");
+    assert!(repo_rs.is_bare(), "git2 must report bare");
+}
+
+#[test]
+fn test_git_branches_and_remotes_alignment() {
+    let path = tmp_path("git_branches_remotes_alignment");
+
+    // Init via Go FFI.
+    kubo_rs::git_init(path.to_str().unwrap(), false).expect("go git init failed");
+
+    // Create a commit so we can create branches.
+    let repo_rs = git2::Repository::open(&path).expect("git2 open failed");
+    let sig = git2::Signature::now("Test", "test@example.com").expect("signature failed");
+    let tree_id = {
+        let mut index = repo_rs.index().expect("index failed");
+        let blob_id = repo_rs.blob(b"hello").expect("blob failed");
+        index
+            .add_frombuffer(
+                &git2::IndexEntry {
+                    ctime: git2::IndexTime::new(0, 0),
+                    mtime: git2::IndexTime::new(0, 0),
+                    dev: 0,
+                    ino: 0,
+                    mode: 0o100644,
+                    uid: 0,
+                    gid: 0,
+                    file_size: 0,
+                    id: blob_id,
+                    flags: 0,
+                    flags_extended: 0,
+                    path: b"hello.txt".to_vec(),
+                },
+                b"hello",
+            )
+            .expect("add failed");
+        index.write_tree().expect("write tree failed")
+    };
+    let tree = repo_rs.find_tree(tree_id).expect("find tree failed");
+    let commit_id = repo_rs
+        .commit(Some("HEAD"), &sig, &sig, "initial", &tree, &[])
+        .expect("commit failed");
+
+    // Add a remote via git2.
+    repo_rs
+        .remote("origin", "https://example.com/repo.git")
+        .expect("remote add failed");
+
+    // Open via Go FFI and verify alignment.
+    let repo_go = kubo_rs::Repository::open(&path).expect("go open failed");
+
+    // Branches.
+    let branches_go = repo_go.branches().expect("go branches failed");
+    let branches_rs: Vec<String> = repo_rs
+        .branches(Some(git2::BranchType::Local))
+        .expect("git2 branches failed")
+        .filter_map(|b| {
+            b.ok()
+                .and_then(|(b, _)| b.name().ok().flatten().map(String::from))
+        })
+        .collect();
+    assert_eq!(
+        branches_go, branches_rs,
+        "branch lists must align between go-git FFI and git2"
+    );
+
+    // Remotes.
+    let remotes_go = repo_go.remotes().expect("go remotes failed");
+    let remotes_rs: Vec<String> = repo_rs
+        .remotes()
+        .expect("git2 remotes failed")
+        .iter()
+        .filter_map(|n| n.ok().flatten().map(String::from))
+        .collect();
+    assert_eq!(
+        remotes_go, remotes_rs,
+        "remote lists must align between go-git FFI and git2"
+    );
+
+    // Create branch via Go FFI.
+    repo_go
+        .create_branch("feature", &commit_id.to_string())
+        .expect("go create branch failed");
+
+    let branches_go_after = repo_go.branches().expect("go branches after create failed");
+    assert!(
+        branches_go_after.contains(&"feature".to_string()),
+        "new branch must appear in go FFI branch list"
+    );
+
+    repo_go.close().expect("go close failed");
+}
+
+// ---------------------------------------------------------------------------
+// nostr:// URL alignment (gnostr ideas)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_nostr_url_parse_alignment() {
+    let url_str =
+        "nostr://abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890/my-repo";
+    let url = kubo_rs::NostrUrl::parse(url_str).expect("parse failed");
+    assert_eq!(
+        url.authority,
+        "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+    );
+    assert_eq!(url.identifier, "my-repo");
+    assert!(url.authority_is_pubkey());
+    assert_eq!(url.to_url(), url_str);
+}
+
+#[test]
+fn test_nostr_url_nip05_alignment() {
+    let url = kubo_rs::NostrUrl::parse("nostr://dan@gitworkshop.dev/ngit").expect("parse failed");
+    assert_eq!(url.authority, "dan@gitworkshop.dev");
+    assert_eq!(url.identifier, "ngit");
+    assert!(!url.authority_is_pubkey());
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 

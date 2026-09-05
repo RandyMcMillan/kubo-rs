@@ -8,9 +8,11 @@ import "C"
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 )
 
 var (
@@ -97,6 +99,108 @@ func kubo_git_init(path *C.char, bare C.uint8_t) int64 {
 		setError(fmt.Errorf("git init: %w", err))
 		return -1
 	}
+	setError(nil)
+	return 0
+}
+
+//export kubo_git_repo_is_bare
+func kubo_git_repo_is_bare(handle uint64) int64 {
+	gitReposMu.RLock()
+	repo, ok := gitRepos[handle]
+	gitReposMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid git handle %d", handle))
+		return -1
+	}
+
+	cfg, err := repo.Config()
+	if err != nil {
+		setError(fmt.Errorf("git config: %w", err))
+		return -1
+	}
+
+	if cfg.Core.IsBare {
+		return 1
+	}
+	return 0
+}
+
+//export kubo_git_repo_branches
+func kubo_git_repo_branches(handle uint64) *C.char {
+	gitReposMu.RLock()
+	repo, ok := gitRepos[handle]
+	gitReposMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid git handle %d", handle))
+		return nil
+	}
+
+	iter, err := repo.Branches()
+	if err != nil {
+		setError(fmt.Errorf("git branches: %w", err))
+		return nil
+	}
+	defer iter.Close()
+
+	var names []string
+	for {
+		ref, err := iter.Next()
+		if err != nil {
+			break
+		}
+		names = append(names, ref.Name().Short())
+	}
+
+	setError(nil)
+	return C.CString(strings.Join(names, "\n"))
+}
+
+//export kubo_git_repo_remotes
+func kubo_git_repo_remotes(handle uint64) *C.char {
+	gitReposMu.RLock()
+	repo, ok := gitRepos[handle]
+	gitReposMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid git handle %d", handle))
+		return nil
+	}
+
+	remotes, err := repo.Remotes()
+	if err != nil {
+		setError(fmt.Errorf("git remotes: %w", err))
+		return nil
+	}
+
+	var names []string
+	for _, r := range remotes {
+		names = append(names, r.Config().Name)
+	}
+
+	setError(nil)
+	return C.CString(strings.Join(names, "\n"))
+}
+
+//export kubo_git_repo_create_branch
+func kubo_git_repo_create_branch(handle uint64, name *C.char, commit_hash *C.char) int64 {
+	gitReposMu.RLock()
+	repo, ok := gitRepos[handle]
+	gitReposMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid git handle %d", handle))
+		return -1
+	}
+
+	hash := plumbing.NewHash(C.GoString(commit_hash))
+	ref := plumbing.NewHashReference(plumbing.NewBranchReferenceName(C.GoString(name)), hash)
+	if err := repo.Storer.SetReference(ref); err != nil {
+		setError(fmt.Errorf("git create branch: %w", err))
+		return -1
+	}
+
 	setError(nil)
 	return 0
 }

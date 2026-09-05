@@ -84,7 +84,29 @@ configure_cors() {
         echo "Configuring CORS for WASM dashboard on port $port ..."
         IPFS_PATH="$REPO" "$KUBO_BIN" config --json API.HTTPHeaders.Access-Control-Allow-Origin "$origins"
         IPFS_PATH="$REPO" "$KUBO_BIN" config --json API.HTTPHeaders.Access-Control-Allow-Methods '["PUT","POST","GET"]' || true
+        CORS_CHANGED=1
+    else
+        CORS_CHANGED=0
     fi
+}
+
+# --- restart daemon ---
+restart_daemon() {
+    echo "Restarting Kubo daemon to apply new CORS config ..."
+    local pid=""
+    if command -v lsof >/dev/null 2>&1; then
+        pid=$(lsof -ti ":$API_PORT" 2>/dev/null || true)
+    fi
+    if [ -n "$pid" ]; then
+        kill "$pid" 2>/dev/null || true
+        for i in $(seq 1 10); do
+            if ! port_in_use "$API_PORT"; then
+                break
+            fi
+            sleep 0.5
+        done
+    fi
+    start_daemon
 }
 
 # --- start daemon ---
@@ -131,7 +153,12 @@ init_repo
 
 TRUNK_PORT=$(find_free_port "$TRUNK_PORT")
 configure_cors "$TRUNK_PORT"
-start_daemon
+
+if [ "${CORS_CHANGED:-0}" = "1" ] && port_in_use "$API_PORT"; then
+    restart_daemon
+else
+    start_daemon
+fi
 
 echo "Starting WASM dashboard at http://localhost:$TRUNK_PORT"
 echo ""

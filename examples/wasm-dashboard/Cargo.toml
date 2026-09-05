@@ -27,4 +27,10 @@ features = [
   "Response",
   "Url",
   "UrlSearchParams",
+  "MediaQueryList",
+  "Element",
+  "HtmlElement",
+  "DomTokenList",
+  "Event",
+  "EventTarget",
 ]

@@ -16,6 +16,58 @@ use wasm_bindgen_futures::{spawn_local, JsFuture};
 use gloo_timers::future::IntervalStream;
 use futures::StreamExt;
 
+#[derive(Clone, Copy, PartialEq, Default)]
+enum Theme {
+    #[default]
+    Dark,
+    Light,
+}
+
+impl Theme {
+    fn detect_system() -> Self {
+        let dark = web_sys::window()
+            .and_then(|w| w.match_media("(prefers-color-scheme: dark)").ok().flatten())
+            .map(|m| m.matches())
+            .unwrap_or(true);
+        if dark { Theme::Dark } else { Theme::Light }
+    }
+
+    fn toggle(self) -> Self {
+        match self {
+            Theme::Dark => Theme::Light,
+            Theme::Light => Theme::Dark,
+        }
+    }
+
+    // Solarized palette
+    fn bg(self) -> Color {
+        match self {
+            Theme::Dark => Color::Rgb(0, 43, 54),    // base03
+            Theme::Light => Color::Rgb(253, 246, 227), // base3
+        }
+    }
+    fn fg(self) -> Color {
+        match self {
+            Theme::Dark => Color::Rgb(131, 148, 150), // base0
+            Theme::Light => Color::Rgb(101, 123, 131), // base00
+        }
+    }
+    fn fg_secondary(self) -> Color {
+        match self {
+            Theme::Dark => Color::Rgb(147, 161, 161), // base1
+            Theme::Light => Color::Rgb(88, 110, 117),  // base01
+        }
+    }
+    fn accent_yellow(self) -> Color { Color::Rgb(181, 137, 0) }
+    fn accent_orange(self) -> Color { Color::Rgb(203, 75, 22) }
+    fn accent_red(self) -> Color { Color::Rgb(220, 50, 47) }
+    fn accent_magenta(self) -> Color { Color::Rgb(211, 54, 130) }
+    fn accent_violet(self) -> Color { Color::Rgb(108, 113, 196) }
+    fn accent_blue(self) -> Color { Color::Rgb(38, 139, 210) }
+    fn accent_cyan(self) -> Color { Color::Rgb(42, 161, 152) }
+    fn accent_green(self) -> Color { Color::Rgb(133, 153, 0) }
+}
+
 #[derive(Clone, Default)]
 struct NodeInfo {
     peer_id: String,
@@ -25,6 +77,7 @@ struct NodeInfo {
     error: Option<String>,
     api_base: String,
     tab: usize,
+    theme: Theme,
 }
 
 fn api_base() -> String {
@@ -33,6 +86,38 @@ fn api_base() -> String {
         .and_then(|href| web_sys::Url::new(&href).ok())
         .and_then(|url| url.search_params().get("api"))
         .unwrap_or_else(|| "http://127.0.0.1:5001".to_string())
+}
+
+fn apply_theme_to_body(theme: Theme) {
+    if let Some(window) = web_sys::window() {
+        if let Some(document) = window.document() {
+            if let Some(body) = document.body() {
+                match theme {
+                    Theme::Light => {
+                        let _ = body.class_list().add_1("light");
+                    }
+                    Theme::Dark => {
+                        let _ = body.class_list().remove_1("light");
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn listen_system_theme(info: Rc<RefCell<NodeInfo>>) {
+    if let Some(window) = web_sys::window() {
+        if let Ok(Some(media)) = window.match_media("(prefers-color-scheme: dark)") {
+            let info_media = info.clone();
+            let closure = Closure::wrap(Box::new(move |_event: web_sys::Event| {
+                let theme = Theme::detect_system();
+                info_media.borrow_mut().theme = theme;
+                apply_theme_to_body(theme);
+            }) as Box<dyn FnMut(_)>);
+            let _ = media.add_event_listener_with_callback("change", closure.as_ref().unchecked_ref());
+            closure.forget();
+        }
+    }
 }
 
 fn maybe_show_gh_pages_badge() {
@@ -75,21 +160,33 @@ fn main() -> io::Result<()> {
     maybe_show_gh_pages_badge();
 
     let api_base = api_base();
+    let initial_theme = Theme::detect_system();
+    apply_theme_to_body(initial_theme);
+
     let info = Rc::new(RefCell::new(NodeInfo {
         api_base: api_base.clone(),
         tab: 0,
+        theme: initial_theme,
         ..NodeInfo::default()
     }));
+
+    listen_system_theme(info.clone());
+
     let backend = DomBackend::new()?;
     let terminal = Terminal::new(backend)?;
 
-    // Keyboard tabs: 1, 2, 3
+    // Keyboard: 1/2/3 for tabs, t for theme toggle
     let info_keys = info.clone();
     let closure = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
         match event.key().as_str() {
             "1" => info_keys.borrow_mut().tab = 0,
             "2" => info_keys.borrow_mut().tab = 1,
             "3" => info_keys.borrow_mut().tab = 2,
+            "t" | "T" => {
+                let new_theme = info_keys.borrow().theme.toggle();
+                info_keys.borrow_mut().theme = new_theme;
+                apply_theme_to_body(new_theme);
+            }
             _ => {}
         }
     }) as Box<dyn FnMut(_)>);
@@ -110,6 +207,7 @@ fn main() -> io::Result<()> {
 
     terminal.draw_web(move |f| {
         let info = info.borrow();
+        let t = info.theme;
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .margin(2)
@@ -121,13 +219,25 @@ fn main() -> io::Result<()> {
             ])
             .split(f.area());
 
-        let title = Paragraph::new("Kubo IPFS Dashboard (WASM)")
+        let title_text = format!(
+            "Kubo IPFS Dashboard (WASM)  [press 't' for {} mode]",
+            if t == Theme::Dark { "light" } else { "dark" }
+        );
+        let title = Paragraph::new(title_text)
             .alignment(Alignment::Center)
-            .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
-            .block(Block::default().borders(Borders::BOTTOM));
+            .style(
+                Style::default()
+                    .fg(t.accent_cyan())
+                    .add_modifier(Modifier::BOLD),
+            )
+            .block(Block::default().borders(Borders::BOTTOM).border_style(t.fg_secondary()));
         f.render_widget(title, chunks[0]);
 
-        let status_color = if info.connected { Color::Green } else { Color::Red };
+        let status_color = if info.connected {
+            t.accent_green()
+        } else {
+            t.accent_red()
+        };
         let status_text = if info.connected {
             format!("Connected to {}", info.api_base)
         } else if let Some(ref err) = info.error {
@@ -138,30 +248,30 @@ fn main() -> io::Result<()> {
 
         let status = Paragraph::new(vec![
             Line::from(vec![
-                Span::styled("Status: ", Style::default().fg(Color::Yellow)),
+                Span::styled("Status: ", Style::default().fg(t.accent_yellow())),
                 Span::styled(status_text, Style::default().fg(status_color)),
             ]),
             Line::from(""),
             Line::from(vec![
-                Span::styled("Peer ID:  ", Style::default().fg(Color::Yellow)),
+                Span::styled("Peer ID:  ", Style::default().fg(t.accent_yellow())),
                 Span::styled(
                     if info.peer_id.is_empty() {
                         "—".to_string()
                     } else {
                         info.peer_id.clone()
                     },
-                    Style::default().fg(Color::White),
+                    Style::default().fg(t.fg()),
                 ),
             ]),
             Line::from(vec![
-                Span::styled("Version:  ", Style::default().fg(Color::Yellow)),
+                Span::styled("Version:  ", Style::default().fg(t.accent_yellow())),
                 Span::styled(
                     if info.version.is_empty() {
                         "—".to_string()
                     } else {
                         info.version.clone()
                     },
-                    Style::default().fg(Color::White),
+                    Style::default().fg(t.fg()),
                 ),
             ]),
         ])
@@ -169,7 +279,7 @@ fn main() -> io::Result<()> {
             Block::default()
                 .title(" Node Identity ")
                 .borders(Borders::ALL)
-                .border_style(Color::Blue),
+                .border_style(t.accent_blue()),
         )
         .wrap(Wrap { trim: true });
         f.render_widget(status, chunks[1]);
@@ -184,9 +294,9 @@ fn main() -> io::Result<()> {
                 Block::default()
                     .title(" Listening Addresses ")
                     .borders(Borders::ALL)
-                    .border_style(Color::Magenta),
+                    .border_style(t.accent_violet()),
             )
-            .style(Style::default().fg(Color::White))
+            .style(Style::default().fg(t.fg()))
             .wrap(Wrap { trim: true });
         f.render_widget(addrs, chunks[2]);
 
@@ -195,14 +305,14 @@ fn main() -> io::Result<()> {
                 Span::styled(
                     format!(" [{}] ", label),
                     Style::default()
-                        .fg(Color::Black)
-                        .bg(Color::Yellow)
+                        .fg(t.bg())
+                        .bg(t.accent_yellow())
                         .add_modifier(Modifier::BOLD),
                 )
             } else {
                 Span::styled(
                     format!("  {}  ", label),
-                    Style::default().fg(Color::Gray),
+                    Style::default().fg(t.fg_secondary()),
                 )
             }
         };
@@ -217,12 +327,12 @@ fn main() -> io::Result<()> {
             1 => vec![
                 Line::from(""),
                 Line::from(vec![
-                    Span::styled("HTTPS on GitHub Pages", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                    Span::styled("HTTPS on GitHub Pages", Style::default().fg(t.accent_yellow()).add_modifier(Modifier::BOLD)),
                 ]),
                 Line::from("Browsers block HTTP API calls from HTTPS pages."),
                 Line::from(""),
                 Line::from(vec![
-                    Span::styled("Option A: Local HTTPS proxy (all browsers)", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                    Span::styled("Option A: Local HTTPS proxy (all browsers)", Style::default().fg(t.accent_cyan()).add_modifier(Modifier::BOLD)),
                 ]),
                 Line::from("1. Install Caddy and mkcert:"),
                 Line::from("   brew install caddy mkcert"),
@@ -234,13 +344,13 @@ fn main() -> io::Result<()> {
                 Line::from("   ?api=https://localhost:5443"),
                 Line::from(""),
                 Line::from(vec![
-                    Span::styled("Option B: Firefox", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                    Span::styled("Option B: Firefox", Style::default().fg(t.accent_cyan()).add_modifier(Modifier::BOLD)),
                 ]),
                 Line::from("Firefox shows a permission prompt for mixed content."),
                 Line::from("Allow it when prompted to connect to the HTTP API."),
                 Line::from(""),
                 Line::from(vec![
-                    Span::styled("Option C: Local HTTP (no HTTPS needed)", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                    Span::styled("Option C: Local HTTP (no HTTPS needed)", Style::default().fg(t.accent_cyan()).add_modifier(Modifier::BOLD)),
                 ]),
                 Line::from("make run-wasm-dashboard"),
                 Line::from("Serves on http://localhost:8080 — no mixed content."),
@@ -248,19 +358,19 @@ fn main() -> io::Result<()> {
             2 => vec![
                 Line::from(""),
                 Line::from(vec![
-                    Span::styled("Custom API Endpoint", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                    Span::styled("Custom API Endpoint", Style::default().fg(t.accent_yellow()).add_modifier(Modifier::BOLD)),
                 ]),
                 Line::from("Override the default API with a query parameter:"),
                 Line::from(""),
                 Line::from(vec![
-                    Span::styled("Examples:", Style::default().fg(Color::Cyan)),
+                    Span::styled("Examples:", Style::default().fg(t.accent_cyan())),
                 ]),
                 Line::from("  ?api=http://192.168.1.100:5001"),
                 Line::from("  ?api=https://localhost:5443"),
                 Line::from("  ?api=http://127.0.0.1:5001"),
                 Line::from(""),
                 Line::from(vec![
-                    Span::styled("Current:", Style::default().fg(Color::Cyan)),
+                    Span::styled("Current:", Style::default().fg(t.accent_cyan())),
                 ]),
                 Line::from(format!("  {}", info.api_base)),
                 Line::from(""),
@@ -270,7 +380,7 @@ fn main() -> io::Result<()> {
             _ => vec![
                 Line::from(""),
                 Line::from(vec![
-                    Span::styled("Quickstart:", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                    Span::styled("Quickstart:", Style::default().fg(t.accent_yellow()).add_modifier(Modifier::BOLD)),
                 ]),
                 Line::from("git clone https://github.com/RandyMcMillan/kubo-rs.git"),
                 Line::from("cd kubo-rs && git submodule update --init --recursive"),
@@ -278,7 +388,7 @@ fn main() -> io::Result<()> {
                 Line::from("make run-wasm-dashboard   # starts daemon + serves dashboard"),
                 Line::from(""),
                 Line::from(vec![
-                    Span::styled("Manual setup:", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                    Span::styled("Manual setup:", Style::default().fg(t.accent_yellow()).add_modifier(Modifier::BOLD)),
                 ]),
                 Line::from("1. Start a standard Kubo daemon on port 5001:"),
                 Line::from("   ipfs daemon --api /ip4/127.0.0.1/tcp/5001"),
@@ -294,9 +404,9 @@ fn main() -> io::Result<()> {
                 Block::default()
                     .title(" Help ")
                     .borders(Borders::ALL)
-                    .border_style(Color::Gray),
+                    .border_style(t.fg_secondary()),
             )
-            .style(Style::default().fg(Color::Gray))
+            .style(Style::default().fg(t.fg_secondary()))
             .wrap(Wrap { trim: true });
 
         let help_chunks = Layout::default()

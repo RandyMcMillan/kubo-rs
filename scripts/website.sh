@@ -93,20 +93,36 @@ configure_cors() {
 # --- restart daemon ---
 restart_daemon() {
     echo "Restarting Kubo daemon to apply new CORS config ..."
-    local pid=""
     if command -v lsof >/dev/null 2>&1; then
-        pid=$(lsof -ti ":$API_PORT" 2>/dev/null || true)
+        local pids
+        pids=$(lsof -ti ":$API_PORT" 2>/dev/null || true)
+        if [ -n "$pids" ]; then
+            # shellcheck disable=SC2086
+            kill $pids 2>/dev/null || true
+        fi
     fi
-    if [ -n "$pid" ]; then
-        kill "$pid" 2>/dev/null || true
-        for i in $(seq 1 10); do
-            if ! port_in_use "$API_PORT"; then
-                break
-            fi
-            sleep 0.5
-        done
+    # Wait up to 15s for port to be fully released
+    for i in $(seq 1 30); do
+        if ! port_in_use "$API_PORT"; then
+            break
+        fi
+        sleep 0.5
+    done
+    # Force-kill anything still holding the port
+    if port_in_use "$API_PORT" && command -v lsof >/dev/null 2>&1; then
+        local pids
+        pids=$(lsof -ti ":$API_PORT" 2>/dev/null || true)
+        if [ -n "$pids" ]; then
+            # shellcheck disable=SC2086
+            kill -9 $pids 2>/dev/null || true
+            sleep 1
+        fi
     fi
     start_daemon
+    if ! port_in_use "$API_PORT"; then
+        echo "Error: daemon failed to start after restart."
+        exit 1
+    fi
 }
 
 # --- start daemon ---

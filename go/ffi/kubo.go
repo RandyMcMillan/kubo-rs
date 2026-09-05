@@ -12,6 +12,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"net"
+	"net/http"
 	"strings"
 	"sync"
 	"unsafe"
@@ -20,9 +22,11 @@ import (
 	"github.com/ipfs/boxo/path"
 	"github.com/ipfs/go-cid"
 	ipfs "github.com/ipfs/kubo"
+	"github.com/ipfs/kubo/commands"
 	"github.com/ipfs/kubo/config"
 	"github.com/ipfs/kubo/core"
 	"github.com/ipfs/kubo/core/coreapi"
+	"github.com/ipfs/kubo/core/corehttp"
 	coreiface "github.com/ipfs/kubo/core/coreiface"
 	"github.com/ipfs/kubo/core/coreiface/options"
 	"github.com/ipfs/kubo/core/node/libp2p"
@@ -30,6 +34,7 @@ import (
 	"github.com/ipfs/kubo/repo/fsrepo"
 	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
+	manet "github.com/multiformats/go-multiaddr/net"
 )
 
 // ---------------------------------------------------------------------------
@@ -123,10 +128,13 @@ func kubo_init_repo(repoPath *C.char) int64 {
 // ---------------------------------------------------------------------------
 
 type nodeHandle struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	node   *core.IpfsNode
-	api    coreiface.CoreAPI
+	ctx            context.Context
+	cancel         context.CancelFunc
+	node           *core.IpfsNode
+	api            coreiface.CoreAPI
+	apiListener    manet.Listener
+	apiNetListener net.Listener
+	apiServer      *http.Server
 }
 
 var (
@@ -206,6 +214,9 @@ func kubo_node_stop(handle uint64) int64 {
 		return -1
 	}
 
+	if h.apiListener != nil {
+		h.apiListener.Close()
+	}
 	h.cancel()
 	if err := h.node.Close(); err != nil {
 		setError(fmt.Errorf("close node: %w", err))
@@ -214,6 +225,82 @@ func kubo_node_stop(handle uint64) int64 {
 
 	setError(nil)
 	return 0
+}
+
+//export kubo_node_start_api
+func kubo_node_start_api(handle uint64, multiaddr *C.char) *C.char {
+	nodesMu.RLock()
+	h, ok := nodes[handle]
+	nodesMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid handle %d", handle))
+		return nil
+	}
+
+	addrStr := C.GoString(multiaddr)
+	addr, err := ma.NewMultiaddr(addrStr)
+	if err != nil {
+		setError(fmt.Errorf("parse multiaddr: %w", err))
+		return nil
+	}
+
+	listener, err := manet.Listen(addr)
+	if err != nil {
+		setError(fmt.Errorf("listen: %w", err))
+		return nil
+	}
+
+	cctx := commands.Context{
+		ConstructNode: func() (*core.IpfsNode, error) {
+			return h.node, nil
+		},
+		ReqLog: &commands.ReqLog{},
+	}
+
+	opts := []corehttp.ServeOption{
+		corehttp.CheckVersionOption(),
+		corehttp.CommandsOption(cctx),
+		corehttp.WebUIOption,
+		corehttp.VersionOption(),
+	}
+
+	h.apiListener = listener
+	h.apiNetListener = manet.NetListener(listener)
+	h.apiServer = &http.Server{}
+
+	go func() {
+		handler, err := corehttp.MakeHandler(h.node, h.apiNetListener, opts...)
+		if err != nil {
+			setError(fmt.Errorf("make handler: %w", err))
+			return
+		}
+		h.apiServer.Handler = handler
+		h.apiServer.Serve(h.apiNetListener)
+	}()
+
+	setError(nil)
+	return C.CString(listener.Multiaddr().String())
+}
+
+//export kubo_node_api_addrs
+func kubo_node_api_addrs(handle uint64) *C.char {
+	nodesMu.RLock()
+	h, ok := nodes[handle]
+	nodesMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid handle %d", handle))
+		return nil
+	}
+
+	if h.apiListener == nil {
+		setError(fmt.Errorf("api not started"))
+		return nil
+	}
+
+	setError(nil)
+	return C.CString(h.apiListener.Multiaddr().String())
 }
 
 //export kubo_node_peer_id

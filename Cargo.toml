@@ -26,6 +26,7 @@ nostr = "0.45"
 nostr-sdk = "0.45"
 git2 = "0.21"
 libp2p = "0.56"
+ureq = "3"
 
 [[bench]]
 name = "add_bytes"

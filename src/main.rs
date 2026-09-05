@@ -108,6 +108,9 @@ enum IpfsCommands {
         /// Run in online mode
         #[arg(long)]
         online: bool,
+        /// Start the HTTP API server on this multiaddr
+        #[arg(long, default_value = "/ip4/127.0.0.1/tcp/5001")]
+        api: String,
     },
     /// Read or write config values
     Config {
@@ -292,10 +295,12 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 println!("{size}");
                 node.stop()?;
             }
-            IpfsCommands::Daemon { repo, online } => {
+            IpfsCommands::Daemon { repo, online, api } => {
                 let node = Node::start(&repo, online)?;
+                let api_addr = node.start_api(&api)?;
                 println!("daemon started");
                 println!("peer id: {}", node.peer_id()?);
+                println!("api: {api_addr}");
                 println!("listening addrs:");
                 for addr in node.listening_addrs()? {
                     println!("  {addr}");

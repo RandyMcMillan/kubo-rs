@@ -14,6 +14,8 @@ unsafe extern "C" {
     fn kubo_init_repo(path: *const c_char) -> i64;
     fn kubo_node_start(path: *const c_char, online: u8) -> u64;
     fn kubo_node_stop(handle: u64) -> i64;
+    fn kubo_node_start_api(handle: u64, multiaddr: *const c_char) -> *mut c_char;
+    fn kubo_node_api_addrs(handle: u64) -> *mut c_char;
     fn kubo_node_peer_id(handle: u64) -> *mut c_char;
     fn kubo_node_listening_addrs(handle: u64) -> *mut c_char;
     fn kubo_node_connect(handle: u64, addr: *const c_char) -> i64;
@@ -156,6 +158,18 @@ pub fn node_start(path: &str, online: bool) -> Result<u64, Error> {
 
 pub fn node_stop(handle: u64) -> Result<(), Error> {
     unsafe { check_err(kubo_node_stop(handle)) }
+}
+
+pub fn node_start_api(handle: u64, multiaddr: &str) -> Result<String, Error> {
+    let c_addr = CString::new(multiaddr)?;
+    unsafe {
+        ptr_to_string(kubo_node_start_api(handle, c_addr.as_ptr()))
+            .ok_or_else(|| Error::Go(last_error()))
+    }
+}
+
+pub fn node_api_addrs(handle: u64) -> Result<String, Error> {
+    unsafe { ptr_to_string(kubo_node_api_addrs(handle)).ok_or_else(|| Error::Go(last_error())) }
 }
 
 pub fn node_peer_id(handle: u64) -> Result<String, Error> {

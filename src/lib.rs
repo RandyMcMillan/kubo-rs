@@ -81,6 +81,27 @@ impl Node {
         ffi::node_listening_addrs(self.handle)
     }
 
+    /// Start the HTTP API server on the given multiaddr.
+    ///
+    /// Returns the actual listening multiaddr (e.g. with the resolved port
+    /// when `/tcp/0` is used).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the API server cannot be started.
+    pub fn start_api(&self, multiaddr: &str) -> Result<String, Error> {
+        ffi::node_start_api(self.handle, multiaddr)
+    }
+
+    /// Return the multiaddr of the running HTTP API server.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the API is not started.
+    pub fn api_addrs(&self) -> Result<String, Error> {
+        ffi::node_api_addrs(self.handle)
+    }
+
     /// Connect to a peer by multiaddr.
     ///
     /// The address should include the peer ID, e.g.:

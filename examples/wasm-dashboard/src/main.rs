@@ -384,8 +384,8 @@ fn main() -> io::Result<()> {
                 ]),
                 Line::from(format!("  {}", info.api_base)),
                 Line::from(""),
-                Line::from("The kubo-rs embedded node does not expose the HTTP API."),
-                Line::from("Use a standard Kubo daemon for dashboard connectivity."),
+                Line::from("The kubo-rs embedded node can expose the HTTP API."),
+                Line::from("Start with: cargo run --bin kubo-rs -- ipfs daemon --api /ip4/127.0.0.1/tcp/5001"),
             ],
             3 => vec![
                 Line::from(""),
@@ -428,12 +428,12 @@ fn main() -> io::Result<()> {
                 Line::from(vec![
                     Span::styled("Manual setup:", Style::default().fg(t.accent_yellow()).add_modifier(Modifier::BOLD)),
                 ]),
-                Line::from("1. Start a standard Kubo daemon on port 5001:"),
-                Line::from("   ipfs daemon --api /ip4/127.0.0.1/tcp/5001"),
-                Line::from("2. Enable CORS:"),
-                Line::from("   ipfs config --json API.HTTPHeaders.Access-Control-Allow-Origin"),
-                Line::from("     '[\"http://localhost:8080\"]'"),
-                Line::from("3. Restart daemon and reload this page"),
+                Line::from("1. Start the embedded Kubo daemon with API:"),
+                Line::from("   cargo run --bin kubo-rs -- ipfs daemon --api /ip4/127.0.0.1/tcp/5001"),
+                Line::from("2. Enable CORS (if needed):"),
+                Line::from("   cargo run --bin kubo-rs -- ipfs config API.HTTPHeaders.Access-Control-Allow-Origin"),
+                Line::from("     --json '[\"http://localhost:8080\"]'"),
+                Line::from("3. Reload this page"),
             ],
         };
 

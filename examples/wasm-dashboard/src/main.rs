@@ -24,6 +24,7 @@ struct NodeInfo {
     connected: bool,
     error: Option<String>,
     api_base: String,
+    tab: usize,
 }
 
 fn api_base() -> String {
@@ -38,10 +39,27 @@ fn main() -> io::Result<()> {
     let api_base = api_base();
     let info = Rc::new(RefCell::new(NodeInfo {
         api_base: api_base.clone(),
+        tab: 0,
         ..NodeInfo::default()
     }));
     let backend = DomBackend::new()?;
     let terminal = Terminal::new(backend)?;
+
+    // Keyboard tabs: 1, 2, 3
+    let info_keys = info.clone();
+    let closure = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
+        match event.key().as_str() {
+            "1" => info_keys.borrow_mut().tab = 0,
+            "2" => info_keys.borrow_mut().tab = 1,
+            "3" => info_keys.borrow_mut().tab = 2,
+            _ => {}
+        }
+    }) as Box<dyn FnMut(_)>);
+    web_sys::window()
+        .unwrap()
+        .add_event_listener_with_callback("keydown", closure.as_ref().unchecked_ref())
+        .unwrap();
+    closure.forget();
 
     // Poll the Kubo HTTP API in the background
     let info_poll = info.clone();
@@ -134,44 +152,122 @@ fn main() -> io::Result<()> {
             .wrap(Wrap { trim: true });
         f.render_widget(addrs, chunks[2]);
 
-        let help = Paragraph::new(vec![
-            Line::from(""),
-            Line::from(vec![
-                Span::styled("Quickstart:", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-            ]),
-            Line::from("git clone https://github.com/RandyMcMillan/kubo-rs.git"),
-            Line::from("cd kubo-rs && git submodule update --init --recursive"),
-            Line::from("make build-go   # builds go/kubo-sys/cmd/ipfs/ipfs"),
-            Line::from("make run-wasm-dashboard   # starts daemon + serves dashboard"),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled("Manual setup:", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-            ]),
-            Line::from("1. Start a standard Kubo daemon on port 5001:"),
-            Line::from("   ipfs daemon --api /ip4/127.0.0.1/tcp/5001"),
-            Line::from("2. Enable CORS:"),
-            Line::from("   ipfs config --json API.HTTPHeaders.Access-Control-Allow-Origin"),
-            Line::from("     '[\"http://localhost:8080\"]'"),
-            Line::from("3. Restart daemon and reload this page"),
-            Line::from(""),
-            Line::from("Note: this dashboard uses the Kubo HTTP API (port 5001)."),
-            Line::from("The kubo-rs embedded node does not expose this API."),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled("Custom API:", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-            ]),
-            Line::from("Add ?api=<url> to use a different endpoint."),
-            Line::from("Example: ?api=http://192.168.1.100:5001"),
-        ])
-        .block(
-            Block::default()
-                .title(" Help ")
-                .borders(Borders::ALL)
-                .border_style(Color::Gray),
-        )
-        .style(Style::default().fg(Color::Gray))
-        .wrap(Wrap { trim: true });
-        f.render_widget(help, chunks[3]);
+        let tab_style = |n: usize, label: &str| {
+            if info.tab == n {
+                Span::styled(
+                    format!(" [{}] ", label),
+                    Style::default()
+                        .fg(Color::Black)
+                        .bg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                )
+            } else {
+                Span::styled(
+                    format!("  {}  ", label),
+                    Style::default().fg(Color::Gray),
+                )
+            }
+        };
+
+        let tabs = Paragraph::new(Line::from(vec![
+            tab_style(0, "1 Quickstart"),
+            tab_style(1, "2 HTTPS"),
+            tab_style(2, "3 Custom API"),
+        ]));
+
+        let help_content: Vec<Line> = match info.tab {
+            1 => vec![
+                Line::from(""),
+                Line::from(vec![
+                    Span::styled("HTTPS on GitHub Pages", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                ]),
+                Line::from("Browsers block HTTP API calls from HTTPS pages."),
+                Line::from(""),
+                Line::from(vec![
+                    Span::styled("Option A: Local HTTPS proxy (all browsers)", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                ]),
+                Line::from("1. Install Caddy and mkcert:"),
+                Line::from("   brew install caddy mkcert"),
+                Line::from("2. Create a trusted local cert:"),
+                Line::from("   mkcert -install && mkcert localhost 127.0.0.1 ::1"),
+                Line::from("3. Run Caddy reverse proxy:"),
+                Line::from("   caddy reverse-proxy --from localhost:5443 --to 127.0.0.1:5001"),
+                Line::from("4. Open dashboard with HTTPS API:"),
+                Line::from("   ?api=https://localhost:5443"),
+                Line::from(""),
+                Line::from(vec![
+                    Span::styled("Option B: Firefox", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                ]),
+                Line::from("Firefox shows a permission prompt for mixed content."),
+                Line::from("Allow it when prompted to connect to the HTTP API."),
+                Line::from(""),
+                Line::from(vec![
+                    Span::styled("Option C: Local HTTP (no HTTPS needed)", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                ]),
+                Line::from("make run-wasm-dashboard"),
+                Line::from("Serves on http://localhost:8080 — no mixed content."),
+            ],
+            2 => vec![
+                Line::from(""),
+                Line::from(vec![
+                    Span::styled("Custom API Endpoint", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                ]),
+                Line::from("Override the default API with a query parameter:"),
+                Line::from(""),
+                Line::from(vec![
+                    Span::styled("Examples:", Style::default().fg(Color::Cyan)),
+                ]),
+                Line::from("  ?api=http://192.168.1.100:5001"),
+                Line::from("  ?api=https://localhost:5443"),
+                Line::from("  ?api=http://127.0.0.1:5001"),
+                Line::from(""),
+                Line::from(vec![
+                    Span::styled("Current:", Style::default().fg(Color::Cyan)),
+                ]),
+                Line::from(format!("  {}", info.api_base)),
+                Line::from(""),
+                Line::from("The kubo-rs embedded node does not expose the HTTP API."),
+                Line::from("Use a standard Kubo daemon for dashboard connectivity."),
+            ],
+            _ => vec![
+                Line::from(""),
+                Line::from(vec![
+                    Span::styled("Quickstart:", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                ]),
+                Line::from("git clone https://github.com/RandyMcMillan/kubo-rs.git"),
+                Line::from("cd kubo-rs && git submodule update --init --recursive"),
+                Line::from("make build-go   # builds go/kubo-sys/cmd/ipfs/ipfs"),
+                Line::from("make run-wasm-dashboard   # starts daemon + serves dashboard"),
+                Line::from(""),
+                Line::from(vec![
+                    Span::styled("Manual setup:", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                ]),
+                Line::from("1. Start a standard Kubo daemon on port 5001:"),
+                Line::from("   ipfs daemon --api /ip4/127.0.0.1/tcp/5001"),
+                Line::from("2. Enable CORS:"),
+                Line::from("   ipfs config --json API.HTTPHeaders.Access-Control-Allow-Origin"),
+                Line::from("     '[\"http://localhost:8080\"]'"),
+                Line::from("3. Restart daemon and reload this page"),
+            ],
+        };
+
+        let help = Paragraph::new(help_content)
+            .block(
+                Block::default()
+                    .title(" Help ")
+                    .borders(Borders::ALL)
+                    .border_style(Color::Gray),
+            )
+            .style(Style::default().fg(Color::Gray))
+            .wrap(Wrap { trim: true });
+
+        let help_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(1), Constraint::Min(0)])
+            .split(chunks[3]);
+
+        f.render_widget(tabs, help_chunks[0]);
+        f.render_widget(help, help_chunks[1]);
     });
 
     Ok(())

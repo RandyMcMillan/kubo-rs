@@ -113,6 +113,30 @@ fn main() {
     // host macOS target and the linker rejects the resulting object files.
     if let Some((cc, cxx)) = apple_compiler(&target) {
         go_build.env("CC", &cc).env("CXX", &cxx);
+
+        // Align the Go C compiler's deployment target with the Rust linker so
+        // that generated object files use symbols available on the target OS
+        // version. Defaults to 14.0 (override with IPHONEOS_DEPLOYMENT_TARGET).
+        let deployment_target = env::var("IPHONEOS_DEPLOYMENT_TARGET")
+            .or_else(|_| env::var("MACOSX_DEPLOYMENT_TARGET"))
+            .unwrap_or_else(|_| "14.0".to_string());
+
+        let min_flag = if target.contains("ios-sim")
+            || (target.contains("ios") && target.starts_with("x86_64"))
+        {
+            format!("-mios-simulator-version-min={}", deployment_target)
+        } else if target.contains("ios") {
+            format!("-miphoneos-version-min={}", deployment_target)
+        } else if target.contains("darwin") {
+            format!("-mmacosx-version-min={}", deployment_target)
+        } else {
+            String::new()
+        };
+
+        if !min_flag.is_empty() {
+            go_build.env("CGO_CFLAGS", &min_flag);
+            go_build.env("CGO_LDFLAGS", &min_flag);
+        }
     }
 
     let status = go_build.status().expect("failed to run `go build` for FFI");
@@ -152,7 +176,7 @@ fn main() {
         println!("cargo:rustc-link-lib=dl");
     }
 
-    if os == "macos" {
+    if os == "macos" || os == "ios" {
         println!("cargo:rustc-link-lib=framework=Security");
         println!("cargo:rustc-link-lib=framework=CoreFoundation");
         println!("cargo:rustc-link-lib=resolv");

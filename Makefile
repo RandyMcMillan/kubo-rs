@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: all build build-bin build-go build-ffi test test-cli test-ffi test-ffi-c test-ffi-rust test-all bench fmt clippy clean clean-all check example p2p scripts cross-test run-wasm-dashboard build-wasm-dashboard-release
+.PHONY: all build build-bin build-go build-ffi test test-cli test-ffi test-ffi-c test-ffi-rust test-all bench fmt clippy clean clean-all check example p2p scripts cross-test run-wasm-dashboard build-wasm-dashboard-release website run-website build-website-release
 
 all: fmt clippy test
 
@@ -100,6 +100,19 @@ build-wasm-dashboard-release:
 	pkill -f "trunk serve" 2>/dev/null || true
 	cd examples/wasm-dashboard && env -u NO_COLOR trunk build --public-url /kubo-rs/
 
+website:
+	./scripts/website.sh --build-only 2>/dev/null || ./scripts/website.sh
+
+run-website:
+	pkill -f "trunk serve" 2>/dev/null || true
+	./scripts/website.sh
+
+build-website-release:
+	@rustup target list --installed | grep -q wasm32-unknown-unknown || rustup target add wasm32-unknown-unknown
+	@which trunk >/dev/null 2>&1 || cargo install trunk
+	pkill -f "trunk serve" 2>/dev/null || true
+	cd examples/website && env -u NO_COLOR trunk build --public-url /kubo-rs/
+
 # Cross-testing
 scripts:
 	@echo "Run one of:"
@@ -134,7 +147,10 @@ help:
 	@echo "  p2p            - Run the p2p example"
 	@echo "  dashboard      - Run the ratatui TUI dashboard example"
 	@echo "  wasm-dashboard            - Build the WASM dashboard example"
-	@echo "  run-wasm-dashboard        - Build and serve the WASM dashboard (opens http://localhost:8080)"
+	@echo "  run-wasm-dashboard        - Build and serve the WASM dashboard (auto-picks free port from 8080)"
 	@echo "  build-wasm-dashboard-release - Build WASM dashboard for GitHub Pages deployment"
+	@echo "  website                   - Build the website example"
+	@echo "  run-website               - Build and serve the website (auto-picks free port from 8082)"
+	@echo "  build-website-release     - Build website for GitHub Pages deployment"
 	@echo "  cross-test     - Run cross-language alignment tests"
 	@echo "  scripts        - Show available test scripts"

@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 REPO=".ipfs"
 KUBO_BIN=""
 API_PORT=5001
-TRUNK_PORT=8080
+TRUNK_PORT=8082
 
 # --- find free port ---
 find_free_port() {
@@ -81,7 +81,7 @@ configure_cors() {
     local current
     current=$(IPFS_PATH="$REPO" "$KUBO_BIN" config API.HTTPHeaders.Access-Control-Allow-Origin 2>/dev/null || echo "null")
     if [ "$current" != "$origins" ]; then
-        echo "Configuring CORS for WASM dashboard on port $port ..."
+        echo "Configuring CORS for website on port $port ..."
         IPFS_PATH="$REPO" "$KUBO_BIN" config --json API.HTTPHeaders.Access-Control-Allow-Origin "$origins"
         IPFS_PATH="$REPO" "$KUBO_BIN" config --json API.HTTPHeaders.Access-Control-Allow-Methods '["PUT","POST","GET"]' || true
     fi
@@ -123,7 +123,7 @@ check_wasm_target
 check_trunk
 
 if [ "$BUILD_ONLY" = true ]; then
-    cd examples/wasm-dashboard
+    cd examples/website
     exec env -u NO_COLOR trunk build
 fi
 
@@ -133,7 +133,7 @@ TRUNK_PORT=$(find_free_port "$TRUNK_PORT")
 configure_cors "$TRUNK_PORT"
 start_daemon
 
-echo "Starting WASM dashboard at http://localhost:$TRUNK_PORT"
+echo "Starting website at http://localhost:$TRUNK_PORT"
 echo ""
-cd examples/wasm-dashboard
+cd examples/website
 exec env -u NO_COLOR trunk serve --port "$TRUNK_PORT"

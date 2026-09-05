@@ -7,3 +7,6 @@
 [submodule "go/git"]
 	path = go/git
 	url = https://github.com/RandyMcMillan/go-git.git
+[submodule "go/libp2p"]
+	path = go/libp2p
+	url = https://github.com/RandyMcMillan/go-libp2p.git

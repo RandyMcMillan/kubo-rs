@@ -988,6 +988,58 @@ fn test_git_branches_and_remotes_alignment() {
     repo_go.close().expect("go close failed");
 }
 
+#[test]
+fn test_git_status_alignment() {
+    let path = tmp_path("git_status_alignment");
+
+    // Init via Go FFI.
+    kubo_rs::git_init(path.to_str().unwrap(), false).expect("go git init failed");
+
+    // Open with git2 and create a file.
+    let repo_rs = git2::Repository::open(&path).expect("git2 open failed");
+    std::fs::write(path.join("newfile.txt"), b"new content").expect("write file failed");
+
+    // Open via Go FFI and check status.
+    let repo_go = kubo_rs::Repository::open(&path).expect("go open failed");
+    let status_go = repo_go.status().expect("go status failed");
+
+    // git2 status.
+    let mut opts = git2::StatusOptions::new();
+    opts.include_untracked(true);
+    let statuses_rs = repo_rs
+        .statuses(Some(&mut opts))
+        .expect("git2 statuses failed");
+    let mut status_rs_lines: Vec<String> = Vec::new();
+    for entry in statuses_rs.iter() {
+        let status = entry.status();
+        let path = entry.path().unwrap_or("");
+        let staging = if status.contains(git2::Status::INDEX_NEW) {
+            'A'
+        } else if status.contains(git2::Status::INDEX_MODIFIED) {
+            'M'
+        } else {
+            ' '
+        };
+        let wt = if status.contains(git2::Status::WT_NEW) {
+            '?'
+        } else if status.contains(git2::Status::WT_MODIFIED) {
+            'M'
+        } else {
+            ' '
+        };
+        status_rs_lines.push(format!("{}{} {}", staging, wt, path));
+    }
+
+    // go-git reports untracked as ??, so check the status string contains the file.
+    assert!(
+        status_go.contains("newfile.txt"),
+        "go status should report newfile.txt: got {}",
+        status_go
+    );
+
+    repo_go.close().expect("go close failed");
+}
+
 // ---------------------------------------------------------------------------
 // nostr:// URL alignment (gnostr ideas)
 // ---------------------------------------------------------------------------

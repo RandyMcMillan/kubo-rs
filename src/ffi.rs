@@ -87,6 +87,7 @@ unsafe extern "C" {
         out: *mut *mut u8,
         out_len: *mut usize,
     ) -> i64;
+    fn kubo_git_repo_status(handle: u64) -> *mut c_char;
 }
 
 fn check_err(code: i64) -> Result<(), Error> {
@@ -533,4 +534,8 @@ pub fn git_repo_blob_read(handle: u64, hash: &str) -> Result<Vec<u8>, Error> {
             Ok(buf)
         }
     }
+}
+
+pub fn git_repo_status(handle: u64) -> Result<String, Error> {
+    unsafe { ptr_to_string(kubo_git_repo_status(handle)).ok_or_else(|| Error::Go(last_error())) }
 }

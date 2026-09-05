@@ -518,6 +518,15 @@ impl Repository {
         ffi::git_repo_blob_read(self.handle, hash)
     }
 
+    /// Return the working tree status as a short-format string.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the status cannot be read.
+    pub fn status(&self) -> Result<String, Error> {
+        ffi::git_repo_status(self.handle)
+    }
+
     /// Release the handle.
     ///
     /// # Errors

@@ -295,3 +295,30 @@ func kubo_git_repo_blob_read(handle uint64, hash *C.char, out **C.uint8_t, outLe
 	setError(nil)
 	return 0
 }
+
+//export kubo_git_repo_status
+func kubo_git_repo_status(handle uint64) *C.char {
+	gitReposMu.RLock()
+	repo, ok := gitRepos[handle]
+	gitReposMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid git handle %d", handle))
+		return nil
+	}
+
+	wt, err := repo.Worktree()
+	if err != nil {
+		setError(fmt.Errorf("git worktree: %w", err))
+		return nil
+	}
+
+	status, err := wt.Status()
+	if err != nil {
+		setError(fmt.Errorf("git status: %w", err))
+		return nil
+	}
+
+	setError(nil)
+	return C.CString(status.String())
+}

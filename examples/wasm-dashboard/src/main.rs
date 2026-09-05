@@ -354,6 +354,16 @@ fn main() -> io::Result<()> {
                 ]),
                 Line::from("make run-wasm-dashboard"),
                 Line::from("Serves on http://localhost:8080 — no mixed content."),
+                Line::from(""),
+                Line::from(vec![
+                    Span::styled("Option D: Browser Extension", Style::default().fg(t.accent_cyan()).add_modifier(Modifier::BOLD)),
+                ]),
+                Line::from("IPFS Companion bridges HTTPS pages to your local IPFS node."),
+                Line::from("Verified official extension:"),
+                Line::from("  Chrome: chromewebstore.google.com/detail/ipfs-companion"),
+                Line::from("  Firefox: addons.mozilla.org/firefox/addon/ipfs-companion"),
+                Line::from("  Source: github.com/ipfs/ipfs-companion"),
+                Line::from("Brave has native IPFS support built-in."),
             ],
             2 => vec![
                 Line::from(""),

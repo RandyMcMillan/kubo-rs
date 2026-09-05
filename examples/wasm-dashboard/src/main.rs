@@ -126,13 +126,15 @@ fn main() -> io::Result<()> {
             Line::from(vec![
                 Span::styled("Setup:", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
             ]),
-            Line::from("1. Start kubo-rs daemon:  kubo-rs ipfs daemon --online"),
+            Line::from("1. Start a standard Kubo daemon on port 5001:"),
+            Line::from("   ipfs daemon --api /ip4/127.0.0.1/tcp/5001"),
             Line::from("2. Enable CORS:"),
-            Line::from("   kubo-rs ipfs config --json API.HTTPHeaders.Access-Control-Allow-Origin"),
+            Line::from("   ipfs config --json API.HTTPHeaders.Access-Control-Allow-Origin"),
             Line::from("     '[\"http://localhost:8080\"]'"),
             Line::from("3. Restart daemon and reload this page"),
             Line::from(""),
-            Line::from("This dashboard uses the Kubo HTTP API (port 5001)."),
+            Line::from("Note: this dashboard uses the Kubo HTTP API (port 5001)."),
+            Line::from("The kubo-rs embedded node does not expose this API."),
         ])
         .block(
             Block::default()
@@ -172,7 +174,7 @@ async fn poll_api(info: &RefCell<NodeInfo>) {
             i.connected = false;
             i.error = Some(
                 "Cannot connect to http://127.0.0.1:5001/api/v0/id. \
-                 Is the daemon running with CORS enabled?"
+                 Start a standard Kubo daemon (ipfs daemon) with CORS enabled."
                     .to_string(),
             );
         }

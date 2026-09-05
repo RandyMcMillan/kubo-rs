@@ -182,6 +182,11 @@ fn main() -> io::Result<()> {
             "1" => info_keys.borrow_mut().tab = 0,
             "2" => info_keys.borrow_mut().tab = 1,
             "3" => info_keys.borrow_mut().tab = 2,
+            "4" => info_keys.borrow_mut().tab = 3,
+            "Tab" => {
+                let mut i = info_keys.borrow_mut();
+                i.tab = (i.tab + 1) % 4;
+            }
             "t" | "T" => {
                 let new_theme = info_keys.borrow().theme.toggle();
                 info_keys.borrow_mut().theme = new_theme;
@@ -210,10 +215,10 @@ fn main() -> io::Result<()> {
         let t = info.theme;
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .margin(0)
+            .margin(2)
             .constraints([
                 Constraint::Length(3),
-                Constraint::Length(10),
+                Constraint::Length(12),
                 Constraint::Length(8),
                 Constraint::Min(0),
             ])
@@ -321,6 +326,7 @@ fn main() -> io::Result<()> {
             tab_style(0, "1 Quickstart"),
             tab_style(1, "2 HTTPS"),
             tab_style(2, "3 Custom API"),
+            tab_style(3, "4 Plugins"),
         ]));
 
         let help_content: Vec<Line> = match info.tab {
@@ -354,16 +360,6 @@ fn main() -> io::Result<()> {
                 ]),
                 Line::from("make run-wasm-dashboard"),
                 Line::from("Serves on http://localhost:8080 — no mixed content."),
-                Line::from(""),
-                Line::from(vec![
-                    Span::styled("Option D: Browser Extension", Style::default().fg(t.accent_cyan()).add_modifier(Modifier::BOLD)),
-                ]),
-                Line::from("IPFS Companion bridges HTTPS pages to your local IPFS node."),
-                Line::from("Verified official extension:"),
-                Line::from("  Chrome: chromewebstore.google.com/detail/ipfs-companion"),
-                Line::from("  Firefox: addons.mozilla.org/firefox/addon/ipfs-companion"),
-                Line::from("  Source: github.com/ipfs/ipfs-companion"),
-                Line::from("Brave has native IPFS support built-in."),
             ],
             2 => vec![
                 Line::from(""),
@@ -386,6 +382,34 @@ fn main() -> io::Result<()> {
                 Line::from(""),
                 Line::from("The kubo-rs embedded node does not expose the HTTP API."),
                 Line::from("Use a standard Kubo daemon for dashboard connectivity."),
+            ],
+            3 => vec![
+                Line::from(""),
+                Line::from(vec![
+                    Span::styled("Browser Extensions", Style::default().fg(t.accent_yellow()).add_modifier(Modifier::BOLD)),
+                ]),
+                Line::from("IPFS Companion bridges HTTPS pages to your local IPFS node."),
+                Line::from("Verified official extension:"),
+                Line::from(""),
+                Line::from(vec![
+                    Span::styled("Chrome / Edge", Style::default().fg(t.accent_cyan())),
+                ]),
+                Line::from("  chromewebstore.google.com/detail/ipfs-companion"),
+                Line::from(""),
+                Line::from(vec![
+                    Span::styled("Firefox", Style::default().fg(t.accent_cyan())),
+                ]),
+                Line::from("  addons.mozilla.org/firefox/addon/ipfs-companion"),
+                Line::from(""),
+                Line::from(vec![
+                    Span::styled("Source", Style::default().fg(t.accent_cyan())),
+                ]),
+                Line::from("  github.com/ipfs/ipfs-companion"),
+                Line::from(""),
+                Line::from(vec![
+                    Span::styled("Brave Browser", Style::default().fg(t.accent_cyan())),
+                ]),
+                Line::from("  Native IPFS support built-in."),
             ],
             _ => vec![
                 Line::from(""),

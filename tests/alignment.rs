@@ -220,39 +220,148 @@ fn test_nostr_kind_values_alignment() {
 
 #[test]
 fn test_nostr_kind_event_round_trip_for_each_kind() {
-    // For a representative set of kinds, verify that signing an event
-    // with the Go FFI and parsing it with the Rust crate preserves
-    // the kind correctly.
+    // For every named Kind variant in the Rust nostr crate, verify that
+    // signing an event with the Go FFI and parsing it with the Rust crate
+    // preserves the kind correctly and the signature verifies.
     let sk = kubo_rs::nostr_generate_key().expect("go keygen failed");
 
-    let representative_kinds: &[(i32, &str)] = &[
-        (0, "metadata"),
-        (1, "text note"),
-        (3, "contact list"),
-        (4, "encrypted DM"),
-        (6, "repost"),
-        (7, "reaction"),
-        (40, "channel creation"),
-        (10000, "mute list"),
-        (10002, "relay list"),
-        (30023, "article"),
+    #[rustfmt::skip]
+    let all_kinds: &[(Kind, i32)] = &[
+        (Kind::Metadata, 0),
+        (Kind::TextNote, 1),
+        (Kind::RecommendRelay, 2),
+        (Kind::ContactList, 3),
+        (Kind::OpenTimestamps, 1040),
+        (Kind::EncryptedDirectMessage, 4),
+        (Kind::EventDeletion, 5),
+        (Kind::Repost, 6),
+        (Kind::GenericRepost, 16),
+        (Kind::Comment, 1111),
+        (Kind::Reaction, 7),
+        (Kind::BadgeAward, 8),
+        (Kind::ChannelCreation, 40),
+        (Kind::ChannelMetadata, 41),
+        (Kind::ChannelMessage, 42),
+        (Kind::ChannelHideMessage, 43),
+        (Kind::ChannelMuteUser, 44),
+        (Kind::MlsKeyPackage, 443),
+        (Kind::MlsWelcome, 444),
+        (Kind::MlsGroupMessage, 445),
+        (Kind::RepoState, 30618),
+        (Kind::GitPatch, 1617),
+        (Kind::GitPullRequest, 1618),
+        (Kind::GitPullRequestUpdate, 1619),
+        (Kind::GitIssue, 1621),
+        (Kind::GitReply, 1622),
+        (Kind::GitStatusOpen, 1630),
+        (Kind::GitStatusApplied, 1631),
+        (Kind::GitStatusClosed, 1632),
+        (Kind::GitStatusDraft, 1633),
+        (Kind::WalletConnectInfo, 13194),
+        (Kind::Reporting, 1984),
+        (Kind::Label, 1985),
+        (Kind::GroupPutUser, 9000),
+        (Kind::GroupRemoveUser, 9001),
+        (Kind::GroupEditMetadata, 9002),
+        (Kind::GroupDeleteEvent, 9005),
+        (Kind::GroupCreateGroup, 9007),
+        (Kind::GroupDeleteGroup, 9008),
+        (Kind::GroupCreateInvite, 9009),
+        (Kind::GroupJoinRequest, 9021),
+        (Kind::GroupLeaveRequest, 9022),
+        (Kind::GroupMetadata, 39000),
+        (Kind::GroupAdmins, 39001),
+        (Kind::GroupMembers, 39002),
+        (Kind::GroupRoles, 39003),
+        (Kind::GroupLivekitParticipants, 39004),
+        (Kind::ZapPrivateMessage, 9733),
+        (Kind::ZapRequest, 9734),
+        (Kind::ZapReceipt, 9735),
+        (Kind::Highlight, 9802),
+        (Kind::MuteList, 10000),
+        (Kind::PinList, 10001),
+        (Kind::RelayList, 10002),
+        (Kind::Bookmarks, 10003),
+        (Kind::Communities, 10004),
+        (Kind::PublicChats, 10005),
+        (Kind::BlockedRelays, 10006),
+        (Kind::SearchRelays, 10007),
+        (Kind::SimpleGroups, 10009),
+        (Kind::Interests, 10015),
+        (Kind::Emojis, 10030),
+        (Kind::InboxRelays, 10050),
+        (Kind::MlsKeyPackageRelays, 10051),
+        (Kind::BlossomServerList, 10063),
+        (Kind::Authentication, 22242),
+        (Kind::WalletConnectRequest, 23194),
+        (Kind::WalletConnectResponse, 23195),
+        (Kind::WalletConnectNotification, 23196),
+        (Kind::NostrConnect, 24133),
+        (Kind::LiveEvent, 30311),
+        (Kind::LiveEventMessage, 1311),
+        (Kind::ProfileBadges, 10008),
+        (Kind::BadgeSet, 30008),
+        (Kind::BadgeDefinition, 30009),
+        (Kind::Seal, 13),
+        (Kind::GiftWrap, 1059),
+        (Kind::PrivateDirectMessage, 14),
+        (Kind::SetStall, 30017),
+        (Kind::SetProduct, 30018),
+        (Kind::JobFeedback, 7000),
+        (Kind::FollowSet, 30000),
+        (Kind::RelaySet, 30002),
+        (Kind::BookmarkSet, 30003),
+        (Kind::ArticlesCurationSet, 30004),
+        (Kind::VideosCurationSet, 30005),
+        (Kind::InterestSet, 30015),
+        (Kind::EmojiSet, 30030),
+        (Kind::ReleaseArtifactSet, 30063),
+        (Kind::LongFormTextNote, 30023),
+        (Kind::GitRepoAnnouncement, 30617),
+        (Kind::FileMetadata, 1063),
+        (Kind::BlossomAuth, 24242),
+        (Kind::HttpAuth, 27235),
+        (Kind::ApplicationSpecificData, 30078),
+        (Kind::Torrent, 2003),
+        (Kind::TorrentComment, 2004),
+        (Kind::PeerToPeerOrder, 38383),
+        (Kind::RequestToVanish, 62),
+        (Kind::UserStatus, 30315),
+        (Kind::VoiceMessage, 1222),
+        (Kind::VoiceMessageReply, 1244),
+        (Kind::CashuWallet, 17375),
+        (Kind::CashuWalletUnspentProof, 7375),
+        (Kind::CashuWalletSpendingHistory, 7376),
+        (Kind::CashuWalletQuote, 7374),
+        (Kind::CashuNutZapInfo, 10019),
+        (Kind::GitUserGraspList, 10317),
+        (Kind::CashuNutZap, 9321),
+        (Kind::CodeSnippet, 1337),
+        (Kind::Poll, 1068),
+        (Kind::PollResponse, 1018),
+        (Kind::ChatMessage, 9),
+        (Kind::Thread, 11),
+        (Kind::WebBookmark, 39701),
+        (Kind::RelayMonitor, 10166),
+        (Kind::RelayDiscovery, 30166),
     ];
 
-    for &(kind_val, desc) in representative_kinds {
-        let event_json = kubo_rs::nostr_event_sign(&sk, desc, kind_val)
-            .unwrap_or_else(|_| panic!("go sign failed for kind {}", kind_val));
+    for &(kind, expected_value) in all_kinds {
+        let val = expected_value;
+        let event_json = kubo_rs::nostr_event_sign(&sk, "kind test", val)
+            .unwrap_or_else(|_| panic!("go sign failed for kind {}", val));
         let event: Event = serde_json::from_str(&event_json)
-            .unwrap_or_else(|_| panic!("rust parse failed for kind {}", kind_val));
+            .unwrap_or_else(|_| panic!("rust parse failed for kind {}", val));
         assert_eq!(
             event.kind.as_u16() as i32,
-            kind_val,
-            "kind {} ({}) must survive round-trip",
-            kind_val,
-            desc
+            val,
+            "kind {} ({:?}) must survive round-trip",
+            val,
+            kind
         );
         event
             .verify()
-            .unwrap_or_else(|_| panic!("rust verify failed for kind {}", kind_val));
+            .unwrap_or_else(|_| panic!("rust verify failed for kind {}", val));
     }
 }
 
@@ -375,6 +484,24 @@ fn test_libp2p_keypair_peer_id_derivation_alignment() {
         peer_id_str.starts_with("12D3KooW") || peer_id_str.len() == 52,
         "ed25519 peer id should have expected format"
     );
+}
+
+// ---------------------------------------------------------------------------
+// nostr-sdk alignment
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_nostr_sdk_event_parses_go_signed_event() {
+    // Verify that the nostr-sdk crate (which re-exports nostr::Event)
+    // can parse and verify an event produced by the Go FFI.
+    let sk = kubo_rs::nostr_generate_key().expect("go keygen failed");
+    let event_json =
+        kubo_rs::nostr_event_sign(&sk, "nostr-sdk alignment", 1).expect("go sign failed");
+
+    let event: nostr_sdk::prelude::Event =
+        serde_json::from_str(&event_json).expect("nostr-sdk parse failed");
+    event.verify().expect("nostr-sdk verify failed");
+    assert_eq!(event.content, "nostr-sdk alignment");
 }
 
 // ---------------------------------------------------------------------------

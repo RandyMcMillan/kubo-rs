@@ -24,7 +24,7 @@ crossterm = "0.29"
 rand = "0.8"
 nostr = "0.45"
 nostr-sdk = "0.45"
-git2 = "0.20"
+git2 = "0.21"
 libp2p = "0.56"
 
 [[bench]]

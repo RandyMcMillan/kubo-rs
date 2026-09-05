@@ -35,7 +35,45 @@ fn api_base() -> String {
         .unwrap_or_else(|| "http://127.0.0.1:5001".to_string())
 }
 
+fn maybe_show_gh_pages_badge() {
+    if let Some(window) = web_sys::window() {
+        if let Ok(hostname) = window.location().hostname() {
+            let is_gh_pages = hostname == "kubo-rs.randymcmillan.net"
+                || hostname.ends_with(".github.io");
+            if is_gh_pages {
+                if let Some(document) = window.document() {
+                    if let Some(body) = document.body() {
+                        let div = document.create_element("div").unwrap();
+                        let _ = div.set_attribute(
+                            "style",
+                            "position:fixed;top:8px;right:8px;z-index:1000;",
+                        );
+                        let a = document.create_element("a").unwrap();
+                        let _ = a.set_attribute(
+                            "href",
+                            "https://github.com/RandyMcMillan/kubo-rs/actions/workflows/gh-pages.yml",
+                        );
+                        let _ = a.set_attribute("target", "_blank");
+                        let img = document.create_element("img").unwrap();
+                        let _ = img.set_attribute(
+                            "src",
+                            "https://github.com/RandyMcMillan/kubo-rs/actions/workflows/gh-pages.yml/badge.svg",
+                        );
+                        let _ = img.set_attribute("alt", "GitHub Pages");
+                        let _ = img.set_attribute("style", "height:20px;border-radius:4px;");
+                        let _ = a.append_child(&img);
+                        let _ = div.append_child(&a);
+                        let _ = body.append_child(&div);
+                    }
+                }
+            }
+        }
+    }
+}
+
 fn main() -> io::Result<()> {
+    maybe_show_gh_pages_badge();
+
     let api_base = api_base();
     let info = Rc::new(RefCell::new(NodeInfo {
         api_base: api_base.clone(),

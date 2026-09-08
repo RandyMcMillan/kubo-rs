@@ -16,6 +16,7 @@ import (
 
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/routing"
@@ -34,6 +35,13 @@ type libp2pHostHandle struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	host   host.Host
+
+	pubsubMu      sync.Mutex
+	pubsub        *pubsub.PubSub
+	pubsubTopic   *pubsub.Topic
+	pubsubSub     *pubsub.Subscription
+	pubsubTopicID string
+	pubsubMsgs    []string
 }
 
 func bootstrapEnabled() bool {
@@ -41,12 +49,35 @@ func bootstrapEnabled() bool {
 	if value == "" {
 		return true
 	}
+
 	switch value {
 	case "1", "true", "yes", "on":
 		return true
 	default:
 		return false
 	}
+}
+
+func gossipEnabled() bool {
+	value := strings.TrimSpace(strings.ToLower(os.Getenv("KUBO_LIBP2P_GOSSIP")))
+	if value == "" {
+		return true
+	}
+
+	switch value {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+func gossipTopicName() string {
+	topic := strings.TrimSpace(os.Getenv("KUBO_LIBP2P_GOSSIP_TOPIC"))
+	if topic == "" {
+		return "kubo-desktop"
+	}
+	return topic
 }
 
 func configuredBootstrapPeers() []peer.AddrInfo {
@@ -99,6 +130,69 @@ func connectBootstrapPeers(ctx context.Context, h host.Host, peers []peer.AddrIn
 	}
 }
 
+func startGossip(handle *libp2pHostHandle) error {
+	if !gossipEnabled() {
+		return nil
+	}
+
+	ps, err := pubsub.NewGossipSub(handle.ctx, handle.host, pubsub.WithFloodPublish(true))
+	if err != nil {
+		return fmt.Errorf("pubsub new: %w", err)
+	}
+
+	topicName := gossipTopicName()
+	topic, err := ps.Join(topicName)
+	if err != nil {
+		return fmt.Errorf("pubsub join %s: %w", topicName, err)
+	}
+
+	sub, err := topic.Subscribe()
+	if err != nil {
+		return fmt.Errorf("pubsub subscribe %s: %w", topicName, err)
+	}
+
+	handle.pubsubMu.Lock()
+	handle.pubsub = ps
+	handle.pubsubTopic = topic
+	handle.pubsubSub = sub
+	handle.pubsubTopicID = topicName
+	handle.pubsubMu.Unlock()
+
+	go func() {
+		for {
+			msg, err := sub.Next(handle.ctx)
+			if err != nil {
+				return
+			}
+
+			payload := strings.TrimSpace(string(msg.Data))
+			if payload == "" || msg.ReceivedFrom == handle.host.ID() {
+				continue
+			}
+
+			entry := fmt.Sprintf("%s|%s|%s", topicName, msg.ReceivedFrom.String(), payload)
+			handle.pubsubMu.Lock()
+			handle.pubsubMsgs = append(handle.pubsubMsgs, entry)
+			handle.pubsubMu.Unlock()
+		}
+	}()
+
+	return nil
+}
+
+func drainPubsubMessages(handle *libp2pHostHandle) []string {
+	handle.pubsubMu.Lock()
+	defer handle.pubsubMu.Unlock()
+
+	if len(handle.pubsubMsgs) == 0 {
+		return nil
+	}
+
+	out := append([]string(nil), handle.pubsubMsgs...)
+	handle.pubsubMsgs = nil
+	return out
+}
+
 //export kubo_libp2p_host_new
 func kubo_libp2p_host_new() uint64 {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -119,9 +213,7 @@ func kubo_libp2p_host_new() uint64 {
 	}
 
 	if len(bootstrapPeers) > 0 {
-		opts = append(opts,
-			libp2p.EnableAutoRelayWithPeerSource(relayPeerSource(bootstrapPeers)),
-		)
+		opts = append(opts, libp2p.EnableAutoRelayWithPeerSource(relayPeerSource(bootstrapPeers)))
 	}
 
 	opts = append(opts, libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
@@ -147,6 +239,7 @@ func kubo_libp2p_host_new() uint64 {
 			}
 		}()
 	}
+
 	if len(bootstrapPeers) > 0 {
 		connectBootstrapPeers(ctx, h, bootstrapPeers)
 	}
@@ -155,6 +248,13 @@ func kubo_libp2p_host_new() uint64 {
 		ctx:    ctx,
 		cancel: cancel,
 		host:   h,
+	}
+
+	if err := startGossip(handle); err != nil {
+		cancel()
+		_ = h.Close()
+		setError(err)
+		return 0
 	}
 
 	libp2pHostsMu.Lock()
@@ -202,6 +302,7 @@ func kubo_libp2p_host_peer_id(handle uint64) *C.char {
 		return nil
 	}
 
+	setError(nil)
 	return C.CString(h.host.ID().String())
 }
 
@@ -307,4 +408,74 @@ func kubo_libp2p_host_protocols(handle uint64) *C.char {
 
 	setError(nil)
 	return C.CString(strings.Join(names, "\n"))
+}
+
+//export kubo_libp2p_host_gossip_topic
+func kubo_libp2p_host_gossip_topic(handle uint64) *C.char {
+	libp2pHostsMu.RLock()
+	h, ok := libp2pHosts[handle]
+	libp2pHostsMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid libp2p handle %d", handle))
+		return nil
+	}
+
+	h.pubsubMu.Lock()
+	topic := h.pubsubTopicID
+	h.pubsubMu.Unlock()
+
+	setError(nil)
+	return C.CString(topic)
+}
+
+//export kubo_libp2p_host_gossip_publish
+func kubo_libp2p_host_gossip_publish(handle uint64, message *C.char) int64 {
+	libp2pHostsMu.RLock()
+	h, ok := libp2pHosts[handle]
+	libp2pHostsMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid libp2p handle %d", handle))
+		return -1
+	}
+
+	msg := C.GoString(message)
+	h.pubsubMu.Lock()
+	topic := h.pubsubTopic
+	topicName := h.pubsubTopicID
+	h.pubsubMu.Unlock()
+
+	if topic == nil {
+		setError(fmt.Errorf("gossip topic disabled"))
+		return -1
+	}
+
+	if err := topic.Publish(h.ctx, []byte(msg)); err != nil {
+		setError(fmt.Errorf("pubsub publish: %w", err))
+		return -1
+	}
+
+	h.pubsubMu.Lock()
+	h.pubsubMsgs = append(h.pubsubMsgs, fmt.Sprintf("%s|self|%s", topicName, msg))
+	h.pubsubMu.Unlock()
+
+	setError(nil)
+	return 0
+}
+
+//export kubo_libp2p_host_gossip_drain
+func kubo_libp2p_host_gossip_drain(handle uint64) *C.char {
+	libp2pHostsMu.RLock()
+	h, ok := libp2pHosts[handle]
+	libp2pHostsMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid libp2p handle %d", handle))
+		return nil
+	}
+
+	msgs := drainPubsubMessages(h)
+	setError(nil)
+	return C.CString(strings.Join(msgs, "\n"))
 }

@@ -111,6 +111,25 @@ pub fn p2p_protocols() -> Vec<String> {
         .unwrap_or_default()
 }
 
+#[uniffi::export]
+pub fn p2p_gossip_topic() -> String {
+    p2p_host(|host| host.gossip_topic().ok())
+        .flatten()
+        .unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn p2p_gossip_publish(message: &str) -> bool {
+    p2p_host(|host| host.gossip_publish(message).is_ok()).unwrap_or(false)
+}
+
+#[uniffi::export]
+pub fn p2p_gossip_drain() -> Vec<String> {
+    p2p_host(|host| host.gossip_drain().ok())
+        .flatten()
+        .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::rust_hello;

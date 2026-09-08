@@ -349,6 +349,33 @@ impl Host {
         ffi::host_protocols(self.handle)
     }
 
+    /// Return the gossip topic name joined by this host.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the topic cannot be read.
+    pub fn gossip_topic(&self) -> Result<String, Error> {
+        ffi::host_gossip_topic(self.handle)
+    }
+
+    /// Publish a gossip message to the topic joined by this host.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if publishing fails.
+    pub fn gossip_publish(&self, message: &str) -> Result<(), Error> {
+        ffi::host_gossip_publish(self.handle, message)
+    }
+
+    /// Drain any queued gossip messages received from the topic.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the queue cannot be read.
+    pub fn gossip_drain(&self) -> Result<Vec<String>, Error> {
+        ffi::host_gossip_drain(self.handle)
+    }
+
     /// Close the host and consume the handle.
     ///
     /// # Errors

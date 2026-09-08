@@ -171,6 +171,8 @@ final class PeerNetworkStore: NSObject, ObservableObject {
     @Published var libp2pPeerID: String = "Starting host"
     @Published var libp2pAddrs: [String] = []
     @Published var libp2pProtocols: [String] = []
+    @Published var gossipTopic: String = "kubo-desktop"
+    @Published var gossipMessages: [String] = []
     @Published var nearbyPeers: [NearbyPeer] = []
     @Published var connectedPeers: [NearbyPeer] = []
     @Published var recentMessages: [String] = []
@@ -183,6 +185,7 @@ final class PeerNetworkStore: NSObject, ObservableObject {
     private static let serviceType = "kubo-p2p"
     private var pendingInvites = Set<String>()
     private var peerDirectory: [String: NearbyPeer] = [:]
+    private var gossipPoller: Task<Void, Never>?
 
     override init() {
         let displayName = Self.makeDisplayName()
@@ -212,9 +215,19 @@ final class PeerNetworkStore: NSObject, ObservableObject {
 
         connectionStatus = "Browsing and advertising as \(displayName)"
         addMessage("Started local discovery for \(displayName)")
+
+        gossipPoller = Task {
+            while !Task.isCancelled {
+                await MainActor.run {
+                    self.syncGossipMessages()
+                }
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+            }
+        }
     }
 
     deinit {
+        gossipPoller?.cancel()
         browser.stopBrowsingForPeers()
         advertiser.stopAdvertisingPeer()
         session.disconnect()
@@ -246,6 +259,7 @@ final class PeerNetworkStore: NSObject, ObservableObject {
 
     func broadcastCurrentState() {
         broadcast(libp2pHandshakeMessage())
+        publishGossip(gossipPayload())
     }
 
     private static var platformLabel: String {
@@ -275,17 +289,42 @@ final class PeerNetworkStore: NSObject, ObservableObject {
         let peerID = p2pStart()
         let addrs = p2pListeningAddrs()
         let protocols = p2pProtocols()
+        let topic = p2pGossipTopic()
 
         if peerID.isEmpty {
             libp2pPeerID = "Unavailable"
             libp2pAddrs = []
             libp2pProtocols = []
+            gossipTopic = "Unavailable"
             addMessage("libp2p host failed to start")
         } else {
             libp2pPeerID = peerID
             libp2pAddrs = addrs
             libp2pProtocols = protocols
+            gossipTopic = topic.isEmpty ? "disabled" : topic
             addMessage("Started libp2p host \(libp2pPeerID)")
+        }
+    }
+
+    private func syncGossipMessages() {
+        let lines = p2pGossipDrain()
+        guard !lines.isEmpty else { return }
+
+        for line in lines {
+            gossipMessages.insert(line, at: 0)
+            if gossipMessages.count > 12 {
+                gossipMessages.removeLast(gossipMessages.count - 12)
+            }
+
+            let parts = line.split(separator: "|", maxSplits: 2, omittingEmptySubsequences: false)
+            if parts.count == 3 {
+                let topic = String(parts[0])
+                let source = String(parts[1])
+                let payload = String(parts[2])
+                addMessage("Gossip[\(topic)] from \(source): \(payload)")
+            } else {
+                addMessage("Gossip: \(line)")
+            }
         }
     }
 
@@ -319,6 +358,15 @@ final class PeerNetworkStore: NSObject, ObservableObject {
                 addMessage("Dial failed for \(remoteName) at \(addr)")
             }
         }
+    }
+
+    private func gossipPayload() -> String {
+        [
+            "peer=\(localPeerName)",
+            "id=\(libp2pPeerID)",
+            "addr=\(libp2pAddrs.first ?? "none")",
+            "status=\(connectionStatus)"
+        ].joined(separator: " ")
     }
 
     private func upsertPeer(_ peerID: MCPeerID, state: NearbyPeer.State, nearby: Bool) {
@@ -378,6 +426,14 @@ final class PeerNetworkStore: NSObject, ObservableObject {
             recentMessages.removeLast(recentMessages.count - 8)
         }
         lastMessage = message
+    }
+
+    private func publishGossip(_ message: String) {
+        guard p2pGossipPublish(message: message) else {
+            addMessage("Gossip publish failed")
+            return
+        }
+        addMessage("Gossip published: \(message)")
     }
 
     private static let timestampFormatter: DateFormatter = {
@@ -670,6 +726,7 @@ struct ContentView: View {
                 MetricCard(title: "Local peer", value: peers.localPeerName, symbol: "person.crop.circle", subtitle: "Unique instance name advertised on the LAN")
                 MetricCard(title: "Discovery", value: peers.connectionStatus, symbol: "antenna.radiowaves.left.and.right", subtitle: "Browsing and advertising via MultipeerConnectivity")
                 MetricCard(title: "libp2p peer", value: peers.libp2pPeerID, symbol: "network", subtitle: "Rust host with relay and hole-punch support enabled")
+                MetricCard(title: "Gossip topic", value: peers.gossipTopic, symbol: "bubble.left.and.bubble.right", subtitle: "Shared pubsub topic joined by the libp2p host")
                 MetricCard(title: "Connected peers", value: "\(peers.connectedPeers.count)", symbol: "person.2.circle", subtitle: "Peers with an active session")
                 MetricCard(title: "Last message", value: peers.lastMessage, symbol: "message", subtitle: "Latest p2p status or broadcast")
             }
@@ -757,6 +814,21 @@ struct ContentView: View {
                         Spacer()
                     }
 
+                    if peers.gossipMessages.isEmpty {
+                        Text("No gossip messages yet.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(Array(peers.gossipMessages.enumerated()), id: \.offset) { _, entry in
+                            Text(entry)
+                                .font(.system(.body, design: .monospaced))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
+            }
+
+            DashboardCard(title: "Recent activity") {
+                VStack(alignment: .leading, spacing: 12) {
                     if peers.recentMessages.isEmpty {
                         Text("No peer messages yet.")
                             .foregroundStyle(.secondary)

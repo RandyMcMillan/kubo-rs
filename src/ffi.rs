@@ -53,6 +53,9 @@ unsafe extern "C" {
     fn kubo_libp2p_host_connect(handle: u64, addr: *const c_char) -> i64;
     fn kubo_libp2p_host_ping(handle: u64, peer_id: *const c_char) -> i64;
     fn kubo_libp2p_host_protocols(handle: u64) -> *mut c_char;
+    fn kubo_libp2p_host_gossip_topic(handle: u64) -> *mut c_char;
+    fn kubo_libp2p_host_gossip_publish(handle: u64, message: *const c_char) -> i64;
+    fn kubo_libp2p_host_gossip_drain(handle: u64) -> *mut c_char;
 
     // nostr
     fn kubo_nostr_generate_key() -> *mut c_char;
@@ -407,6 +410,25 @@ pub fn host_ping(handle: u64, peer_id: &str) -> Result<i64, Error> {
 pub fn host_protocols(handle: u64) -> Result<Vec<String>, Error> {
     let raw = unsafe {
         ptr_to_string(kubo_libp2p_host_protocols(handle)).ok_or_else(|| Error::Go(last_error()))?
+    };
+    Ok(raw.lines().map(|s| s.to_string()).collect())
+}
+
+pub fn host_gossip_topic(handle: u64) -> Result<String, Error> {
+    unsafe {
+        ptr_to_string(kubo_libp2p_host_gossip_topic(handle))
+            .ok_or_else(|| Error::Go(last_error()))
+    }
+}
+
+pub fn host_gossip_publish(handle: u64, message: &str) -> Result<(), Error> {
+    let c_message = CString::new(message)?;
+    unsafe { check_err(kubo_libp2p_host_gossip_publish(handle, c_message.as_ptr())) }
+}
+
+pub fn host_gossip_drain(handle: u64) -> Result<Vec<String>, Error> {
+    let raw = unsafe {
+        ptr_to_string(kubo_libp2p_host_gossip_drain(handle)).ok_or_else(|| Error::Go(last_error()))?
     };
     Ok(raw.lines().map(|s| s.to_string()).collect())
 }

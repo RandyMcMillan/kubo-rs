@@ -313,7 +313,7 @@ final class PeerNetworkStore: NSObject, ObservableObject {
         addMessage("Handshake from \(remoteName) (\(remotePeerID)) via \(peerID.displayName)")
 
         for addr in addresses {
-            if p2pConnect(addr) {
+            if p2pConnect(addr: addr) {
                 addMessage("Dialed \(remoteName) at \(addr)")
             } else {
                 addMessage("Dial failed for \(remoteName) at \(addr)")

@@ -161,7 +161,7 @@ iOSInjectionProject/
 ## Xcode 8 and earlier
 
 ### Xcode Patch ###
-*.xcodeproj/*
+# *.xcodeproj/*
 !*.xcodeproj/project.pbxproj
 !*.xcodeproj/xcshareddata/
 !*.xcodeproj/project.xcworkspace/
@@ -174,7 +174,7 @@ Packages
 .build/
 xcuserdata
 DerivedData/
-*.xcodeproj
+# *.xcodeproj
 
 # End of https://www.toptal.com/developers/gitignore/api/visualstudiocode,macos,rust,swift,xcode
 

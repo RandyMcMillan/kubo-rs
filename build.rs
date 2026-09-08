@@ -123,8 +123,8 @@ fn main() {
     // When cross-compiling for iOS (or Catalyst) the Go toolchain needs an
     // Apple-specific C cross-compiler. Without this, `clang` defaults to the
     // host macOS target and the linker rejects the resulting object files.
-    if let Some((cc, cxx)) = apple_compiler(&target) {
-        go_build.env("CC", &cc).env("CXX", &cxx);
+    if let Some((sdkroot, cc, cxx)) = apple_compiler(&target) {
+        go_build.env("CC", &cc).env("CXX", &cxx).env("SDKROOT", sdkroot);
 
         // Align the Go C compiler's deployment target with the Rust linker so
         // that generated object files use symbols available on the target OS
@@ -238,10 +238,12 @@ fn parse_target(target: &str) -> (&str, &str) {
     (os, goarch)
 }
 
-/// Return the (CC, CXX) commands for Apple cross-compilation when the host
-/// is macOS and the target is a non-macOS Apple platform (iOS, simulator,
-/// or Mac Catalyst). Uses `xcrun` to select the correct SDK and target.
-fn apple_compiler(target: &str) -> Option<(String, String)> {
+/// Return the (SDKROOT, CC, CXX) commands for Apple cross-compilation when
+/// the host is macOS and the target is a non-macOS Apple platform (iOS,
+/// simulator, or Mac Catalyst). Uses `xcrun` to select the correct SDK and
+/// forces an explicit target triple so Xcode's build environment does not
+/// leak an incompatible SDK or host architecture into cgo.
+fn apple_compiler(target: &str) -> Option<(String, String, String)> {
     if std::env::consts::OS != "macos" {
         return None;
     }
@@ -258,10 +260,10 @@ fn apple_compiler(target: &str) -> Option<(String, String)> {
     // (SDK, optional explicit -target flag)
     let (sdk, target_flag): (&str, &str) = match (arch, os, variant) {
         // iOS Device
-        ("aarch64", "ios", None) => ("iphoneos", ""),
+        ("aarch64", "ios", None) => ("iphoneos", "-target arm64-apple-ios"),
         // iOS Simulator (x86_64 iOS is always simulator)
-        ("x86_64", "ios", None) => ("iphonesimulator", ""),
-        ("aarch64", "ios", Some("sim")) => ("iphonesimulator", ""),
+        ("x86_64", "ios", None) => ("iphonesimulator", "-target x86_64-apple-ios-simulator"),
+        ("aarch64", "ios", Some("sim")) => ("iphonesimulator", "-target arm64-apple-ios-simulator"),
         // Mac Catalyst
         ("aarch64", "ios", Some("macabi")) => ("macosx", "-target arm64-apple-ios-macabi"),
         ("x86_64", "ios", Some("macabi")) => ("macosx", "-target x86_64-apple-ios-macabi"),
@@ -277,5 +279,5 @@ fn apple_compiler(target: &str) -> Option<(String, String)> {
         .trim()
         .to_string();
 
-    Some((cc, cxx))
+    Some((sdk.to_string(), cc, cxx))
 }

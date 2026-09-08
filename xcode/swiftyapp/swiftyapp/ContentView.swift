@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import MultipeerConnectivity
 import RustyLib
 import SwiftUI
 
@@ -144,8 +145,263 @@ final class DashboardStore: ObservableObject {
     }()
 }
 
+struct NearbyPeer: Identifiable, Hashable {
+    enum State: String {
+        case browsing = "Browsing"
+        case nearby = "Nearby"
+        case invited = "Invited"
+        case connected = "Connected"
+        case lost = "Lost"
+        case disconnected = "Disconnected"
+    }
+
+    let id: String
+    var name: String
+    var state: State
+    var lastSeen: Date
+
+    var statusText: String {
+        state.rawValue
+    }
+}
+
+final class PeerNetworkStore: NSObject, ObservableObject {
+    @Published var localPeerName: String
+    @Published var connectionStatus: String = "Starting discovery"
+    @Published var nearbyPeers: [NearbyPeer] = []
+    @Published var connectedPeers: [NearbyPeer] = []
+    @Published var recentMessages: [String] = []
+    @Published var lastMessage: String = "Waiting for a peer message"
+
+    private let peerID: MCPeerID
+    private let session: MCSession
+    private let browser: MCNearbyServiceBrowser
+    private let advertiser: MCNearbyServiceAdvertiser
+    private let serviceType = "kubo-p2p"
+    private var pendingInvites = Set<String>()
+    private var peerDirectory: [String: NearbyPeer] = [:]
+
+    override init() {
+        let displayName = Self.makeDisplayName()
+        let peerID = MCPeerID(displayName: displayName)
+        let session = MCSession(peer: peerID, securityIdentity: nil, encryptionPreference: .required)
+        let browser = MCNearbyServiceBrowser(peer: peerID, serviceType: serviceType)
+        let advertiser = MCNearbyServiceAdvertiser(peer: peerID, discoveryInfo: [
+            "platform": Self.platformLabel,
+            "role": "kubo"
+        ], serviceType: serviceType)
+
+        self.localPeerName = displayName
+        self.peerID = peerID
+        self.session = session
+        self.browser = browser
+        self.advertiser = advertiser
+
+        super.init()
+
+        session.delegate = self
+        browser.delegate = self
+        advertiser.delegate = self
+
+        browser.startBrowsingForPeers()
+        advertiser.startAdvertisingPeer()
+
+        connectionStatus = "Browsing and advertising as \(displayName)"
+        addMessage("Started local discovery for \(displayName)")
+    }
+
+    deinit {
+        browser.stopBrowsingForPeers()
+        advertiser.stopAdvertisingPeer()
+        session.disconnect()
+    }
+
+    func broadcast(_ message: String) {
+        let payload = Data(message.utf8)
+        guard !session.connectedPeers.isEmpty else {
+            addMessage("No connected peers to receive: \(message)")
+            return
+        }
+
+        do {
+            try session.send(payload, toPeers: session.connectedPeers, with: .reliable)
+            addMessage("Broadcast to \(session.connectedPeers.count) peer(s): \(message)")
+        } catch {
+            addMessage("Broadcast failed: \(error.localizedDescription)")
+        }
+    }
+
+    func restartDiscovery() {
+        browser.stopBrowsingForPeers()
+        advertiser.stopAdvertisingPeer()
+        browser.startBrowsingForPeers()
+        advertiser.startAdvertisingPeer()
+        connectionStatus = "Discovery restarted"
+        addMessage("Restarted browsing and advertising")
+    }
+
+    private static var platformLabel: String {
+        #if targetEnvironment(macCatalyst)
+        return "mac"
+        #elseif os(iOS)
+        return "ipad"
+        #else
+        return "peer"
+        #endif
+    }
+
+    private static func makeDisplayName() -> String {
+        let defaults = UserDefaults.standard
+        let key = "kubo.peer.display-name"
+        if let stored = defaults.string(forKey: key) {
+            return stored
+        }
+
+        let suffix = UUID().uuidString.prefix(6).lowercased()
+        let value = "kubo-\(platformLabel)-\(suffix)"
+        defaults.set(value, forKey: key)
+        return value
+    }
+
+    private func upsertPeer(_ peerID: MCPeerID, state: NearbyPeer.State, nearby: Bool) {
+        let id = peerID.displayName
+        let current = peerDirectory[id]
+        let peer = NearbyPeer(
+            id: id,
+            name: current?.name ?? id,
+            state: state,
+            lastSeen: Date()
+        )
+        peerDirectory[id] = peer
+        rebuildPeerLists()
+
+        if nearby {
+            connectionStatus = "Found \(id)"
+        }
+    }
+
+    private func markLost(_ peerID: MCPeerID) {
+        let id = peerID.displayName
+        let current = peerDirectory[id] ?? NearbyPeer(id: id, name: id, state: .lost, lastSeen: Date())
+        peerDirectory[id] = NearbyPeer(id: current.id, name: current.name, state: .lost, lastSeen: Date())
+        pendingInvites.remove(id)
+        rebuildPeerLists()
+    }
+
+    private func markConnected(_ peerID: MCPeerID) {
+        let id = peerID.displayName
+        let current = peerDirectory[id] ?? NearbyPeer(id: id, name: id, state: .connected, lastSeen: Date())
+        peerDirectory[id] = NearbyPeer(id: current.id, name: current.name, state: .connected, lastSeen: Date())
+        pendingInvites.remove(id)
+        rebuildPeerLists()
+        connectionStatus = "Connected to \(connectedPeers.count) peer(s)"
+    }
+
+    private func rebuildPeerLists() {
+        let peers = peerDirectory.values.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        nearbyPeers = peers.filter { $0.state != .lost && $0.state != .disconnected }
+        connectedPeers = peers.filter { $0.state == .connected }
+    }
+
+    private func invite(_ peerID: MCPeerID) {
+        let id = peerID.displayName
+        guard !pendingInvites.contains(id) else { return }
+        guard peerID != self.peerID else { return }
+        pendingInvites.insert(id)
+        upsertPeer(peerID, state: .invited, nearby: true)
+        browser.invitePeer(peerID, to: session, withContext: nil, timeout: 10)
+    }
+
+    private func addMessage(_ message: String) {
+        let timestamp = Self.timestampFormatter.string(from: Date())
+        let entry = "[\(timestamp)] \(message)"
+        recentMessages.insert(entry, at: 0)
+        if recentMessages.count > 8 {
+            recentMessages.removeLast(recentMessages.count - 8)
+        }
+        lastMessage = message
+    }
+
+    private static let timestampFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .medium
+        return formatter
+    }()
+}
+
+extension PeerNetworkStore: MCNearbyServiceBrowserDelegate {
+    func browser(_ browser: MCNearbyServiceBrowser, foundPeer peerID: MCPeerID, withDiscoveryInfo info: [String: String]?) {
+        DispatchQueue.main.async {
+            self.upsertPeer(peerID, state: .nearby, nearby: true)
+            self.addMessage("Discovered \(peerID.displayName)")
+            self.invite(peerID)
+        }
+    }
+
+    func browser(_ browser: MCNearbyServiceBrowser, lostPeer peerID: MCPeerID) {
+        DispatchQueue.main.async {
+            self.markLost(peerID)
+            self.addMessage("Lost \(peerID.displayName)")
+        }
+    }
+}
+
+extension PeerNetworkStore: MCNearbyServiceAdvertiserDelegate {
+    func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didReceiveInvitationFromPeer peerID: MCPeerID, withContext context: Data?, invitationHandler: @escaping (Bool, MCSession?) -> Void) {
+        DispatchQueue.main.async {
+            self.upsertPeer(peerID, state: .invited, nearby: true)
+            invitationHandler(true, self.session)
+            self.addMessage("Accepted invitation from \(peerID.displayName)")
+        }
+    }
+}
+
+extension PeerNetworkStore: MCSessionDelegate {
+    func session(_ session: MCSession, peer peerID: MCPeerID, didChange state: MCSessionState) {
+        DispatchQueue.main.async {
+            switch state {
+            case .connected:
+                self.markConnected(peerID)
+                self.addMessage("Connected with \(peerID.displayName)")
+                self.broadcast("hello from \(self.localPeerName)")
+            case .connecting:
+                self.upsertPeer(peerID, state: .invited, nearby: true)
+                self.connectionStatus = "Connecting to \(peerID.displayName)"
+            case .notConnected:
+                self.peerDirectory[peerID.displayName] = NearbyPeer(
+                    id: peerID.displayName,
+                    name: peerID.displayName,
+                    state: .disconnected,
+                    lastSeen: Date()
+                )
+                self.pendingInvites.remove(peerID.displayName)
+                self.rebuildPeerLists()
+                self.addMessage("Disconnected from \(peerID.displayName)")
+            @unknown default:
+                self.addMessage("Peer state changed unexpectedly for \(peerID.displayName)")
+            }
+        }
+    }
+
+    func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {
+        let text = String(data: data, encoding: .utf8) ?? "\(data.count) bytes"
+        DispatchQueue.main.async {
+            self.addMessage("Received from \(peerID.displayName): \(text)")
+            self.upsertPeer(peerID, state: .connected, nearby: true)
+        }
+    }
+
+    func session(_ session: MCSession, didReceive stream: InputStream, withName streamName: String, fromPeer peerID: MCPeerID) {}
+
+    func session(_ session: MCSession, didStartReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, with progress: Progress) {}
+
+    func session(_ session: MCSession, didFinishReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, at localURL: URL?, withError error: Error?) {}
+}
+
 struct ContentView: View {
     @StateObject private var store = DashboardStore()
+    @StateObject private var peers = PeerNetworkStore()
 
     var body: some View {
         NavigationSplitView {
@@ -350,11 +606,79 @@ struct ContentView: View {
     }
 
     private var networkContent: some View {
-        LazyVGrid(columns: adaptiveColumns, spacing: 16) {
-            MetricCard(title: "Connectivity", value: "Offline demo node", symbol: "antenna.radiowaves.left.and.right", subtitle: "Keeps the sample self-contained")
-            MetricCard(title: "Peer ID", value: store.snapshot.peerID, symbol: "person.circle", subtitle: "Useful when you later connect the GUI to the full node API")
-            MetricCard(title: "Shared state", value: "Temporary repo", symbol: "folder.badge.gearshape", subtitle: "Created on demand and cleaned up after use")
-            MetricCard(title: "Transport", value: "Local FFI bridge", symbol: "cable.connector", subtitle: "SwiftUI calls into Rust, Rust calls into kubo-rs")
+        VStack(alignment: .leading, spacing: 20) {
+            LazyVGrid(columns: adaptiveColumns, spacing: 16) {
+                MetricCard(title: "Local peer", value: peers.localPeerName, symbol: "person.crop.circle", subtitle: "Unique instance name advertised on the LAN")
+                MetricCard(title: "Discovery", value: peers.connectionStatus, symbol: "antenna.radiowaves.left.and.right", subtitle: "Browsing and advertising via MultipeerConnectivity")
+                MetricCard(title: "Connected peers", value: "\(peers.connectedPeers.count)", symbol: "person.2.circle", subtitle: "Peers with an active session")
+                MetricCard(title: "Last message", value: peers.lastMessage, symbol: "message", subtitle: "Latest p2p status or broadcast")
+            }
+
+            DashboardCard(title: "Nearby peers") {
+                VStack(alignment: .leading, spacing: 10) {
+                    if peers.nearbyPeers.isEmpty {
+                        Text("No peers discovered yet. Open the app on a Mac and an iPad on the same network.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(peers.nearbyPeers) { peer in
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(peer.name)
+                                        .font(.headline)
+                                    Text(peer.lastSeen.formatted(date: .omitted, time: .standard))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Spacer()
+
+                                Text(peer.statusText)
+                                    .font(.caption.weight(.semibold))
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Capsule(style: .continuous).fill(Color.primary.opacity(0.06)))
+                            }
+                            if peer.id != peers.nearbyPeers.last?.id {
+                                Divider()
+                            }
+                        }
+                    }
+                }
+            }
+
+            DashboardCard(title: "Peer exchange") {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        Button {
+                            peers.broadcast("snapshot: \(store.snapshot.rawSummary)")
+                        } label: {
+                            Label("Broadcast snapshot", systemImage: "dot.radiowaves.left.and.right")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(peers.connectedPeers.isEmpty)
+
+                        Button {
+                            peers.restartDiscovery()
+                        } label: {
+                            Label("Restart discovery", systemImage: "arrow.clockwise")
+                        }
+                        .buttonStyle(.bordered)
+
+                        Spacer()
+                    }
+
+                    if peers.recentMessages.isEmpty {
+                        Text("No peer messages yet.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(Array(peers.recentMessages.enumerated()), id: \.offset) { _, entry in
+                            Text(entry)
+                                .font(.system(.body, design: .monospaced))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
+            }
         }
     }
 

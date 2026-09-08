@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  build-xcframework:
+  build-xcode-release:
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -50,7 +50,60 @@ jobs:
           cd xcode/rustylib
           zip -r rustylib_framework.xcframework.zip rustylib_framework.xcframework
 
-      - name: Upload XCFramework to Release
-        uses: softprops/action-gh-release@v1
+      - name: Build kubo-macos (Mac Catalyst)
+        run: |
+          cd xcode
+          xcodebuild \
+            -project swiftyapp/kubo-macos.xcodeproj \
+            -scheme kubo-macos \
+            -configuration Release \
+            -derivedDataPath .build/kubo-macos \
+            -destination "generic/platform=macOS,variant=Mac Catalyst" \
+            ARCHS="$(uname -m)" \
+            ONLY_ACTIVE_ARCH=YES \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            build
+
+      - name: Package kubo-macos
+        run: |
+          cd xcode
+          APP_PATH=$(find .build/kubo-macos -name "kubo-macos.app" -type d | head -n1)
+          echo "Found app at: $APP_PATH"
+          TMP_DIR=$(mktemp -d)
+          cp -R "$APP_PATH" "$TMP_DIR/"
+          cd "$TMP_DIR"
+          zip -r "$GITHUB_WORKSPACE/xcode/kubo-macos.zip" "kubo-macos.app"
+
+      - name: Build swiftyapp (iOS Simulator)
+        run: |
+          cd xcode
+          xcodebuild \
+            -project swiftyapp/swiftyapp.xcodeproj \
+            -scheme swiftyapp \
+            -configuration Release \
+            -derivedDataPath .build/swiftyapp \
+            -destination "generic/platform=iOS Simulator" \
+            ARCHS="$(uname -m)" \
+            ONLY_ACTIVE_ARCH=YES \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            build
+
+      - name: Package swiftyapp
+        run: |
+          cd xcode
+          APP_PATH=$(find .build/swiftyapp -name "swiftyapp.app" -type d | head -n1)
+          echo "Found app at: $APP_PATH"
+          TMP_DIR=$(mktemp -d)
+          cp -R "$APP_PATH" "$TMP_DIR/"
+          cd "$TMP_DIR"
+          zip -r "$GITHUB_WORKSPACE/xcode/swiftyapp.zip" "swiftyapp.app"
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
         with:
-          files: xcode/rustylib/rustylib_framework.xcframework.zip
+          files: |
+            xcode/rustylib/rustylib_framework.xcframework.zip
+            xcode/kubo-macos.zip
+            xcode/swiftyapp.zip

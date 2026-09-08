@@ -19,7 +19,7 @@ The Xcode sample UI is now a desktop-style dashboard with a sidebar, live status
 `swiftyrustlib` Swift package of rust lib
 
 1. Run `make rust` (or `./build.sh`).
-1. Open the Xcode project located at `swiftyapp/swiftyapp.xcodeproj`.
+1. Open the Xcode project located at `swiftyapp/kubo-macos.xcodeproj`.
 1. Ensure that RustyLib was successfully imported into project.
 1. Build and run the project in Xcode.
 1. For Intel Macs, enable and choose the **Mac Catalyst** destination in Xcode.

@@ -168,6 +168,9 @@ struct NearbyPeer: Identifiable, Hashable {
 final class PeerNetworkStore: NSObject, ObservableObject {
     @Published var localPeerName: String
     @Published var connectionStatus: String = "Starting discovery"
+    @Published var libp2pPeerID: String = "Starting host"
+    @Published var libp2pAddrs: [String] = []
+    @Published var libp2pProtocols: [String] = []
     @Published var nearbyPeers: [NearbyPeer] = []
     @Published var connectedPeers: [NearbyPeer] = []
     @Published var recentMessages: [String] = []
@@ -177,7 +180,7 @@ final class PeerNetworkStore: NSObject, ObservableObject {
     private let session: MCSession
     private let browser: MCNearbyServiceBrowser
     private let advertiser: MCNearbyServiceAdvertiser
-    private let serviceType = "kubo-p2p"
+    private static let serviceType = "kubo-p2p"
     private var pendingInvites = Set<String>()
     private var peerDirectory: [String: NearbyPeer] = [:]
 
@@ -185,11 +188,11 @@ final class PeerNetworkStore: NSObject, ObservableObject {
         let displayName = Self.makeDisplayName()
         let peerID = MCPeerID(displayName: displayName)
         let session = MCSession(peer: peerID, securityIdentity: nil, encryptionPreference: .required)
-        let browser = MCNearbyServiceBrowser(peer: peerID, serviceType: serviceType)
+        let browser = MCNearbyServiceBrowser(peer: peerID, serviceType: Self.serviceType)
         let advertiser = MCNearbyServiceAdvertiser(peer: peerID, discoveryInfo: [
             "platform": Self.platformLabel,
             "role": "kubo"
-        ], serviceType: serviceType)
+        ], serviceType: Self.serviceType)
 
         self.localPeerName = displayName
         self.peerID = peerID
@@ -203,6 +206,7 @@ final class PeerNetworkStore: NSObject, ObservableObject {
         browser.delegate = self
         advertiser.delegate = self
 
+        startLibp2pHost()
         browser.startBrowsingForPeers()
         advertiser.startAdvertisingPeer()
 
@@ -240,6 +244,10 @@ final class PeerNetworkStore: NSObject, ObservableObject {
         addMessage("Restarted browsing and advertising")
     }
 
+    func broadcastCurrentState() {
+        broadcast(libp2pHandshakeMessage())
+    }
+
     private static var platformLabel: String {
         #if targetEnvironment(macCatalyst)
         return "mac"
@@ -261,6 +269,53 @@ final class PeerNetworkStore: NSObject, ObservableObject {
         let value = "kubo-\(platformLabel)-\(suffix)"
         defaults.set(value, forKey: key)
         return value
+    }
+
+    private func startLibp2pHost() {
+        do {
+            libp2pPeerID = try p2pStart()
+            libp2pAddrs = try p2pListeningAddrs()
+            libp2pProtocols = try p2pProtocols()
+            addMessage("Started libp2p host \(libp2pPeerID)")
+        } catch {
+            libp2pPeerID = "Unavailable"
+            libp2pAddrs = []
+            libp2pProtocols = []
+            addMessage("libp2p host failed: \(error)")
+        }
+    }
+
+    private func libp2pHandshakeMessage() -> String {
+        let addresses = libp2pAddrs.joined(separator: "\n")
+        return [
+            "kubo-p2p",
+            localPeerName,
+            libp2pPeerID,
+            addresses
+        ].joined(separator: "|")
+    }
+
+    private func processLibp2pHandshake(_ message: String, from peerID: MCPeerID) {
+        let parts = message.split(separator: "|", maxSplits: 3, omittingEmptySubsequences: false)
+        guard parts.count == 4, parts[0] == "kubo-p2p" else { return }
+
+        let remoteName = String(parts[1])
+        let remotePeerID = String(parts[2])
+        let addresses = String(parts[3])
+            .split(separator: "\n")
+            .map { String($0) }
+            .filter { !$0.isEmpty }
+
+        addMessage("Handshake from \(remoteName) (\(remotePeerID)) via \(peerID.displayName)")
+
+        for addr in addresses {
+            do {
+                try p2pConnect(addr)
+                addMessage("Dialed \(remoteName) at \(addr)")
+            } catch {
+                addMessage("Dial failed for \(remoteName): \(error)")
+            }
+        }
     }
 
     private func upsertPeer(_ peerID: MCPeerID, state: NearbyPeer.State, nearby: Bool) {
@@ -364,7 +419,7 @@ extension PeerNetworkStore: MCSessionDelegate {
             case .connected:
                 self.markConnected(peerID)
                 self.addMessage("Connected with \(peerID.displayName)")
-                self.broadcast("hello from \(self.localPeerName)")
+                self.broadcastCurrentState()
             case .connecting:
                 self.upsertPeer(peerID, state: .invited, nearby: true)
                 self.connectionStatus = "Connecting to \(peerID.displayName)"
@@ -388,6 +443,7 @@ extension PeerNetworkStore: MCSessionDelegate {
         let text = String(data: data, encoding: .utf8) ?? "\(data.count) bytes"
         DispatchQueue.main.async {
             self.addMessage("Received from \(peerID.displayName): \(text)")
+            self.processLibp2pHandshake(text, from: peerID)
             self.upsertPeer(peerID, state: .connected, nearby: true)
         }
     }
@@ -610,8 +666,39 @@ struct ContentView: View {
             LazyVGrid(columns: adaptiveColumns, spacing: 16) {
                 MetricCard(title: "Local peer", value: peers.localPeerName, symbol: "person.crop.circle", subtitle: "Unique instance name advertised on the LAN")
                 MetricCard(title: "Discovery", value: peers.connectionStatus, symbol: "antenna.radiowaves.left.and.right", subtitle: "Browsing and advertising via MultipeerConnectivity")
+                MetricCard(title: "libp2p peer", value: peers.libp2pPeerID, symbol: "network", subtitle: "Rust host with relay and hole-punch support enabled")
                 MetricCard(title: "Connected peers", value: "\(peers.connectedPeers.count)", symbol: "person.2.circle", subtitle: "Peers with an active session")
                 MetricCard(title: "Last message", value: peers.lastMessage, symbol: "message", subtitle: "Latest p2p status or broadcast")
+            }
+
+            DashboardCard(title: "libp2p transport") {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Listening addresses")
+                        .font(.headline)
+                    if peers.libp2pAddrs.isEmpty {
+                        Text("No libp2p addresses yet.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(peers.libp2pAddrs, id: \.self) { addr in
+                            Text(addr)
+                                .font(.system(.body, design: .monospaced))
+                                .textSelection(.enabled)
+                        }
+                    }
+
+                    Text("Protocols")
+                        .font(.headline)
+                        .padding(.top, 4)
+                    if peers.libp2pProtocols.isEmpty {
+                        Text("No protocols reported yet.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(peers.libp2pProtocols, id: \.self) { proto in
+                            Text(proto)
+                                .font(.system(.body, design: .monospaced))
+                        }
+                    }
+                }
             }
 
             DashboardCard(title: "Nearby peers") {
@@ -650,9 +737,9 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 12) {
                         Button {
-                            peers.broadcast("snapshot: \(store.snapshot.rawSummary)")
+                            peers.broadcastCurrentState()
                         } label: {
-                            Label("Broadcast snapshot", systemImage: "dot.radiowaves.left.and.right")
+                            Label("Broadcast identity", systemImage: "dot.radiowaves.left.and.right")
                         }
                         .buttonStyle(.borderedProminent)
                         .disabled(peers.connectedPeers.isEmpty)

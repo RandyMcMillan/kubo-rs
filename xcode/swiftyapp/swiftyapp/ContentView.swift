@@ -14,6 +14,7 @@ enum DashboardSection: String, CaseIterable, Identifiable {
     case overview
     case repository
     case network
+    case chat
     case activity
 
     var id: String { rawValue }
@@ -23,6 +24,7 @@ enum DashboardSection: String, CaseIterable, Identifiable {
         case .overview: return "Overview"
         case .repository: return "Repository"
         case .network: return "Network"
+        case .chat: return "Chat"
         case .activity: return "Activity"
         }
     }
@@ -32,6 +34,7 @@ enum DashboardSection: String, CaseIterable, Identifiable {
         case .overview: return "Status at a glance"
         case .repository: return "Local repo snapshot"
         case .network: return "Peer and CID details"
+        case .chat: return "Gossip pubsub messages"
         case .activity: return "Recent actions"
         }
     }
@@ -41,6 +44,7 @@ enum DashboardSection: String, CaseIterable, Identifiable {
         case .overview: return "square.grid.2x2"
         case .repository: return "externaldrive.connected.to.line.below"
         case .network: return "point.3.connected.trianglepath.dotted"
+        case .chat: return "bubble.left.and.bubble.right"
         case .activity: return "clock.arrow.circlepath"
         }
     }
@@ -173,6 +177,8 @@ final class PeerNetworkStore: NSObject, ObservableObject {
     @Published var libp2pProtocols: [String] = []
     @Published var gossipTopic: String = "kubo-desktop"
     @Published var gossipMessages: [String] = []
+    @Published var chatDraft: String = ""
+    @Published var chatMessages: [String] = []
     @Published var nearbyPeers: [NearbyPeer] = []
     @Published var connectedPeers: [NearbyPeer] = []
     @Published var recentMessages: [String] = []
@@ -185,6 +191,7 @@ final class PeerNetworkStore: NSObject, ObservableObject {
     private static let serviceType = "kubo-p2p"
     private var pendingInvites = Set<String>()
     private var peerDirectory: [String: NearbyPeer] = [:]
+    private var seenChatMessageIDs = Set<String>()
     private var gossipPoller: Task<Void, Never>?
 
     override init() {
@@ -262,6 +269,19 @@ final class PeerNetworkStore: NSObject, ObservableObject {
         publishGossip(gossipPayload())
     }
 
+    func sendChatMessage() {
+        let message = chatDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !message.isEmpty else { return }
+
+        let messageID = UUID().uuidString
+        let payload = "chat|\(messageID)|\(localPeerName)|\(message)"
+        seenChatMessageIDs.insert(messageID)
+        broadcast(payload)
+        publishGossip(payload)
+        appendChatMessage(id: messageID, sender: localPeerName, message: message, isLocal: true)
+        chatDraft = ""
+    }
+
     private static var platformLabel: String {
         #if targetEnvironment(macCatalyst)
         return "mac"
@@ -322,6 +342,9 @@ final class PeerNetworkStore: NSObject, ObservableObject {
                 let source = String(parts[1])
                 let payload = String(parts[2])
                 addMessage("Gossip[\(topic)] from \(source): \(payload)")
+                if let chat = parseChatMessage(topic: topic, source: source, payload: payload), shouldAcceptChatMessage(id: chat.id) {
+                    appendChatMessage(id: chat.id, sender: chat.sender, message: chat.message, isLocal: chat.isLocal)
+                }
             } else {
                 addMessage("Gossip: \(line)")
             }
@@ -367,6 +390,34 @@ final class PeerNetworkStore: NSObject, ObservableObject {
             "addr=\(libp2pAddrs.first ?? "none")",
             "status=\(connectionStatus)"
         ].joined(separator: " ")
+    }
+
+    private func parseChatMessage(topic: String, source: String, payload: String) -> (id: String, sender: String, message: String, isLocal: Bool)? {
+        guard topic == gossipTopic else { return nil }
+
+        if payload.hasPrefix("chat|") {
+            let parts = payload.split(separator: "|", maxSplits: 3, omittingEmptySubsequences: false)
+            if parts.count == 4 {
+                let id = String(parts[1])
+                let sender = String(parts[2])
+                let message = String(parts[3])
+                return (id, sender, message, source == "self" || sender == localPeerName)
+            }
+        }
+
+        return nil
+    }
+
+    private func parseChatPayload(_ payload: String, source: String? = nil) -> (id: String, sender: String, message: String, isLocal: Bool)? {
+        guard payload.hasPrefix("chat|") else { return nil }
+        let parts = payload.split(separator: "|", maxSplits: 3, omittingEmptySubsequences: false)
+        guard parts.count == 4 else { return nil }
+
+        let id = String(parts[1])
+        let sender = String(parts[2])
+        let message = String(parts[3])
+        let isLocal = source == nil ? sender == localPeerName : source == "self" || sender == localPeerName
+        return (id, sender, message, isLocal)
     }
 
     private func upsertPeer(_ peerID: MCPeerID, state: NearbyPeer.State, nearby: Bool) {
@@ -424,6 +475,25 @@ final class PeerNetworkStore: NSObject, ObservableObject {
         recentMessages.insert(entry, at: 0)
         if recentMessages.count > 8 {
             recentMessages.removeLast(recentMessages.count - 8)
+        }
+        lastMessage = message
+    }
+
+    private func shouldAcceptChatMessage(id: String) -> Bool {
+        if seenChatMessageIDs.contains(id) {
+            return false
+        }
+        seenChatMessageIDs.insert(id)
+        return true
+    }
+
+    private func appendChatMessage(id: String, sender: String, message: String, isLocal: Bool) {
+        let prefix = isLocal ? "You" : sender
+        let timestamp = Self.timestampFormatter.string(from: Date())
+        let entry = "[\(timestamp)] \(prefix): \(message)"
+        chatMessages.insert(entry, at: 0)
+        if chatMessages.count > 24 {
+            chatMessages.removeLast(chatMessages.count - 24)
         }
         lastMessage = message
     }
@@ -502,6 +572,9 @@ extension PeerNetworkStore: MCSessionDelegate {
         let text = String(data: data, encoding: .utf8) ?? "\(data.count) bytes"
         DispatchQueue.main.async {
             self.addMessage("Received from \(peerID.displayName): \(text)")
+            if let chat = self.parseChatPayload(text, source: peerID.displayName), self.shouldAcceptChatMessage(id: chat.id) {
+                self.appendChatMessage(id: chat.id, sender: chat.sender, message: chat.message, isLocal: false)
+            }
             self.processLibp2pHandshake(text, from: peerID)
             self.upsertPeer(peerID, state: .connected, nearby: true)
         }
@@ -604,6 +677,8 @@ struct ContentView: View {
                     repositoryContent
                 case .network:
                     networkContent
+                case .chat:
+                    chatContent
                 case .activity:
                     activityContent
                 }
@@ -834,6 +909,73 @@ struct ContentView: View {
                             .foregroundStyle(.secondary)
                     } else {
                         ForEach(Array(peers.recentMessages.enumerated()), id: \.offset) { _, entry in
+                            Text(entry)
+                                .font(.system(.body, design: .monospaced))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var chatContent: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            LazyVGrid(columns: adaptiveColumns, spacing: 16) {
+                MetricCard(title: "Chat topic", value: peers.gossipTopic, symbol: "bubble.left.and.bubble.right", subtitle: "Messages published into the shared pubsub room")
+                MetricCard(title: "Participants", value: "\(peers.connectedPeers.count)", symbol: "person.2.circle", subtitle: "Connected peers that can receive chat broadcasts")
+                MetricCard(title: "Last message", value: peers.lastMessage, symbol: "message", subtitle: "Most recent chat or network event")
+            }
+
+            DashboardCard(title: "Compose message") {
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField("Type a message to the gossip topic", text: $peers.chatDraft, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .lineLimit(3...6)
+
+                    HStack(spacing: 12) {
+                        Button {
+                            peers.sendChatMessage()
+                        } label: {
+                            Label("Send chat", systemImage: "paperplane.fill")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(peers.chatDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        Button {
+                            peers.broadcastCurrentState()
+                        } label: {
+                            Label("Share presence", systemImage: "dot.radiowaves.left.and.right")
+                        }
+                        .buttonStyle(.bordered)
+
+                        Spacer()
+                    }
+                }
+            }
+
+            DashboardCard(title: "Chat transcript") {
+                VStack(alignment: .leading, spacing: 10) {
+                    if peers.chatMessages.isEmpty {
+                        Text("No chat messages yet.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(Array(peers.chatMessages.enumerated()), id: \.offset) { _, entry in
+                            Text(entry)
+                                .font(.system(.body, design: .monospaced))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
+            }
+
+            DashboardCard(title: "Gossip feed") {
+                VStack(alignment: .leading, spacing: 10) {
+                    if peers.gossipMessages.isEmpty {
+                        Text("No gossip messages yet.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(Array(peers.gossipMessages.enumerated()), id: \.offset) { _, entry in
                             Text(entry)
                                 .font(.system(.body, design: .monospaced))
                                 .frame(maxWidth: .infinity, alignment: .leading)

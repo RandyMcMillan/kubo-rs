@@ -430,7 +430,7 @@ pub fn host_gossip_drain(handle: u64) -> Result<Vec<String>, Error> {
     let raw = unsafe {
         ptr_to_string(kubo_libp2p_host_gossip_drain(handle)).ok_or_else(|| Error::Go(last_error()))?
     };
-    Ok(raw.lines().map(|s| s.to_string()).collect())
+    Ok(raw.split('\x1E').filter(|s| !s.is_empty()).map(|s| s.to_string()).collect())
 }
 
 // ---------------------------------------------------------------------------

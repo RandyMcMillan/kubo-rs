@@ -477,5 +477,5 @@ func kubo_libp2p_host_gossip_drain(handle uint64) *C.char {
 
 	msgs := drainPubsubMessages(h)
 	setError(nil)
-	return C.CString(strings.Join(msgs, "\n"))
+	return C.CString(strings.Join(msgs, "\x1e"))
 }

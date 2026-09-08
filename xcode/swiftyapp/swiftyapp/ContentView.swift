@@ -352,7 +352,9 @@ final class PeerNetworkStore: NSObject, ObservableObject {
     }
 
     private func libp2pHandshakeMessage() -> String {
-        let addresses = libp2pAddrs.joined(separator: "\n")
+        let addresses = libp2pAddrs
+            .map { $0.contains("/p2p/") ? $0 : "\($0)/p2p/\(libp2pPeerID)" }
+            .joined(separator: "\n")
         return [
             "kubo-p2p",
             localPeerName,
@@ -375,10 +377,11 @@ final class PeerNetworkStore: NSObject, ObservableObject {
         addMessage("Handshake from \(remoteName) (\(remotePeerID)) via \(peerID.displayName)")
 
         for addr in addresses {
-            if p2pConnect(addr: addr) {
-                addMessage("Dialed \(remoteName) at \(addr)")
+            let dialAddr = addr.contains("/p2p/") ? addr : "\(addr)/p2p/\(remotePeerID)"
+            if p2pConnect(addr: dialAddr) {
+                addMessage("Dialed \(remoteName) at \(dialAddr)")
             } else {
-                addMessage("Dial failed for \(remoteName) at \(addr)")
+                addMessage("Dial failed for \(remoteName) at \(dialAddr)")
             }
         }
     }

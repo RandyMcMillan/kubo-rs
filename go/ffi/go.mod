@@ -16,6 +16,8 @@ require (
 	github.com/ipfs/go-cid v0.6.2
 	github.com/ipfs/kubo v0.0.0-00010101000000-000000000000
 	github.com/libp2p/go-libp2p v0.49.0
+	github.com/libp2p/go-libp2p-kad-dht v0.42.2
+	github.com/libp2p/go-libp2p-pubsub v0.17.0
 	github.com/multiformats/go-multiaddr v0.16.1
 	github.com/nbd-wtf/go-nostr v0.52.3
 )
@@ -155,9 +157,7 @@ require (
 	github.com/libp2p/go-libp2p-asn-util v0.4.1 // indirect
 	github.com/libp2p/go-libp2p-gostream v0.6.0 // indirect
 	github.com/libp2p/go-libp2p-http v0.5.0 // indirect
-	github.com/libp2p/go-libp2p-kad-dht v0.42.2 // indirect
 	github.com/libp2p/go-libp2p-kbucket v0.9.0 // indirect
-	github.com/libp2p/go-libp2p-pubsub v0.17.0 // indirect
 	github.com/libp2p/go-libp2p-pubsub-router v0.6.0 // indirect
 	github.com/libp2p/go-libp2p-record v0.3.1 // indirect
 	github.com/libp2p/go-libp2p-routing-helpers v0.7.5 // indirect

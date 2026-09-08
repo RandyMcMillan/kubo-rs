@@ -45,19 +45,21 @@ fn kubo_roundtrip_summary(message: &str) -> Result<String, kubo_rs::Error> {
     result
 }
 
-fn p2p_host<R>(f: impl FnOnce(&kubo_rs::Host) -> Result<R, String>) -> Result<R, String> {
-    let mut guard = P2P_HOST
-        .lock()
-        .map_err(|err| format!("p2p host lock poisoned: {err}"))?;
+fn p2p_host<R>(f: impl FnOnce(&kubo_rs::Host) -> R) -> Option<R> {
+    let mut guard = P2P_HOST.lock().ok()?;
     if guard.is_none() {
-        let host = kubo_rs::Host::new().map_err(|err| format!("p2p host start failed: {err}"))?;
+        let host = match kubo_rs::Host::new() {
+            Ok(host) => host,
+            Err(err) => {
+                eprintln!("p2p host start failed: {err}");
+                return None;
+            }
+        };
         *guard = Some(host);
     }
 
-    let host = guard
-        .as_ref()
-        .ok_or_else(|| "p2p host unavailable".to_string())?;
-    f(host)
+    let host = guard.as_ref()?;
+    Some(f(host))
 }
 
 #[uniffi::export]
@@ -74,33 +76,39 @@ pub fn rust_add(a: u32, b: u32) -> u32 {
 }
 
 #[uniffi::export]
-pub fn p2p_start() -> Result<String, String> {
-    p2p_host(|host| host.peer_id().map_err(|err| err.to_string()))
+pub fn p2p_start() -> String {
+    p2p_peer_id()
 }
 
 #[uniffi::export]
-pub fn p2p_peer_id() -> Result<String, String> {
-    p2p_host(|host| host.peer_id().map_err(|err| err.to_string()))
+pub fn p2p_peer_id() -> String {
+    p2p_host(|host| host.peer_id().ok()).flatten().unwrap_or_default()
 }
 
 #[uniffi::export]
-pub fn p2p_listening_addrs() -> Result<Vec<String>, String> {
-    p2p_host(|host| host.listening_addrs().map_err(|err| err.to_string()))
+pub fn p2p_listening_addrs() -> Vec<String> {
+    p2p_host(|host| host.listening_addrs().ok())
+        .flatten()
+        .unwrap_or_default()
 }
 
 #[uniffi::export]
-pub fn p2p_connect(addr: &str) -> Result<(), String> {
-    p2p_host(|host| host.connect(addr).map_err(|err| err.to_string()))
+pub fn p2p_connect(addr: &str) -> bool {
+    p2p_host(|host| host.connect(addr).is_ok()).unwrap_or(false)
 }
 
 #[uniffi::export]
-pub fn p2p_ping(peer_id: &str) -> Result<i64, String> {
-    p2p_host(|host| host.ping(peer_id).map_err(|err| err.to_string()))
+pub fn p2p_ping(peer_id: &str) -> i64 {
+    p2p_host(|host| host.ping(peer_id).ok())
+        .flatten()
+        .unwrap_or(-1)
 }
 
 #[uniffi::export]
-pub fn p2p_protocols() -> Result<Vec<String>, String> {
-    p2p_host(|host| host.protocols().map_err(|err| err.to_string()))
+pub fn p2p_protocols() -> Vec<String> {
+    p2p_host(|host| host.protocols().ok())
+        .flatten()
+        .unwrap_or_default()
 }
 
 #[cfg(test)]

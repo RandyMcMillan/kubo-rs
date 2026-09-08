@@ -272,16 +272,20 @@ final class PeerNetworkStore: NSObject, ObservableObject {
     }
 
     private func startLibp2pHost() {
-        do {
-            libp2pPeerID = try p2pStart()
-            libp2pAddrs = try p2pListeningAddrs()
-            libp2pProtocols = try p2pProtocols()
-            addMessage("Started libp2p host \(libp2pPeerID)")
-        } catch {
+        let peerID = p2pStart()
+        let addrs = p2pListeningAddrs()
+        let protocols = p2pProtocols()
+
+        if peerID.isEmpty {
             libp2pPeerID = "Unavailable"
             libp2pAddrs = []
             libp2pProtocols = []
-            addMessage("libp2p host failed: \(error)")
+            addMessage("libp2p host failed to start")
+        } else {
+            libp2pPeerID = peerID
+            libp2pAddrs = addrs
+            libp2pProtocols = protocols
+            addMessage("Started libp2p host \(libp2pPeerID)")
         }
     }
 
@@ -309,11 +313,10 @@ final class PeerNetworkStore: NSObject, ObservableObject {
         addMessage("Handshake from \(remoteName) (\(remotePeerID)) via \(peerID.displayName)")
 
         for addr in addresses {
-            do {
-                try p2pConnect(addr)
+            if p2pConnect(addr) {
                 addMessage("Dialed \(remoteName) at \(addr)")
-            } catch {
-                addMessage("Dial failed for \(remoteName): \(error)")
+            } else {
+                addMessage("Dial failed for \(remoteName) at \(addr)")
             }
         }
     }

@@ -63,17 +63,24 @@ jobs:
             ONLY_ACTIVE_ARCH=YES \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
+            ENABLE_HARDENED_RUNTIME=NO \
             build
+
+      - name: Ad-hoc sign kubo-macos
+        run: |
+          cd xcode
+          APP_PATH=$(find .build/kubo-macos -name "kubo-macos.app" -type d | head -n1)
+          codesign --force --deep --sign - "$APP_PATH"
 
       - name: Package kubo-macos
         run: |
           cd xcode
           APP_PATH=$(find .build/kubo-macos -name "kubo-macos.app" -type d | head -n1)
           echo "Found app at: $APP_PATH"
-          TMP_DIR=$(mktemp -d)
-          cp -R "$APP_PATH" "$TMP_DIR/"
-          cd "$TMP_DIR"
-          zip -r "$GITHUB_WORKSPACE/xcode/kubo-macos.zip" "kubo-macos.app"
+          (
+            cd "$(dirname "$APP_PATH")"
+            zip -r -y "$GITHUB_WORKSPACE/xcode/kubo-macos.zip" "$(basename "$APP_PATH")"
+          )
 
       - name: Build swiftyapp (iOS Simulator)
         run: |
@@ -95,10 +102,10 @@ jobs:
           cd xcode
           APP_PATH=$(find .build/swiftyapp -name "swiftyapp.app" -type d | head -n1)
           echo "Found app at: $APP_PATH"
-          TMP_DIR=$(mktemp -d)
-          cp -R "$APP_PATH" "$TMP_DIR/"
-          cd "$TMP_DIR"
-          zip -r "$GITHUB_WORKSPACE/xcode/swiftyapp.zip" "swiftyapp.app"
+          (
+            cd "$(dirname "$APP_PATH")"
+            zip -r -y "$GITHUB_WORKSPACE/xcode/swiftyapp.zip" "$(basename "$APP_PATH")"
+          )
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v2

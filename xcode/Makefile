@@ -1,12 +1,12 @@
 SHELL := /bin/bash
 
-PROJECT := swiftyapp/swiftyapp.xcodeproj
-SCHEME := swiftyapp
+PROJECT := swiftyapp/kubo-macos.xcodeproj
+SCHEME := kubo-macos
 BUILD_SCRIPT := ./build.sh
 RUST_CRATE_DIR := rustylib
 DERIVED_DATA ?= .build/xcode
 CONFIGURATION ?= Debug
-APP_NAME := swiftyapp.app
+APP_NAME := kubo-macos.app
 INSTALL_DIR ?= $(HOME)/Applications
 SYMROOT := $(abspath $(DERIVED_DATA))
 OBJROOT := $(SYMROOT)/Intermediates.noindex

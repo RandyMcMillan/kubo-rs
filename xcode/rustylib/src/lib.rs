@@ -7,7 +7,7 @@ use std::{
 
 uniffi::setup_scaffolding!();
 
-static P2P_HOST: std::sync::OnceLock<Mutex<kubo_rs::Host>> = std::sync::OnceLock::new();
+static P2P_HOST: Mutex<Option<kubo_rs::Host>> = Mutex::new(None);
 
 fn demo_repo_path() -> PathBuf {
     let stamp = SystemTime::now()
@@ -45,10 +45,19 @@ fn kubo_roundtrip_summary(message: &str) -> Result<String, kubo_rs::Error> {
     result
 }
 
-fn p2p_host() -> Result<&'static Mutex<kubo_rs::Host>, kubo_rs::Error> {
-    P2P_HOST
-        .get_or_try_init(|| kubo_rs::Host::new().map(Mutex::new))
-        .map_err(|err| err)
+fn p2p_host<R>(f: impl FnOnce(&kubo_rs::Host) -> Result<R, String>) -> Result<R, String> {
+    let mut guard = P2P_HOST
+        .lock()
+        .map_err(|err| format!("p2p host lock poisoned: {err}"))?;
+    if guard.is_none() {
+        let host = kubo_rs::Host::new().map_err(|err| format!("p2p host start failed: {err}"))?;
+        *guard = Some(host);
+    }
+
+    let host = guard
+        .as_ref()
+        .ok_or_else(|| "p2p host unavailable".to_string())?;
+    f(host)
 }
 
 #[uniffi::export]
@@ -65,57 +74,33 @@ pub fn rust_add(a: u32, b: u32) -> u32 {
 }
 
 #[uniffi::export]
-pub fn p2p_start() -> Result<String, kubo_rs::Error> {
-    let host = p2p_host()?;
-    let host = host
-        .lock()
-        .map_err(|err| kubo_rs::Error::Go(format!("p2p host lock poisoned: {err}")))?;
-    host.peer_id()
+pub fn p2p_start() -> Result<String, String> {
+    p2p_host(|host| host.peer_id().map_err(|err| err.to_string()))
 }
 
 #[uniffi::export]
-pub fn p2p_peer_id() -> Result<String, kubo_rs::Error> {
-    let host = p2p_host()?;
-    let host = host
-        .lock()
-        .map_err(|err| kubo_rs::Error::Go(format!("p2p host lock poisoned: {err}")))?;
-    host.peer_id()
+pub fn p2p_peer_id() -> Result<String, String> {
+    p2p_host(|host| host.peer_id().map_err(|err| err.to_string()))
 }
 
 #[uniffi::export]
-pub fn p2p_listening_addrs() -> Result<Vec<String>, kubo_rs::Error> {
-    let host = p2p_host()?;
-    let host = host
-        .lock()
-        .map_err(|err| kubo_rs::Error::Go(format!("p2p host lock poisoned: {err}")))?;
-    host.listening_addrs()
+pub fn p2p_listening_addrs() -> Result<Vec<String>, String> {
+    p2p_host(|host| host.listening_addrs().map_err(|err| err.to_string()))
 }
 
 #[uniffi::export]
-pub fn p2p_connect(addr: &str) -> Result<(), kubo_rs::Error> {
-    let host = p2p_host()?;
-    let host = host
-        .lock()
-        .map_err(|err| kubo_rs::Error::Go(format!("p2p host lock poisoned: {err}")))?;
-    host.connect(addr)
+pub fn p2p_connect(addr: &str) -> Result<(), String> {
+    p2p_host(|host| host.connect(addr).map_err(|err| err.to_string()))
 }
 
 #[uniffi::export]
-pub fn p2p_ping(peer_id: &str) -> Result<i64, kubo_rs::Error> {
-    let host = p2p_host()?;
-    let host = host
-        .lock()
-        .map_err(|err| kubo_rs::Error::Go(format!("p2p host lock poisoned: {err}")))?;
-    host.ping(peer_id)
+pub fn p2p_ping(peer_id: &str) -> Result<i64, String> {
+    p2p_host(|host| host.ping(peer_id).map_err(|err| err.to_string()))
 }
 
 #[uniffi::export]
-pub fn p2p_protocols() -> Result<Vec<String>, kubo_rs::Error> {
-    let host = p2p_host()?;
-    let host = host
-        .lock()
-        .map_err(|err| kubo_rs::Error::Go(format!("p2p host lock poisoned: {err}")))?;
-    host.protocols()
+pub fn p2p_protocols() -> Result<Vec<String>, String> {
+    p2p_host(|host| host.protocols().map_err(|err| err.to_string()))
 }
 
 #[cfg(test)]

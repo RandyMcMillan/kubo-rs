@@ -139,7 +139,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('go/kubo-sys/go.sum', 'go/kubo-sys/ffi/go.sum') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('go/kubo-sys/go.sum', 'go/ffi/go.sum') }}
           restore-keys: ${{ runner.os }}-go-
 
       - name: Populate Rust cache
@@ -255,23 +255,23 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('go/kubo-sys/go.sum', 'go/kubo-sys/ffi/go.sum') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('go/kubo-sys/go.sum', 'go/ffi/go.sum') }}
           restore-keys: ${{ runner.os }}-go-
 
       - name: Build FFI archive
         run: |
-          cd go/kubo-sys/ffi
-          go build -buildmode=c-archive -o ./tmp/libkubo_ffi.a ./ffi.go
+          cd go/ffi
+          go build -buildmode=c-archive -o ./tmp/libkubo_ffi.a .
 
       - name: Build and run C FFI tests
         run: |
-          cd go/kubo-sys/ffi
+          cd go/ffi
           cc -o cmd/testffi/testffi cmd/testffi/main.c -I./tmp ./tmp/libkubo_ffi.a -lpthread -ldl -framework Security -framework CoreFoundation -lresolv
           ./cmd/testffi/testffi
 
       - name: Build and run Rust FFI tests
         run: |
-          cd go/kubo-sys/ffi
+          cd go/ffi
           rustc cmd/testrust/main.rs -L ./tmp -lkubo_ffi -o cmd/testrust/testrust \
             -C link-arg="-framework" -C link-arg="Security" \
             -C link-arg="-framework" -C link-arg="CoreFoundation" \
@@ -310,7 +310,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('go/kubo-sys/go.sum', 'go/kubo-sys/ffi/go.sum') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('go/kubo-sys/go.sum', 'go/ffi/go.sum') }}
           restore-keys: ${{ runner.os }}-go-
 
       - name: Run nostr plugin tests
@@ -347,7 +347,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('go/kubo-sys/go.sum', 'go/kubo-sys/ffi/go.sum') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('go/kubo-sys/go.sum', 'go/ffi/go.sum') }}
           restore-keys: ${{ runner.os }}-go-
 
       - name: Run git-remote protocol tests
@@ -391,7 +391,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('go/kubo-sys/go.sum', 'go/kubo-sys/ffi/go.sum') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('go/kubo-sys/go.sum', 'go/ffi/go.sum') }}
           restore-keys: ${{ runner.os }}-go-
 
       - name: Run nostr-relay tests

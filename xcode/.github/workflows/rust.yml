@@ -64,7 +64,7 @@ jobs:
         if: contains(matrix.os, 'macos')
         run: |
           echo "Running on ${{ matrix.os }}"
-          ./build.sh && make
+          make rust resolve
           # Add any additional macOS-specific environment setup here
 
       - name: Build

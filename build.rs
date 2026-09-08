@@ -1,4 +1,5 @@
 use std::env;
+use std::io::ErrorKind;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -43,10 +44,16 @@ fn main() {
 
     // Find Go binary.
     let go = env::var("GO").unwrap_or_else(|_| "go".to_string());
-    let go_version = Command::new(&go)
-        .args(["version"])
-        .output()
-        .expect("failed to run `go version`");
+    let go_version = match Command::new(&go).args(["version"]).output() {
+        Ok(output) => output,
+        Err(err) if err.kind() == ErrorKind::NotFound => {
+            panic!(
+                "Go toolchain not found: set GO or add `go` to PATH. \
+                 Kubo requires Go >= 1.26.5."
+            );
+        }
+        Err(err) => panic!("failed to run `go version` with `{go}`: {err}"),
+    };
     if !go_version.status.success() {
         panic!(
             "`go version` failed. Make sure Go is installed and in PATH. \

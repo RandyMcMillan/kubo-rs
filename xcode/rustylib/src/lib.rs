@@ -7,6 +7,51 @@ use std::{
 
 uniffi::setup_scaffolding!();
 
+/// Error type exposed to Swift via UniFFI `throws`.
+#[derive(Debug, uniffi::Error)]
+pub enum RustyError {
+    Ipfs { msg: String },
+    P2p { msg: String },
+    Nostr { msg: String },
+    Git { msg: String },
+    Generic { msg: String },
+}
+
+impl std::fmt::Display for RustyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RustyError::Ipfs { msg } => write!(f, "IPFS error: {msg}"),
+            RustyError::P2p { msg } => write!(f, "P2P error: {msg}"),
+            RustyError::Nostr { msg } => write!(f, "Nostr error: {msg}"),
+            RustyError::Git { msg } => write!(f, "Git error: {msg}"),
+            RustyError::Generic { msg } => write!(f, "{msg}"),
+        }
+    }
+}
+
+impl From<kubo_rs::Error> for RustyError {
+    fn from(err: kubo_rs::Error) -> Self {
+        let msg = format!("{err}");
+        RustyError::Generic { msg }
+    }
+}
+
+fn map_ipfs<T>(result: Result<T, kubo_rs::Error>) -> Result<T, RustyError> {
+    result.map_err(|e| RustyError::Ipfs { msg: format!("{e}") })
+}
+
+fn map_p2p<T>(result: Result<T, kubo_rs::Error>) -> Result<T, RustyError> {
+    result.map_err(|e| RustyError::P2p { msg: format!("{e}") })
+}
+
+fn map_nostr<T>(result: Result<T, kubo_rs::Error>) -> Result<T, RustyError> {
+    result.map_err(|e| RustyError::Nostr { msg: format!("{e}") })
+}
+
+fn map_git<T>(result: Result<T, kubo_rs::Error>) -> Result<T, RustyError> {
+    result.map_err(|e| RustyError::Git { msg: format!("{e}") })
+}
+
 static P2P_HOST: Mutex<Option<kubo_rs::Host>> = Mutex::new(None);
 static P2P_LAST_ERROR: Mutex<String> = Mutex::new(String::new());
 
@@ -214,6 +259,75 @@ pub fn hybrid_stop() -> bool {
         }
     }
     true
+}
+
+// ---------------------------------------------------------------------------
+// HybridNode — throwing variants (Phase 14)
+// ---------------------------------------------------------------------------
+
+#[uniffi::export]
+pub fn hybrid_start_try(online: bool) -> Result<(), RustyError> {
+    let repo_path = demo_repo_path();
+    let node = kubo_rs::HybridNode::start(&repo_path, online)?;
+    if let Ok(mut guard) = HYBRID_NODE.lock() {
+        *guard = Some(node);
+    }
+    Ok(())
+}
+
+#[uniffi::export]
+pub fn hybrid_stop_try() -> Result<(), RustyError> {
+    let mut guard = HYBRID_NODE.lock().map_err(|_| RustyError::Generic {
+        msg: "mutex poisoned".to_string(),
+    })?;
+    if let Some(node) = guard.take() {
+        node.stop()?;
+    }
+    Ok(())
+}
+
+#[uniffi::export]
+pub fn ipfs_add_try(data: Vec<u8>) -> Result<String, RustyError> {
+    let cid = hybrid_with(|node| node.ipfs.add_bytes(&data))
+        .ok_or_else(|| RustyError::Ipfs {
+            msg: "hybrid node not started".to_string(),
+        })??;
+    Ok(cid)
+}
+
+#[uniffi::export]
+pub fn ipfs_cat_try(cid: &str) -> Result<Vec<u8>, RustyError> {
+    let data = hybrid_with(|node| node.ipfs.cat(cid))
+        .ok_or_else(|| RustyError::Ipfs {
+            msg: "hybrid node not started".to_string(),
+        })??;
+    Ok(data)
+}
+
+#[uniffi::export]
+pub fn p2p_connect_try(addr: &str) -> Result<(), RustyError> {
+    p2p_host(|host| host.connect(addr))
+        .ok_or_else(|| RustyError::P2p {
+            msg: "p2p host not started".to_string(),
+        })??;
+    Ok(())
+}
+
+#[uniffi::export]
+pub fn hybrid_publish_file_try(
+    file_path: &str,
+    secret_key: &str,
+    relay_handle: Option<u64>,
+    gossip_topic: Option<String>,
+) -> Result<String, RustyError> {
+    let cid = hybrid_with(|node| {
+        let topic = gossip_topic.as_deref();
+        node.publish_file(file_path, secret_key, relay_handle, topic)
+    })
+    .ok_or_else(|| RustyError::Generic {
+        msg: "hybrid node not started".to_string(),
+    })??;
+    Ok(cid)
 }
 
 #[uniffi::export]

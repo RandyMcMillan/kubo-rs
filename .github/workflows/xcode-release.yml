@@ -4,21 +4,56 @@ on:
   push:
     tags:
       - '**[0-9]+.[0-9]+.[0-9]+*-xcode'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Which target(s) to build'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - kubo-macos
+          - swiftyapp
+      create_release:
+        description: 'Create a GitHub release and attach artifacts'
+        required: true
+        default: true
+        type: boolean
+      tag_name:
+        description: 'Release tag name (leave empty to auto-generate)'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: write
 
+env:
+  HAS_CERT: ${{ secrets.BUILD_CERTIFICATE_BASE64 != '' }}
+
 jobs:
   build-xcode-release:
     runs-on: macos-latest
-    env:
-      HAS_CERT: ${{ secrets.BUILD_CERTIFICATE_BASE64 != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: recursive
+
+      - name: Resolve release tag
+        id: resolve_tag
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${{ github.ref_name }}"
+          elif [ -n "${{ inputs.tag_name }}" ]; then
+            TAG="${{ inputs.tag_name }}"
+          else
+            TAG="manual-$(date +%Y%m%d-%H%M%S)"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Release tag: $TAG"
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
@@ -81,6 +116,7 @@ jobs:
       - name: Build kubo-macos (Designed for iPad)
         env:
           PROVISIONING_PROFILE_SPECIFIER: ${{ secrets.PROVISIONING_PROFILE_SPECIFIER }}
+        if: github.event_name == 'push' || inputs.target == 'kubo-macos' || inputs.target == 'all'
         run: |
           cd xcode
           if [ "$HAS_CERT" = "true" ]; then
@@ -107,13 +143,14 @@ jobs:
             build
 
       - name: Ad-hoc sign kubo-macos
-        if: env.HAS_CERT != 'true'
+        if: (github.event_name == 'push' || inputs.target == 'kubo-macos' || inputs.target == 'all') && env.HAS_CERT != 'true'
         run: |
           cd xcode
           APP_PATH=$(find .build/kubo-macos -name "kubo-macos.app" -type d | head -n1)
           codesign --force --deep --sign - "$APP_PATH"
 
       - name: Package kubo-macos
+        if: github.event_name == 'push' || inputs.target == 'kubo-macos' || inputs.target == 'all'
         run: |
           cd xcode
           APP_PATH=$(find .build/kubo-macos -name "kubo-macos.app" -type d | head -n1)
@@ -124,6 +161,7 @@ jobs:
           )
 
       - name: Build swiftyapp (iOS Simulator)
+        if: github.event_name == 'push' || inputs.target == 'swiftyapp' || inputs.target == 'all'
         run: |
           cd xcode
           xcodebuild \
@@ -139,6 +177,7 @@ jobs:
             build
 
       - name: Package swiftyapp
+        if: github.event_name == 'push' || inputs.target == 'swiftyapp' || inputs.target == 'all'
         run: |
           cd xcode
           APP_PATH=$(find .build/swiftyapp -name "swiftyapp.app" -type d | head -n1)
@@ -148,9 +187,22 @@ jobs:
             zip -r -y "$GITHUB_WORKSPACE/xcode/swiftyapp.zip" "$(basename "$APP_PATH")"
           )
 
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcode-release-${{ steps.resolve_tag.outputs.tag }}
+          path: |
+            xcode/rustylib/rustylib_framework.xcframework.zip
+            xcode/kubo-macos.zip
+            xcode/swiftyapp.zip
+          if-no-files-found: ignore
+
       - name: Upload to Release
+        if: github.event_name == 'push' || inputs.create_release == true
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.resolve_tag.outputs.tag }}
+          name: ${{ steps.resolve_tag.outputs.tag }}
           files: |
             xcode/rustylib/rustylib_framework.xcframework.zip
             xcode/kubo-macos.zip

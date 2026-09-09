@@ -267,6 +267,91 @@ pub fn hybrid_publish_file(
     .unwrap_or_default()
 }
 
+#[uniffi::export]
+pub fn hybrid_resolve_nip94(event_json: &str) -> String {
+    hybrid_with(|node| {
+        node.resolve_nip94(event_json)
+            .map(|(cid, content)| format!("{}", String::from_utf8_lossy(&content)))
+            .ok()
+    })
+    .flatten()
+    .unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn hybrid_publish_repo(
+    repo_path: &str,
+    repo_id: &str,
+    name: &str,
+    description: &str,
+    clone_urls: Vec<String>,
+    secret_key: &str,
+    relay_handle: Option<u64>,
+    gossip_topic: Option<String>,
+) -> String {
+    hybrid_with(|node| {
+        let topic = gossip_topic.as_deref();
+        node.publish_repo(
+            repo_path,
+            repo_id,
+            name,
+            description,
+            &clone_urls,
+            secret_key,
+            relay_handle,
+            topic,
+        )
+        .ok()
+    })
+    .flatten()
+    .unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn hybrid_publish_patch(
+    repo_path: &str,
+    repo_ref: &str,
+    old_hash: &str,
+    new_hash: &str,
+    secret_key: &str,
+    relay_handle: Option<u64>,
+    gossip_topic: Option<String>,
+) -> String {
+    hybrid_with(|node| {
+        let topic = gossip_topic.as_deref();
+        node.publish_patch(
+            repo_path,
+            repo_ref,
+            old_hash,
+            new_hash,
+            secret_key,
+            relay_handle,
+            topic,
+        )
+        .ok()
+    })
+    .flatten()
+    .unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn hybrid_publish_issue(
+    repo_ref: &str,
+    title: &str,
+    body: &str,
+    secret_key: &str,
+    relay_handle: Option<u64>,
+    gossip_topic: Option<String>,
+) -> String {
+    hybrid_with(|node| {
+        let topic = gossip_topic.as_deref();
+        node.publish_issue(repo_ref, title, body, secret_key, relay_handle, topic)
+            .ok()
+    })
+    .flatten()
+    .unwrap_or_default()
+}
+
 // ---------------------------------------------------------------------------
 // Nostr helpers
 // ---------------------------------------------------------------------------

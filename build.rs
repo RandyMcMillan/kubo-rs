@@ -124,7 +124,10 @@ fn main() {
     // Apple-specific C cross-compiler. Without this, `clang` defaults to the
     // host macOS target and the linker rejects the resulting object files.
     if let Some((sdkroot, cc, cxx)) = apple_compiler(&target) {
-        go_build.env("CC", &cc).env("CXX", &cxx).env("SDKROOT", sdkroot);
+        go_build
+            .env("CC", &cc)
+            .env("CXX", &cxx)
+            .env("SDKROOT", sdkroot);
 
         // Align the Go C compiler's deployment target with the Rust linker so
         // that generated object files use symbols available on the target OS
@@ -197,13 +200,11 @@ fn main() {
         // compiler so that symbols like ___chkstk_darwin (iOS 12+) are
         // available when the Go code references them.
         if os == "ios" {
-            let deployment_target = env::var("IPHONEOS_DEPLOYMENT_TARGET")
-                .unwrap_or_else(|_| "14.0".to_string());
+            let deployment_target =
+                env::var("IPHONEOS_DEPLOYMENT_TARGET").unwrap_or_else(|_| "14.0".to_string());
             let flag = if target.contains("macabi") {
                 format!("-mmacosx-version-min={}", deployment_target)
-            } else if target.contains("ios-sim")
-                || target.starts_with("x86_64-apple-ios")
-            {
+            } else if target.contains("ios-sim") || target.starts_with("x86_64-apple-ios") {
                 format!("-mios-simulator-version-min={}", deployment_target)
             } else {
                 format!("-miphoneos-version-min={}", deployment_target)

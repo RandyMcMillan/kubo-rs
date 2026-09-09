@@ -92,7 +92,9 @@ pub fn p2p_start() -> String {
 
 #[uniffi::export]
 pub fn p2p_peer_id() -> String {
-    p2p_host(|host| host.peer_id().ok()).flatten().unwrap_or_default()
+    p2p_host(|host| host.peer_id().ok())
+        .flatten()
+        .unwrap_or_default()
 }
 
 #[uniffi::export]
@@ -155,7 +157,13 @@ mod tests {
     #[test]
     fn rust_hello_reports_kubo_roundtrip() {
         let message = rust_hello();
-        assert!(message.contains("kubo-rs"), "message should mention kubo-rs");
-        assert!(message.contains("round-trip"), "message should mention the round-trip");
+        assert!(
+            message.contains("kubo-rs"),
+            "message should mention kubo-rs"
+        );
+        assert!(
+            message.contains("round-trip"),
+            "message should mention the round-trip"
+        );
     }
 }

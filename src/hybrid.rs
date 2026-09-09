@@ -80,10 +80,7 @@ impl HybridNode {
     /// # Errors
     ///
     /// Returns an error if either drain operation fails.
-    pub fn drain_events(
-        &self,
-        relay_sub_handle: Option<u64>,
-    ) -> Result<Vec<String>, Error> {
+    pub fn drain_events(&self, relay_sub_handle: Option<u64>) -> Result<Vec<String>, Error> {
         let mut events = Vec::new();
         let mut seen_ids = std::collections::HashSet::new();
 
@@ -127,8 +124,7 @@ impl HybridNode {
         gossip_topic: Option<&str>,
     ) -> Result<String, Error> {
         let path = file_path.as_ref();
-        let data = std::fs::read(path)
-            .map_err(|e| Error::Go(format!("read file: {e}")))?;
+        let data = std::fs::read(path).map_err(|e| Error::Go(format!("read file: {e}")))?;
         let cid = self.ipfs.add_bytes(&data)?;
 
         let file_name = path
@@ -141,15 +137,10 @@ impl HybridNode {
             vec!["url".to_string(), format!("ipfs://{cid}")],
             vec!["m".to_string(), guess_mime(file_name)],
         ];
-        let tags_json = serde_json::to_string(&tags)
-            .map_err(|e| Error::Go(format!("serialize tags: {e}")))?;
+        let tags_json =
+            serde_json::to_string(&tags).map_err(|e| Error::Go(format!("serialize tags: {e}")))?;
 
-        let event = nostr_event_sign_with_tags(
-            secret_key,
-            file_name,
-            1063,
-            &tags_json,
-        )?;
+        let event = nostr_event_sign_with_tags(secret_key, file_name, 1063, &tags_json)?;
 
         self.broadcast_event(&event, relay_handle, gossip_topic)?;
 

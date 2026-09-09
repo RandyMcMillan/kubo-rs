@@ -426,15 +426,12 @@ pub fn host_protocols(handle: u64) -> Result<Vec<String>, Error> {
 
 pub fn host_gossip_topic(handle: u64) -> Result<String, Error> {
     unsafe {
-        ptr_to_string(kubo_libp2p_host_gossip_topic(handle))
-            .ok_or_else(|| Error::Go(last_error()))
+        ptr_to_string(kubo_libp2p_host_gossip_topic(handle)).ok_or_else(|| Error::Go(last_error()))
     }
 }
 
 pub fn host_gossip_error(handle: u64) -> Result<Option<String>, Error> {
-    unsafe {
-        Ok(ptr_to_string(kubo_libp2p_host_gossip_error(handle)))
-    }
+    unsafe { Ok(ptr_to_string(kubo_libp2p_host_gossip_error(handle))) }
 }
 
 pub fn host_gossip_publish(handle: u64, message: &str) -> Result<(), Error> {
@@ -444,9 +441,14 @@ pub fn host_gossip_publish(handle: u64, message: &str) -> Result<(), Error> {
 
 pub fn host_gossip_drain(handle: u64) -> Result<Vec<String>, Error> {
     let raw = unsafe {
-        ptr_to_string(kubo_libp2p_host_gossip_drain(handle)).ok_or_else(|| Error::Go(last_error()))?
+        ptr_to_string(kubo_libp2p_host_gossip_drain(handle))
+            .ok_or_else(|| Error::Go(last_error()))?
     };
-    Ok(raw.split('\x1E').filter(|s| !s.is_empty()).map(|s| s.to_string()).collect())
+    Ok(raw
+        .split('\x1E')
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .collect())
 }
 
 // ---------------------------------------------------------------------------
@@ -478,7 +480,12 @@ pub fn event_sign(sk: &str, content: &str, kind: i32) -> Result<String, Error> {
     }
 }
 
-pub fn event_sign_with_tags(sk: &str, content: &str, kind: i32, tags_json: &str) -> Result<String, Error> {
+pub fn event_sign_with_tags(
+    sk: &str,
+    content: &str,
+    kind: i32,
+    tags_json: &str,
+) -> Result<String, Error> {
     let c_sk = CString::new(sk)?;
     let c_content = CString::new(content)?;
     let c_tags = CString::new(tags_json)?;

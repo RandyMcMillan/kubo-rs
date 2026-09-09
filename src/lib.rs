@@ -472,7 +472,12 @@ pub fn nostr_event_sign(sk: &str, content: &str, kind: i32) -> Result<String, Er
 /// # Errors
 ///
 /// Returns an error if tag parsing or signing fails.
-pub fn nostr_event_sign_with_tags(sk: &str, content: &str, kind: i32, tags_json: &str) -> Result<String, Error> {
+pub fn nostr_event_sign_with_tags(
+    sk: &str,
+    content: &str,
+    kind: i32,
+    tags_json: &str,
+) -> Result<String, Error> {
     ffi::event_sign_with_tags(sk, content, kind, tags_json)
 }
 
@@ -664,8 +669,8 @@ impl Repository {
         for url in clone_urls {
             tags.push(vec!["clone".to_string(), url.clone()]);
         }
-        let tags_json = serde_json::to_string(&tags)
-            .map_err(|e| Error::Go(format!("serialize tags: {e}")))?;
+        let tags_json =
+            serde_json::to_string(&tags).map_err(|e| Error::Go(format!("serialize tags: {e}")))?;
         nostr_event_sign_with_tags(secret_key, "", 30617, &tags_json)
     }
 
@@ -677,11 +682,7 @@ impl Repository {
     /// # Errors
     ///
     /// Returns an error if repo reading or signing fails.
-    pub fn create_nip34_state(
-        &self,
-        repo_id: &str,
-        secret_key: &str,
-    ) -> Result<String, Error> {
+    pub fn create_nip34_state(&self, repo_id: &str, secret_key: &str) -> Result<String, Error> {
         let head = self.head()?;
         let branches = self.branches()?;
 
@@ -695,8 +696,8 @@ impl Repository {
             tags.push(vec![branch.clone(), head.clone()]);
         }
 
-        let tags_json = serde_json::to_string(&tags)
-            .map_err(|e| Error::Go(format!("serialize tags: {e}")))?;
+        let tags_json =
+            serde_json::to_string(&tags).map_err(|e| Error::Go(format!("serialize tags: {e}")))?;
         nostr_event_sign_with_tags(secret_key, "", 30618, &tags_json)
     }
 }
@@ -708,16 +709,10 @@ impl Repository {
 /// # Errors
 ///
 /// Returns an error if tag construction or signing fails.
-pub fn nip34_patch(
-    secret_key: &str,
-    repo_ref: &str,
-    diff: &str,
-) -> Result<String, Error> {
-    let tags: Vec<Vec<String>> = vec![
-        vec!["a".to_string(), repo_ref.to_string()],
-    ];
-    let tags_json = serde_json::to_string(&tags)
-        .map_err(|e| Error::Go(format!("serialize tags: {e}")))?;
+pub fn nip34_patch(secret_key: &str, repo_ref: &str, diff: &str) -> Result<String, Error> {
+    let tags: Vec<Vec<String>> = vec![vec!["a".to_string(), repo_ref.to_string()]];
+    let tags_json =
+        serde_json::to_string(&tags).map_err(|e| Error::Go(format!("serialize tags: {e}")))?;
     nostr_event_sign_with_tags(secret_key, diff, 1617, &tags_json)
 }
 
@@ -733,11 +728,9 @@ pub fn nip34_issue(
     body: &str,
 ) -> Result<String, Error> {
     let content = format!("{}\n\n{}", title, body);
-    let tags: Vec<Vec<String>> = vec![
-        vec!["a".to_string(), repo_ref.to_string()],
-    ];
-    let tags_json = serde_json::to_string(&tags)
-        .map_err(|e| Error::Go(format!("serialize tags: {e}")))?;
+    let tags: Vec<Vec<String>> = vec![vec!["a".to_string(), repo_ref.to_string()]];
+    let tags_json =
+        serde_json::to_string(&tags).map_err(|e| Error::Go(format!("serialize tags: {e}")))?;
     nostr_event_sign_with_tags(secret_key, &content, 1621, &tags_json)
 }
 
@@ -1185,7 +1178,9 @@ mod tests {
         init_repo(&repo).expect("init_repo should succeed");
 
         let node = Node::start(&repo, true).expect("start should succeed");
-        let cid = node.add_bytes(b"name test").expect("add_bytes should succeed");
+        let cid = node
+            .add_bytes(b"name test")
+            .expect("add_bytes should succeed");
 
         let name = node
             .name_publish(&cid, 60)
@@ -1195,7 +1190,10 @@ mod tests {
         let resolved = node
             .name_resolve(&name)
             .expect("name_resolve should succeed");
-        assert!(resolved.contains(&cid), "resolved path should contain the cid");
+        assert!(
+            resolved.contains(&cid),
+            "resolved path should contain the cid"
+        );
 
         node.stop().expect("stop should succeed");
     }
@@ -1304,10 +1302,7 @@ mod tests {
     #[test]
     fn test_nostr_relay_subscribe_invalid_handle() {
         let result = nostr_relay_subscribe(0, r#"{"kinds":[1]}"#);
-        assert!(
-            result.is_err(),
-            "subscribe with invalid handle should fail"
-        );
+        assert!(result.is_err(), "subscribe with invalid handle should fail");
     }
 
     #[test]
@@ -1330,7 +1325,10 @@ mod tests {
         let mut found = false;
         for _ in 0..5 {
             if let Some(evt) = nostr_relay_drain(sub).expect("drain should not error") {
-                assert!(evt.contains("hybrid protocol test"), "drained event should match");
+                assert!(
+                    evt.contains("hybrid protocol test"),
+                    "drained event should match"
+                );
                 found = true;
                 break;
             }
@@ -1373,7 +1371,10 @@ mod tests {
         let event = nostr_event_sign_with_tags(&sk, "hello tagged", 1, tags_json)
             .expect("sign with tags should succeed");
 
-        assert!(event.contains("hello tagged"), "event should contain content");
+        assert!(
+            event.contains("hello tagged"),
+            "event should contain content"
+        );
         assert!(event.contains("my-repo"), "event should contain tag value");
         assert!(event.contains("clone"), "event should contain tag name");
 

@@ -1,8 +1,8 @@
 use std::env;
 
 use kubo_rs::{
-    HybridNode, init_repo, nostr_generate_key, nostr_get_public_key,
-    nostr_relay_connect, nostr_relay_subscribe,
+    HybridNode, init_repo, nostr_generate_key, nostr_get_public_key, nostr_relay_connect,
+    nostr_relay_subscribe,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -63,7 +63,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         for _ in 0..5 {
             let relay_events = node.drain_events(Some(sub))?;
             if !relay_events.is_empty() {
-                println!("received {} event(s) from relay+ gossip", relay_events.len());
+                println!(
+                    "received {} event(s) from relay+ gossip",
+                    relay_events.len()
+                );
                 found = true;
                 break;
             }

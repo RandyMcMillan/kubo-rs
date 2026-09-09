@@ -1,10 +1,16 @@
 set -euo pipefail
 
 # Xcode runs build phases in a non-login shell, so Cargo/Rustup may not be on PATH.
-export PATH="$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:${PATH:-/usr/bin:/bin:/usr/sbin:/sbin}"
+# Also cover the Xcode Cloud Go installation directory.
+export PATH="$HOME/.cargo/bin:$HOME/go-install/bin:/opt/homebrew/bin:/usr/local/bin:${PATH:-/usr/bin:/bin:/usr/sbin:/sbin}"
 if [ -f "$HOME/.cargo/env" ]; then
     # shellcheck disable=SC1090
     . "$HOME/.cargo/env"
+fi
+
+# In Xcode Cloud the Go binary may live in a non-standard place; tell build.rs where it is.
+if [ -x "$HOME/go-install/bin/go" ] && [ -z "${GO:-}" ]; then
+    export GO="$HOME/go-install/bin/go"
 fi
 
 if ! command -v cargo >/dev/null 2>&1; then
@@ -56,17 +62,25 @@ esac
 
 targets=("${DEVICE_TARGET}" "${SIMULATOR_TARGET}" "${CATALYST_TARGET}")
 
+# Clean stale outputs so we never mix files from a previous run.
+rm -rf out/ "${XCFRAMEWORK_PATH}"
+
 for target in "${targets[@]}"; do
     rustup target add ${target}
-            cargo build --target "${target}" --release -j8
-            cargo run --bin uniffi-bindgen generate --library "${TARGETDIR}/${target}/${RELDIR}/${STATIC_LIB_NAME}" --language swift --out-dir out
-        done
+    cargo build --target "${target}" --release -j8
+    cargo run --bin uniffi-bindgen generate --library "${TARGETDIR}/${target}/${RELDIR}/${STATIC_LIB_NAME}" --language swift --out-dir out
+done
+
 # step 2 - create xcframework
 mkdir -p "${NEW_HEADER_DIR}"
 cp "${HEADERPATH}" "${NEW_HEADER_DIR}/"
 cp "out/${MY_CRATE}FFI.modulemap" "${NEW_HEADER_DIR}/module.modulemap"
 
-rm -rf "${XCFRAMEWORK_PATH}"
+# Verify the headers directory is populated before xcodebuild sees it.
+if [ ! -f "${NEW_HEADER_DIR}/${MY_CRATE}FFI.h" ]; then
+    echo "Header missing: ${NEW_HEADER_DIR}/${MY_CRATE}FFI.h" >&2
+    exit 1
+fi
 
 xcodebuild -create-xcframework \
     -library "${TARGETDIR}/${DEVICE_TARGET}/${RELDIR}/${STATIC_LIB_NAME}" -headers "${NEW_HEADER_DIR}" \

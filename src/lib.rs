@@ -688,7 +688,7 @@ impl Repository {
 
         let mut tags: Vec<Vec<String>> = vec![
             vec!["d".to_string(), repo_id.to_string()],
-            vec!["HEAD".to_string(), format!("ref: refs/heads/main")],
+            vec!["HEAD".to_string(), "ref: refs/heads/main".to_string()],
         ];
 
         for branch in branches {

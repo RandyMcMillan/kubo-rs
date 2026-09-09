@@ -13,6 +13,10 @@ pub enum Error {
     InvalidString,
     /// The provided string is not a valid nostr URL.
     InvalidNostrUrl,
+    /// The provided JSON is not a valid Nostr event.
+    InvalidNostrEvent,
+    /// No relay connection is available for the requested operation.
+    NoRelayConnection,
 }
 
 impl fmt::Display for Error {
@@ -23,6 +27,8 @@ impl fmt::Display for Error {
             Error::InvalidHandle => write!(f, "invalid node handle"),
             Error::InvalidString => write!(f, "string contains a null byte"),
             Error::InvalidNostrUrl => write!(f, "invalid nostr URL"),
+            Error::InvalidNostrEvent => write!(f, "invalid Nostr event JSON"),
+            Error::NoRelayConnection => write!(f, "no relay connection available"),
         }
     }
 }

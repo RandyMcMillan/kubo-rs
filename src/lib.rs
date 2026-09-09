@@ -17,10 +17,12 @@
 
 mod error;
 mod ffi;
+pub mod hybrid;
 pub mod nostr_url;
 
 pub use error::Error;
 pub use ffi::version;
+pub use hybrid::HybridNode;
 pub use nostr_url::NostrUrl;
 
 use std::path::Path;

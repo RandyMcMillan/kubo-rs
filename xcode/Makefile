@@ -65,6 +65,8 @@ install: mac
 	mkdir -p "$(INSTALL_DIR)"
 	rm -rf "$(INSTALL_DIR)/$(APP_NAME)"
 	cp -R "$(MAC_APP_PATH)" "$(INSTALL_DIR)/$(APP_NAME)"
+	# Ad-hoc sign so macOS doesn't report the app as "damaged".
+	codesign --force --deep --sign - "$(INSTALL_DIR)/$(APP_NAME)"
 	/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister -f "$(INSTALL_DIR)/$(APP_NAME)"
 	@echo ""
 	@echo "Installed $(APP_NAME) to $(INSTALL_DIR)"

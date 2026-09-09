@@ -185,7 +185,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = "set -euo pipefail\ncd \"${SRCROOT}/..\"\n./build.sh\n";
+			shellScript = "set -euo pipefail\ncd \"${SRCROOT}/..\"\nXCF=\"swiftyapp/Lib/swiftyrustlib/artifacts/RustyCore.xcframework/Info.plist\"\nif [ -f \"$XCF\" ]; then\n  NEWER=$(find rustylib/src go/ffi -newer \"$XCF\" 2>/dev/null | wc -l) || true\n  if [ \"${NEWER:-0}\" -eq 0 ]; then\n    echo 'XCFramework up-to-date, skipping Rust build.'\n    exit 0\n  fi\nfi\n./build.sh\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

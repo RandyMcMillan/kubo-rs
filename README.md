@@ -11,6 +11,7 @@ Early development. The crate currently provides a minimal but functional FFI bri
 - Retrieve node identity (peer ID, listening addresses)
 - Add and retrieve UnixFS content
 - Connect to peers on the libp2p network
+- **Hybrid protocol** — coordinate IPFS, libp2p GossipSub, and Nostr in one handle via [`HybridNode`](src/hybrid.rs)
 
 ## Prerequisites
 
@@ -60,7 +61,8 @@ assert_eq!(data, b"hello world");
 node.stop()?;
 ```
 
-See [`FFI.md`](FFI.md) for architecture details and the full API surface.
+See [`FFI.md`](FFI.md) for architecture details and the full API surface.  
+See [`examples/hybrid.rs`](examples/hybrid.rs) for a full hybrid-protocol demo (IPFS + Nostr + P2P).
 
 ## Testing
 

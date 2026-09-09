@@ -23,12 +23,13 @@ The `xcode/rustylib/` crate wraps `kubo-rs` and exposes a **small subset** of th
 | `p2p_gossip_publish(msg)` | `p2pGossipPublish(message:)` | ✅ |
 | `p2p_gossip_drain()` | `p2pGossipDrain()` | ✅ |
 
-### NOT Yet Exposed to Swift
+### Implemented in Rust, NOT Yet Exposed to Swift
 
-- **IPFS Node** — no `Node::start`, `add_bytes`, `cat`, `pin_*`, `block_*`, `dht_*`, `name_*`
-- **Nostr** — no keygen, sign, verify, relay connect/publish/subscribe/drain
-- **Git** — no `git_clone`, `Repository` handle
-- **GossipSub Nostr bridge** — planned in Phase 2
+- **IPFS Node** — `Node::start`, `add_bytes`, `cat`, `pin_*`, `block_*`, `dht_*`, `name_*`
+- **Nostr** — keygen, sign, verify, relay connect/publish/subscribe/drain
+- **Git** — `git_clone`, `Repository` handle
+- **HybridNode** — `HybridNode::start`, `broadcast_event`, `drain_events`, `publish_file` (Phase 4 ✅)
+- **examples/hybrid.rs** — full end-to-end Rust demo (Phase 5 ✅)
 
 ---
 
@@ -128,12 +129,28 @@ pub fn create_nip94_event(file_path: &str, mime_type: Option<String>) -> String 
 
 ---
 
-### Phase 4: HybridNode Wrapper
+### Phase 4: HybridNode Wrapper ✅ (Rust Done)
 
-**Rust changes in `xcode/rustylib/src/lib.rs` needed:**
+**Rust implementation:** `src/hybrid.rs` + `pub use hybrid::HybridNode` in `src/lib.rs`
 
-A new `HybridNode` singleton that owns both `Node` and `Host`:
+`HybridNode` owns both `Node` and `Host`:
 
+```rust
+pub struct HybridNode {
+    pub ipfs: Node,
+    pub p2p: Host,
+}
+
+impl HybridNode {
+    pub fn start(repo_path: P, online: bool) -> Result<Self, Error>
+    pub fn broadcast_event(&self, event_json: &str, relay_handle: Option<u64>, gossip_topic: Option<&str>) -> Result<(), Error>
+    pub fn drain_events(&self, relay_sub_handle: Option<u64>) -> Result<Vec<String>, Error>
+    pub fn publish_file(&self, file_path: P, secret_key: &str, relay_handle: Option<u64>, gossip_topic: Option<&str>) -> Result<String, Error>
+    pub fn stop(self) -> Result<(), Error>
+}
+```
+
+**Swift exposure needed:**
 ```rust
 #[uniffi::export]
 pub fn hybrid_start(online: bool) -> bool { ... }
@@ -145,7 +162,7 @@ pub fn hybrid_broadcast_event(event_json: &str, relay_handle: Option<u64>, gossi
 pub fn hybrid_drain_events(relay_sub_handle: Option<u64>) -> Vec<String> { ... }
 
 #[uniffi::export]
-pub fn hybrid_publish_file(file_path: &str, secret_key: &str, relay_handle: Option<u64>, gossip_topic: Option<String>) -> String { ... } // returns CID
+pub fn hybrid_publish_file(file_path: &str, secret_key: &str, relay_handle: Option<u64>, gossip_topic: Option<String>) -> String { ... }
 ```
 
 **SwiftUI implications:**
@@ -156,17 +173,19 @@ pub fn hybrid_publish_file(file_path: &str, secret_key: &str, relay_handle: Opti
 
 ---
 
-### Phase 5: Example App (`examples/hybrid.rs`)
+### Phase 5: Example App (`examples/hybrid.rs`) ✅ (Rust Done)
 
-No Xcode work required — this is a Rust CLI example. But the SwiftUI app could be modeled after it:
+Rust CLI example at `examples/hybrid.rs` demonstrates:
 
 1. Start HybridNode
 2. Generate Nostr key
 3. Pick a file → Add to IPFS → CID
 4. Construct NIP-94 event
 5. Sign event
-6. Publish to gossip topic "kubo-hybrid"
-7. Second device: subscribe, drain, verify, fetch CID
+6. Publish to gossip topic
+7. Drain events back, verify IPFS round-trip
+
+No Xcode work required for Phase 5, but the SwiftUI app should be modeled after this flow.
 
 ---
 

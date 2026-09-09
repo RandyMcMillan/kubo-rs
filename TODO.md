@@ -36,14 +36,16 @@
 
 ## Recently Completed (2026-09-09)
 
+- [x] **Phase 4: HybridNode wrapper** — `src/hybrid.rs` with `broadcast_event`, `drain_events`, `publish_file`, `stop`; wired into `src/lib.rs`; unit tests pass
+- [x] **Phase 5: Hybrid example** — `examples/hybrid.rs` demonstrates end-to-end IPFS + Nostr + GossipSub flow
 - [x] **Xcode Cloud CI scripts** — `ci_scripts/ci_post_clone.sh` (installs Go/Rust, builds XCFramework) + `ci_pre_xcodebuild.sh` (verifies env)
 - [x] **Xcode build fixes** — build phase script skips redundant rebuilds; `make install` ad-hoc signs; `macOS (Designed for iPad)` destination works
 - [x] **GitHub workflow fixes** — `xcode-release.yml` uses `env.HAS_CERT` instead of `secrets` in `if`; added `workflow_dispatch` with target/release/tag inputs
 - [x] **Cache factory fix** — cache keys hash `go/ffi/go.sum` instead of stale submodule path
 - [x] **Workspace reorg** — `xcode/rustylib/` added to root workspace, version aligned to `0.8.0`, `publish = false`
 - [x] **Remove stale submodule copy** — `go/kubo-sys/ffi/` deleted (diverged; canonical is `go/ffi/`)
-- [x] **Doc updates** — `FFI.md`, `README.md`, `CHANGELOG.md`, `RELEASE.md` reference `go/ffi/`
-- [x] **Full test matrix green** — `cargo test --workspace` (46 passed) + `make test_unit` (2,165 passed)
+- [x] **Doc updates** — `FFI.md`, `README.md`, `CHANGELOG.md`, `RELEASE.md`, `xcode/HYBRID-PROTOCOL.md` updated
+- [x] **Full test matrix green** — `cargo test --workspace` (80 passed) + `make test_unit` (2,165 passed)
 
 ## Recently Completed (2026-09-05, uncommitted)
 
@@ -175,11 +177,13 @@ kubo-rs/
 ## Next Steps (Priority)
 
 1. **Xcode Cloud validation** — push all changes and verify a clean build on Xcode Cloud
-2. **Finish CLI commands** — add match arms in `src/main.rs` for all 8 new functions
-3. **Add tests** — inline lib tests + CLI tests for pin/dht/name
-4. **Future: DAG API** — `dag get`, `dag put`, `dag resolve` (complex due to ipld-prime)
-5. **Future: Key API** — `key gen`, `key list`, `key rm` (needed for advanced IPNS)
-6. **Future: MFS / Files API** — `files ls`, `files read`, `files write`, `files mkdir`
-7. **Future: PubSub** — `pubsub pub`, `pubsub sub`, `pubsub peers`, `pubsub ls`
-8. **Future: Bootstrap** — `bootstrap list`, `bootstrap add`, `bootstrap rm`
-9. **Future: Repo GC** — `repo stat`, `repo gc`
+2. **Phase 6 follow-up** — expose `HybridNode` methods to Swift via `xcode/rustylib/src/lib.rs` + UniFFI
+3. **Finish CLI commands** — add match arms in `src/main.rs` for all 8 new functions
+4. **Add tests** — inline lib tests + CLI tests for pin/dht/name
+5. **Future: NIP-94 in SwiftUI** — file picker → IPFS add → NIP-94 event → broadcast
+6. **Future: DAG API** — `dag get`, `dag put`, `dag resolve` (complex due to ipld-prime)
+7. **Future: Key API** — `key gen`, `key list`, `key rm` (needed for advanced IPNS)
+8. **Future: MFS / Files API** — `files ls`, `files read`, `files write`, `files mkdir`
+9. **Future: PubSub** — `pubsub pub`, `pubsub sub`, `pubsub peers`, `pubsub ls`
+10. **Future: Bootstrap** — `bootstrap list`, `bootstrap add`, `bootstrap rm`
+11. **Future: Repo GC** — `repo stat`, `repo gc`

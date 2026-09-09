@@ -106,6 +106,9 @@ pub enum Error {
     InvalidPath,
     InvalidString,
     InvalidHandle,
+    InvalidNostrUrl,
+    InvalidNostrEvent,
+    NoRelayConnection,
     Go(String),
 }
 ```
@@ -140,6 +143,38 @@ node.stop()?;
 | `node.block_get(cid)` | Retrieves raw block data by CID. |
 | `node.block_stat(cid)` | Returns the size of a block by CID. |
 | `node.stop()` | Shuts the node down and consumes the handle. |
+
+### `kubo_rs::HybridNode`
+
+A unified handle that coordinates an IPFS `Node` and a libp2p `Host`. This is the recommended entry point for hybrid-protocol apps that need both content-addressing and peer-to-peer messaging.
+
+```rust
+use kubo_rs::HybridNode;
+
+let node = HybridNode::start("/tmp/ipfs-repo", true)?;
+let cid = node.ipfs.add_bytes(b"hello")?;
+
+// Publish a signed Nostr event to GossipSub
+let sk = kubo_rs::nostr_generate_key()?;
+let event = kubo_rs::nostr_event_sign(&sk, "hello p2p", 1)?;
+node.broadcast_event(&event, None, None)?;
+
+// Drain events from both relay and gossip
+let events = node.drain_events(None)?;
+
+// Or publish a file directly: adds to IPFS, builds NIP-94 event, signs, broadcasts
+let cid = node.publish_file("./photo.png", &sk, None, None)?;
+
+node.stop()?;
+```
+
+| Method | Description |
+|--------|-------------|
+| `HybridNode::start(path, online)` | Starts both IPFS node and libp2p host. Auto-initialises repo if missing. |
+| `node.broadcast_event(event, relay, topic)` | Verifies event, publishes to relay (if given) and GossipSub. |
+| `node.drain_events(relay_sub)` | Merges events from relay subscription and GossipSub; deduplicates by event `id`. |
+| `node.publish_file(path, sk, relay, topic)` | Adds file to IPFS, constructs NIP-94 event, signs, broadcasts. Returns CID. |
+| `node.stop()` | Shuts down both subsystems and consumes the handle. |
 
 ## Memory Safety
 

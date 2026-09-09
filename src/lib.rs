@@ -19,11 +19,13 @@ mod error;
 mod ffi;
 pub mod hybrid;
 pub mod nostr_url;
+pub mod p2p_messages;
 
 pub use error::Error;
 pub use ffi::version;
 pub use hybrid::HybridNode;
 pub use nostr_url::NostrUrl;
+pub use p2p_messages::HybridMessage;
 
 use std::path::Path;
 

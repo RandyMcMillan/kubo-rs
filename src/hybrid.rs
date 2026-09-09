@@ -113,6 +113,24 @@ impl HybridNode {
         Ok(events)
     }
 
+    /// Drain events and filter by Nostr kind.
+    ///
+    /// This is a convenience wrapper around `drain_events` that filters
+    /// the merged relay + gossip feed by event kind. Useful for routing
+    /// NIP-94 files, NIP-34 repos/patches/issues to separate UI views.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying drain operation fails.
+    pub fn drain_by_kind(
+        &self,
+        relay_sub_handle: Option<u64>,
+        kind: u16,
+    ) -> Result<Vec<String>, Error> {
+        let all = self.drain_events(relay_sub_handle)?;
+        Ok(crate::p2p_messages::filter_by_kind(all, kind))
+    }
+
     /// Add a file to IPFS, construct a NIP-94 event, sign it, and broadcast.
     ///
     /// Returns the CID of the added file.

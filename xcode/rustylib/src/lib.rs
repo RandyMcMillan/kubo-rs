@@ -252,6 +252,13 @@ pub fn hybrid_drain_events(relay_sub_handle: Option<u64>) -> Vec<String> {
 }
 
 #[uniffi::export]
+pub fn hybrid_drain_by_kind(relay_sub_handle: Option<u64>, kind: u16) -> Vec<String> {
+    hybrid_with(|node| node.drain_by_kind(relay_sub_handle, kind).ok())
+        .flatten()
+        .unwrap_or_default()
+}
+
+#[uniffi::export]
 pub fn hybrid_publish_file(
     file_path: &str,
     secret_key: &str,
@@ -350,6 +357,113 @@ pub fn hybrid_publish_issue(
     })
     .flatten()
     .unwrap_or_default()
+}
+
+// ---------------------------------------------------------------------------
+// IPFS Node API (via HybridNode singleton)
+// ---------------------------------------------------------------------------
+
+#[uniffi::export]
+pub fn ipfs_add(data: Vec<u8>) -> String {
+    hybrid_with(|node| node.ipfs.add_bytes(&data).ok())
+        .flatten()
+        .unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn ipfs_cat(cid: &str) -> Vec<u8> {
+    hybrid_with(|node| node.ipfs.cat(cid).ok())
+        .flatten()
+        .unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn ipfs_pin_add(cid: &str, recursive: bool) -> bool {
+    hybrid_with(|node| node.ipfs.pin_add(cid, recursive).is_ok())
+        .unwrap_or(false)
+}
+
+#[uniffi::export]
+pub fn ipfs_pin_rm(cid: &str, recursive: bool) -> bool {
+    hybrid_with(|node| node.ipfs.pin_rm(cid, recursive).is_ok())
+        .unwrap_or(false)
+}
+
+#[uniffi::export]
+pub fn ipfs_pin_ls() -> Vec<String> {
+    hybrid_with(|node| {
+        node.ipfs
+            .pin_ls()
+            .map(|pins| pins.into_iter().map(|(path, _typ)| path).collect())
+            .ok()
+    })
+    .flatten()
+    .unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn ipfs_block_put(data: Vec<u8>) -> String {
+    hybrid_with(|node| node.ipfs.block_put(&data).ok())
+        .flatten()
+        .unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn ipfs_block_get(cid: &str) -> Vec<u8> {
+    hybrid_with(|node| node.ipfs.block_get(cid).ok())
+        .flatten()
+        .unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn ipfs_block_stat(cid: &str) -> u64 {
+    hybrid_with(|node| node.ipfs.block_stat(cid).ok())
+        .flatten()
+        .map(|s| s as u64)
+        .unwrap_or(0)
+}
+
+#[uniffi::export]
+pub fn ipfs_dht_findpeer(peer_id: &str) -> Vec<String> {
+    hybrid_with(|node| {
+        node.ipfs
+            .dht_findpeer(peer_id)
+            .map(|(_id, addrs)| addrs)
+            .ok()
+    })
+    .flatten()
+    .unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn ipfs_dht_findprovs(cid: &str) -> Vec<String> {
+    hybrid_with(|node| {
+        node.ipfs
+            .dht_findprovs(cid)
+            .map(|provs| {
+                provs
+                    .into_iter()
+                    .map(|(id, addrs)| format!("{}: {}", id, addrs.join(", ")))
+                    .collect()
+            })
+            .ok()
+    })
+    .flatten()
+    .unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn ipfs_name_publish(cid: &str, lifetime_sec: i64) -> String {
+    hybrid_with(|node| node.ipfs.name_publish(cid, lifetime_sec).ok())
+        .flatten()
+        .unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn ipfs_name_resolve(name: &str) -> String {
+    hybrid_with(|node| node.ipfs.name_resolve(name).ok())
+        .flatten()
+        .unwrap_or_default()
 }
 
 // ---------------------------------------------------------------------------

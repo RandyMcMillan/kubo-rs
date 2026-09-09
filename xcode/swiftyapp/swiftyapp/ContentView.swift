@@ -600,6 +600,9 @@ extension PeerNetworkStore: MCSessionDelegate {
 struct ContentView: View {
     @StateObject private var store = DashboardStore()
     @StateObject private var peers = PeerNetworkStore()
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    private var isCompact: Bool { horizontalSizeClass == .compact }
 
     var body: some View {
         NavigationSplitView {
@@ -608,7 +611,6 @@ struct ContentView: View {
             detail
         }
         .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 1120, minHeight: 760)
         .background(backgroundGradient.ignoresSafeArea())
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -699,7 +701,11 @@ struct ContentView: View {
 
     private var heroCard: some View {
         DashboardCard {
-            HStack(alignment: .top, spacing: 20) {
+            let layout = isCompact
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 16))
+                : AnyLayout(HStackLayout(alignment: .top, spacing: 20))
+
+            layout {
                 ZStack {
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
                         .fill(
@@ -725,14 +731,16 @@ struct ContentView: View {
                     Text("A desktop-style control surface for kubo-rs, inspired by the IPFS Desktop layout.")
                         .foregroundStyle(.secondary)
 
-                    HStack(spacing: 12) {
+                    FlowLayout(spacing: 12) {
                         MetricPill(title: "Version", value: store.snapshot.version, symbol: "tag")
                         MetricPill(title: "Peer ID", value: shortPeerID(store.snapshot.peerID), symbol: "person.crop.circle")
                         MetricPill(title: "CID", value: shortCID(store.snapshot.cid), symbol: "link")
                     }
                 }
 
-                Spacer(minLength: 0)
+                if !isCompact {
+                    Spacer(minLength: 0)
+                }
             }
         }
     }
@@ -1060,6 +1068,49 @@ struct ContentView: View {
     private func shortCID(_ cid: String) -> String {
         guard cid.count > 18 else { return cid }
         return "\(cid.prefix(10))…\(cid.suffix(6))"
+    }
+}
+
+private struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let result = FlowResult(in: proposal.width ?? 0, subviews: subviews, spacing: spacing)
+        return result.size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let result = FlowResult(in: bounds.width, subviews: subviews, spacing: spacing)
+        for (index, subview) in subviews.enumerated() {
+            subview.place(at: CGPoint(x: bounds.minX + result.positions[index].x,
+                                      y: bounds.minY + result.positions[index].y),
+                         proposal: .unspecified)
+        }
+    }
+
+    private struct FlowResult {
+        var size: CGSize = .zero
+        var positions: [CGPoint] = []
+
+        init(in maxWidth: CGFloat, subviews: Subviews, spacing: CGFloat) {
+            var x: CGFloat = 0
+            var y: CGFloat = 0
+            var lineHeight: CGFloat = 0
+
+            for subview in subviews {
+                let size = subview.sizeThatFits(.unspecified)
+                if x + size.width > maxWidth && x > 0 {
+                    x = 0
+                    y += lineHeight + spacing
+                    lineHeight = 0
+                }
+                positions.append(CGPoint(x: x, y: y))
+                lineHeight = max(lineHeight, size.height)
+                x += size.width + spacing
+            }
+
+            self.size = CGSize(width: maxWidth, height: y + lineHeight)
+        }
     }
 }
 

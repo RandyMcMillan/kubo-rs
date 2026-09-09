@@ -12,7 +12,6 @@ struct swiftyappApp: App {
     var body: some Scene {
         return WindowGroup {
             ContentView()
-                .frame(minWidth: 1120, minHeight: 760)
         }
     }
 }

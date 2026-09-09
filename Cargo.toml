@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "xcode/rustylib", "examples/wasm-dashboard", "examples/website", "examples/shared"]
+members = [".", "xcode/rustylib", "examples/wasm-dashboard", "examples/website", "examples/shared", "examples/wasm-hybrid"]
 resolver = "3"
 
 [workspace.package]

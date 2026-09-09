@@ -10,6 +10,21 @@ uniffi::setup_scaffolding!();
 static P2P_HOST: Mutex<Option<kubo_rs::Host>> = Mutex::new(None);
 static P2P_LAST_ERROR: Mutex<String> = Mutex::new(String::new());
 
+static HYBRID_NODE: Mutex<Option<kubo_rs::HybridNode>> = Mutex::new(None);
+static HYBRID_LAST_ERROR: Mutex<String> = Mutex::new(String::new());
+
+fn set_hybrid_error(msg: &str) {
+    if let Ok(mut last) = HYBRID_LAST_ERROR.lock() {
+        *last = msg.to_string();
+    }
+}
+
+fn hybrid_with<R>(f: impl FnOnce(&kubo_rs::HybridNode) -> R) -> Option<R> {
+    let guard = HYBRID_NODE.lock().ok()?;
+    let node = guard.as_ref()?;
+    Some(f(node))
+}
+
 fn demo_repo_path() -> PathBuf {
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -148,6 +163,162 @@ pub fn p2p_gossip_drain() -> Vec<String> {
     p2p_host(|host| host.gossip_drain().ok())
         .flatten()
         .unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn p2p_gossip_join(topic: &str) -> bool {
+    p2p_host(|host| host.gossip_join(topic).is_ok()).unwrap_or(false)
+}
+
+#[uniffi::export]
+pub fn p2p_gossip_leave(topic: &str) -> bool {
+    p2p_host(|host| host.gossip_leave(topic).is_ok()).unwrap_or(false)
+}
+
+#[uniffi::export]
+pub fn p2p_gossip_publish_to(topic: &str, message: &str) -> bool {
+    p2p_host(|host| host.gossip_publish_to(topic, message).is_ok()).unwrap_or(false)
+}
+
+// ---------------------------------------------------------------------------
+// HybridNode
+// ---------------------------------------------------------------------------
+
+#[uniffi::export]
+pub fn hybrid_start(online: bool) -> bool {
+    let repo_path = demo_repo_path();
+    match kubo_rs::HybridNode::start(&repo_path, online) {
+        Ok(node) => {
+            if let Ok(mut guard) = HYBRID_NODE.lock() {
+                *guard = Some(node);
+            }
+            true
+        }
+        Err(err) => {
+            set_hybrid_error(&format!("{err}"));
+            false
+        }
+    }
+}
+
+#[uniffi::export]
+pub fn hybrid_stop() -> bool {
+    let mut guard = match HYBRID_NODE.lock() {
+        Ok(g) => g,
+        Err(_) => return false,
+    };
+    if let Some(node) = guard.take() {
+        if let Err(err) = node.stop() {
+            set_hybrid_error(&format!("{err}"));
+            return false;
+        }
+    }
+    true
+}
+
+#[uniffi::export]
+pub fn hybrid_ipfs_peer_id() -> String {
+    hybrid_with(|node| node.ipfs.peer_id().ok())
+        .flatten()
+        .unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn hybrid_p2p_peer_id() -> String {
+    hybrid_with(|node| node.p2p.peer_id().ok())
+        .flatten()
+        .unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn hybrid_broadcast_event(
+    event_json: &str,
+    relay_handle: Option<u64>,
+    gossip_topic: Option<String>,
+) -> bool {
+    hybrid_with(|node| {
+        let topic = gossip_topic.as_deref();
+        node.broadcast_event(event_json, relay_handle, topic)
+            .is_ok()
+    })
+    .unwrap_or(false)
+}
+
+#[uniffi::export]
+pub fn hybrid_drain_events(relay_sub_handle: Option<u64>) -> Vec<String> {
+    hybrid_with(|node| node.drain_events(relay_sub_handle).ok())
+        .flatten()
+        .unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn hybrid_publish_file(
+    file_path: &str,
+    secret_key: &str,
+    relay_handle: Option<u64>,
+    gossip_topic: Option<String>,
+) -> String {
+    hybrid_with(|node| {
+        let topic = gossip_topic.as_deref();
+        node.publish_file(file_path, secret_key, relay_handle, topic)
+            .ok()
+    })
+    .flatten()
+    .unwrap_or_default()
+}
+
+// ---------------------------------------------------------------------------
+// Nostr helpers
+// ---------------------------------------------------------------------------
+
+#[uniffi::export]
+pub fn nostr_generate_key() -> String {
+    kubo_rs::nostr_generate_key().unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn nostr_get_public_key(sk: &str) -> String {
+    kubo_rs::nostr_get_public_key(sk).unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn nostr_event_sign(sk: &str, content: &str, kind: i32) -> String {
+    kubo_rs::nostr_event_sign(sk, content, kind).unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn nostr_event_verify(event_json: &str) -> bool {
+    kubo_rs::nostr_event_verify(event_json).unwrap_or(false)
+}
+
+#[uniffi::export]
+pub fn nostr_relay_connect(url: &str) -> u64 {
+    kubo_rs::nostr_relay_connect(url).unwrap_or(0)
+}
+
+#[uniffi::export]
+pub fn nostr_relay_close(handle: u64) -> bool {
+    kubo_rs::nostr_relay_close(handle).is_ok()
+}
+
+#[uniffi::export]
+pub fn nostr_relay_publish(handle: u64, event_json: &str) -> bool {
+    kubo_rs::nostr_relay_publish(handle, event_json).is_ok()
+}
+
+#[uniffi::export]
+pub fn nostr_relay_subscribe(handle: u64, filter_json: &str) -> u64 {
+    kubo_rs::nostr_relay_subscribe(handle, filter_json).unwrap_or(0)
+}
+
+#[uniffi::export]
+pub fn nostr_relay_drain(sub_handle: u64) -> Option<String> {
+    kubo_rs::nostr_relay_drain(sub_handle).ok().flatten()
+}
+
+#[uniffi::export]
+pub fn nostr_relay_unsubscribe(sub_handle: u64) -> bool {
+    kubo_rs::nostr_relay_unsubscribe(sub_handle).is_ok()
 }
 
 #[cfg(test)]

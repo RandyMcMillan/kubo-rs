@@ -35,12 +35,29 @@ struct NodeInfo {
     api_base: String,
 }
 
-fn api_base() -> String {
-    web_sys::window()
-        .and_then(|w| w.location().href().ok())
-        .and_then(|href| web_sys::Url::new(&href).ok())
-        .and_then(|url| url.search_params().get("api"))
-        .unwrap_or_else(|| "http://127.0.0.1:5001".to_string())
+fn api_base() -> Option<String> {
+    let href = web_sys::window()?.location().href().ok()?;
+    let url = web_sys::Url::new(&href).ok()?;
+    if let Some(api) = url.search_params().get("api") {
+        return Some(api);
+    }
+    // Default: localhost HTTP API (only works when page is served over HTTP)
+    let protocol = url.protocol();
+    if protocol == "https:" {
+        None // HTTPS page cannot call HTTP localhost; use public gateway instead
+    } else {
+        Some("http://127.0.0.1:5001".to_string())
+    }
+}
+
+async fn fetch_ipfs_via_gateway(cid: &str) -> Result<String, JsValue> {
+    let window = web_sys::window().ok_or("no window")?;
+    let url = format!("https://ipfs.io/ipfs/{}", cid);
+    let resp_value = JsFuture::from(window.fetch_with_str(&url)).await?;
+    let resp: web_sys::Response = resp_value.dyn_into()?;
+    let text = JsFuture::from(resp.text()?).await?;
+    text.as_string()
+        .ok_or_else(|| JsValue::from_str("invalid text"))
 }
 
 struct State {
@@ -93,15 +110,21 @@ fn main() -> io::Result<()> {
 
     let mut state = State::default();
     let api_base = api_base();
-    state.info.borrow_mut().api_base = api_base.clone();
-
-    let info_poll = state.info.clone();
-    spawn_local(async move {
-        let mut interval = IntervalStream::new(2000);
-        while interval.next().await.is_some() {
-            poll_api(&info_poll, &api_base).await;
-        }
-    });
+    if let Some(ref base) = api_base {
+        state.info.borrow_mut().api_base = base.clone();
+        let info_poll = state.info.clone();
+        let base = base.clone();
+        spawn_local(async move {
+            let mut interval = IntervalStream::new(2000);
+            while interval.next().await.is_some() {
+                poll_api(&info_poll, &base).await;
+            }
+        });
+    } else {
+        let mut i = state.info.borrow_mut();
+        i.api_base = "https://ipfs.io (public gateway)".to_string();
+        i.error = Some("HTTPS page: use ?api= URL param to set a Kubo RPC endpoint, or fetch via public gateway".to_string());
+    }
 
     terminal.on_key_event(move |key| handle_key_event(key))?;
     terminal.draw_web(move |f| ui(f, &mut state));

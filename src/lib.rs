@@ -385,6 +385,32 @@ impl Host {
         ffi::host_gossip_drain(self.handle)
     }
 
+    /// Drain gossip messages and filter out valid Nostr events.
+    ///
+    /// Each raw gossip message has the format `topic|sender|payload`.
+    /// This method attempts to parse each payload as a Nostr event JSON
+    /// and returns only the payloads that successfully verify.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the queue cannot be read.
+    pub fn gossip_drain_nostr(&self) -> Result<Vec<String>, Error> {
+        let raw = self.gossip_drain()?;
+        let mut events = Vec::new();
+        for msg in raw {
+            // Format: topic|sender|payload
+            let parts: Vec<&str> = msg.splitn(3, '|').collect();
+            if parts.len() != 3 {
+                continue;
+            }
+            let payload = parts[2];
+            if let Ok(true) = ffi::event_verify(payload) {
+                events.push(payload.to_string());
+            }
+        }
+        Ok(events)
+    }
+
     /// Close the host and consume the handle.
     ///
     /// # Errors
@@ -434,6 +460,18 @@ pub fn nostr_get_public_key(sk: &str) -> Result<String, Error> {
 /// Returns an error if signing fails.
 pub fn nostr_event_sign(sk: &str, content: &str, kind: i32) -> Result<String, Error> {
     ffi::event_sign(sk, content, kind)
+}
+
+/// Sign a Nostr event with custom tags and return the JSON.
+///
+/// `tags_json` must be a JSON array of arrays, e.g.
+/// `[["d","my-repo"],["clone","https://example.com/repo.git"]]`.
+///
+/// # Errors
+///
+/// Returns an error if tag parsing or signing fails.
+pub fn nostr_event_sign_with_tags(sk: &str, content: &str, kind: i32, tags_json: &str) -> Result<String, Error> {
+    ffi::event_sign_with_tags(sk, content, kind, tags_json)
 }
 
 /// Verify a Nostr event JSON string.
@@ -596,6 +634,109 @@ pub fn nostr_relay_drain(sub_handle: u64) -> Result<Option<String>, Error> {
 /// Returns an error if the subscription handle is invalid.
 pub fn nostr_relay_unsubscribe(sub_handle: u64) -> Result<(), Error> {
     ffi::relay_unsubscribe(sub_handle)
+}
+
+// ---------------------------------------------------------------------------
+// NIP-34 (Git over Nostr) helpers
+// ---------------------------------------------------------------------------
+
+impl Repository {
+    /// Create a NIP-34 repository announcement event (kind 30617).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if tag construction or signing fails.
+    pub fn create_nip34_announcement(
+        &self,
+        repo_id: &str,
+        name: &str,
+        description: &str,
+        clone_urls: &[String],
+        secret_key: &str,
+    ) -> Result<String, Error> {
+        let mut tags: Vec<Vec<String>> = vec![
+            vec!["d".to_string(), repo_id.to_string()],
+            vec!["name".to_string(), name.to_string()],
+            vec!["description".to_string(), description.to_string()],
+        ];
+        for url in clone_urls {
+            tags.push(vec!["clone".to_string(), url.clone()]);
+        }
+        let tags_json = serde_json::to_string(&tags)
+            .map_err(|e| Error::Go(format!("serialize tags: {e}")))?;
+        nostr_event_sign_with_tags(secret_key, "", 30617, &tags_json)
+    }
+
+    /// Create a NIP-34 repository state event (kind 30618).
+    ///
+    /// Reads HEAD and branch refs from the repository and constructs
+    /// a state event referencing the repo via its `d` tag.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if repo reading or signing fails.
+    pub fn create_nip34_state(
+        &self,
+        repo_id: &str,
+        secret_key: &str,
+    ) -> Result<String, Error> {
+        let head = self.head()?;
+        let branches = self.branches()?;
+
+        let mut tags: Vec<Vec<String>> = vec![
+            vec!["d".to_string(), repo_id.to_string()],
+            vec!["HEAD".to_string(), format!("ref: refs/heads/main")],
+        ];
+
+        for branch in branches {
+            // branch name from "refs/heads/main" -> "refs/heads/main"
+            tags.push(vec![branch.clone(), head.clone()]);
+        }
+
+        let tags_json = serde_json::to_string(&tags)
+            .map_err(|e| Error::Go(format!("serialize tags: {e}")))?;
+        nostr_event_sign_with_tags(secret_key, "", 30618, &tags_json)
+    }
+}
+
+/// Create a NIP-34 patch event (kind 1617).
+///
+/// `repo_ref` is the root repo reference: `30617:<pubkey>:<repo-id>`.
+///
+/// # Errors
+///
+/// Returns an error if tag construction or signing fails.
+pub fn nip34_patch(
+    secret_key: &str,
+    repo_ref: &str,
+    diff: &str,
+) -> Result<String, Error> {
+    let tags: Vec<Vec<String>> = vec![
+        vec!["a".to_string(), repo_ref.to_string()],
+    ];
+    let tags_json = serde_json::to_string(&tags)
+        .map_err(|e| Error::Go(format!("serialize tags: {e}")))?;
+    nostr_event_sign_with_tags(secret_key, diff, 1617, &tags_json)
+}
+
+/// Create a NIP-34 issue event (kind 1621).
+///
+/// # Errors
+///
+/// Returns an error if tag construction or signing fails.
+pub fn nip34_issue(
+    secret_key: &str,
+    repo_ref: &str,
+    title: &str,
+    body: &str,
+) -> Result<String, Error> {
+    let content = format!("{}\n\n{}", title, body);
+    let tags: Vec<Vec<String>> = vec![
+        vec!["a".to_string(), repo_ref.to_string()],
+    ];
+    let tags_json = serde_json::to_string(&tags)
+        .map_err(|e| Error::Go(format!("serialize tags: {e}")))?;
+    nostr_event_sign_with_tags(secret_key, &content, 1621, &tags_json)
 }
 
 // ---------------------------------------------------------------------------
@@ -1221,5 +1362,67 @@ mod tests {
         git_init(path.to_str().unwrap(), true).expect("git init bare should succeed");
         // In a bare repo the path itself is the git dir.
         assert!(path.join("HEAD").exists(), "bare repo should have HEAD");
+    }
+
+    #[test]
+    fn test_nostr_event_sign_with_tags() {
+        let sk = nostr_generate_key().expect("generate key should succeed");
+        let tags_json = r#"[["d","my-repo"],["clone","https://example.com/repo.git"]]"#;
+        let event = nostr_event_sign_with_tags(&sk, "hello tagged", 1, tags_json)
+            .expect("sign with tags should succeed");
+
+        assert!(event.contains("hello tagged"), "event should contain content");
+        assert!(event.contains("my-repo"), "event should contain tag value");
+        assert!(event.contains("clone"), "event should contain tag name");
+
+        let valid = nostr_event_verify(&event).expect("verify should succeed");
+        assert!(valid, "tagged event signature should be valid");
+    }
+
+    #[test]
+    fn test_nip34_repo_announcement() {
+        let path = tmp_dir("nip34_repo").join("repo");
+        git_init(path.to_str().unwrap(), false).expect("git init should succeed");
+
+        let repo = Repository::open(&path).expect("open should succeed");
+        let sk = nostr_generate_key().expect("generate key should succeed");
+
+        let event = repo
+            .create_nip34_announcement(
+                "my-repo",
+                "My Repository",
+                "A test repo for NIP-34",
+                &["https://example.com/repo.git".to_string()],
+                &sk,
+            )
+            .expect("create announcement should succeed");
+
+        assert!(event.contains("30617"), "event should be kind 30617");
+        assert!(
+            event.contains("My Repository"),
+            "event should contain repo name"
+        );
+
+        let valid = nostr_event_verify(&event).expect("verify should succeed");
+        assert!(valid, "NIP-34 announcement signature should be valid");
+
+        repo.close().expect("close should succeed");
+    }
+
+    #[test]
+    fn test_nip34_patch() {
+        let sk = nostr_generate_key().expect("generate key should succeed");
+        let event = nip34_patch(
+            &sk,
+            "30617:abcdef1234567890abcdef1234567890abcdef1234567890abcdef12345678:my-repo",
+            "diff --git a/file.txt b/file.txt\n--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-old\n+new\n",
+        )
+        .expect("create patch should succeed");
+
+        assert!(event.contains("1617"), "event should be kind 1617");
+        assert!(event.contains("diff --git"), "event should contain patch");
+
+        let valid = nostr_event_verify(&event).expect("verify should succeed");
+        assert!(valid, "NIP-34 patch signature should be valid");
     }
 }

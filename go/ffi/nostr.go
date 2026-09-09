@@ -64,6 +64,36 @@ func kubo_nostr_event_sign(sk *C.char, content *C.char, kind C.int) *C.char {
 	return C.CString(string(jsonBytes))
 }
 
+//export kubo_nostr_event_sign_with_tags
+func kubo_nostr_event_sign_with_tags(sk *C.char, content *C.char, kind C.int, tagsJSON *C.char) *C.char {
+	var tags nostr.Tags
+	if err := json.Unmarshal([]byte(C.GoString(tagsJSON)), &tags); err != nil {
+		setError(fmt.Errorf("unmarshal tags: %w", err))
+		return nil
+	}
+
+	evt := nostr.Event{
+		CreatedAt: nostr.Now(),
+		Kind:      int(kind),
+		Content:   C.GoString(content),
+		Tags:      tags,
+	}
+
+	if err := evt.Sign(C.GoString(sk)); err != nil {
+		setError(fmt.Errorf("sign event: %w", err))
+		return nil
+	}
+
+	jsonBytes, err := json.Marshal(evt)
+	if err != nil {
+		setError(fmt.Errorf("marshal event: %w", err))
+		return nil
+	}
+
+	setError(nil)
+	return C.CString(string(jsonBytes))
+}
+
 //export kubo_nostr_event_verify
 func kubo_nostr_event_verify(jsonStr *C.char) int64 {
 	var evt nostr.Event

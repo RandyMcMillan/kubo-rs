@@ -62,6 +62,12 @@ unsafe extern "C" {
     fn kubo_nostr_generate_key() -> *mut c_char;
     fn kubo_nostr_get_public_key(sk: *const c_char) -> *mut c_char;
     fn kubo_nostr_event_sign(sk: *const c_char, content: *const c_char, kind: i32) -> *mut c_char;
+    fn kubo_nostr_event_sign_with_tags(
+        sk: *const c_char,
+        content: *const c_char,
+        kind: i32,
+        tags_json: *const c_char,
+    ) -> *mut c_char;
     fn kubo_nostr_event_verify(json_str: *const c_char) -> i64;
     fn kubo_nostr_nip19_encode_pubkey(hex: *const c_char) -> *mut c_char;
     fn kubo_nostr_nip19_decode_pubkey(bech32: *const c_char) -> *mut c_char;
@@ -467,6 +473,21 @@ pub fn event_sign(sk: &str, content: &str, kind: i32) -> Result<String, Error> {
             c_sk.as_ptr(),
             c_content.as_ptr(),
             kind,
+        ))
+        .ok_or_else(|| Error::Go(last_error()))
+    }
+}
+
+pub fn event_sign_with_tags(sk: &str, content: &str, kind: i32, tags_json: &str) -> Result<String, Error> {
+    let c_sk = CString::new(sk)?;
+    let c_content = CString::new(content)?;
+    let c_tags = CString::new(tags_json)?;
+    unsafe {
+        ptr_to_string(kubo_nostr_event_sign_with_tags(
+            c_sk.as_ptr(),
+            c_content.as_ptr(),
+            kind,
+            c_tags.as_ptr(),
         ))
         .ok_or_else(|| Error::Go(last_error()))
     }

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hybrid Protocol — WASI Demo</title>
+  <style>
+    body { background: #002b36; color: #839496; font-family: monospace; margin: 2rem; }
+    pre { background: #073642; padding: 1rem; border-radius: 4px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h2>wasm-hybrid-wasi</h2>
+  <p>This example compiles the native Rust <code>nostr</code> crate (which includes the C <code>secp256k1</code> library) to <code>wasm32-wasip1</code> and runs it in the browser via a WASI shim.</p>
+
+  <h3>Prerequisites</h3>
+  <pre>rustup target add wasm32-wasip1
+# Install wasi-sdk (required for C compilation):
+# macOS: download from https://github.com/WebAssembly/wasi-sdk/releases
+# Linux: apt install wasi-sdk  (or download release tarball)
+# Then set: export WASI_SDK_PATH=/path/to/wasi-sdk</pre>
+
+  <h3>Build</h3>
+  <pre>cd examples/wasm-hybrid-wasi
+cargo build --target wasm32-wasip1 --release</pre>
+
+  <h3>Run (CLI)</h3>
+  <pre>wasmtime target/wasm32-wasip1/release/wasm-hybrid-wasi.wasm
+# or
+wasmer target/wasm32-wasip1/release/wasm-hybrid-wasi.wasm</pre>
+
+  <h3>Run (Browser)</h3>
+  <p>Open the browser console to see output.</p>
+  <pre id="output">Loading WASI module...</pre>
+
+  <script type="module">
+    import { WASI, File } from "https://cdn.jsdelivr.net/npm/@bjorn3/browser_wasi_shim@0.4.0/+esm";
+
+    async function run() {
+      const output = document.getElementById("output");
+      try {
+        const wasi = new WASI(
+          ["wasm-hybrid-wasi"],
+          [],
+          [
+            new File([]), // stdin
+            new File([]), // stdout
+            new File([]), // stderr
+          ]
+        );
+        const wasm = await WebAssembly.instantiateStreaming(
+          fetch("./target/wasm32-wasip1/release/wasm-hybrid-wasi.wasm"),
+          { wasi_snapshot_preview1: wasi.wasiImport }
+        );
+        wasi.start(wasm);
+        output.textContent = new TextDecoder().decode(wasi.fds[1].file.data);
+      } catch (e) {
+        output.textContent = "Error: " + e.message + "\n\nBuild the WASM module first (see instructions above).";
+      }
+    }
+    run();
+  </script>
+</body>
+</html>

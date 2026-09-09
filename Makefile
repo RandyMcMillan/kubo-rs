@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: all build build-bin build-go build-ffi test test-cli test-ffi test-ffi-c test-ffi-rust test-all bench fmt clippy clean clean-all check example p2p scripts cross-test run-wasm-dashboard build-wasm-dashboard-release website run-website build-website-release wasm-p2p run-wasm-p2p build-wasm-p2p-release
+.PHONY: all build build-bin build-go build-ffi test test-cli test-ffi test-ffi-c test-ffi-rust test-all bench fmt clippy clean clean-all check example p2p scripts cross-test run-wasm-dashboard build-wasm-dashboard-release website run-website build-website-release wasm-p2p run-wasm-p2p build-wasm-p2p-release wasm-hybrid-wasi run-wasm-hybrid-wasi-cli
 
 all: fmt clippy test
 
@@ -127,6 +127,18 @@ build-wasm-p2p-release:
 	pkill -f "trunk serve" 2>/dev/null || true
 	cd examples/wasm-p2p && env -u NO_COLOR trunk build --public-url /kubo-rs/
 
+wasm-hybrid-wasi:
+	@echo "Building wasm-hybrid-wasi requires wasi-sdk."
+	@echo "Install from https://github.com/WebAssembly/wasi-sdk/releases"
+	@echo "Then: export WASI_SDK_PATH=/opt/wasi-sdk"
+	@echo ""
+	@rustup target list --installed | grep -q wasm32-wasip1 || rustup target add wasm32-wasip1
+	cd examples/wasm-hybrid-wasi && cargo build --target wasm32-wasip1 --release
+
+run-wasm-hybrid-wasi-cli: wasm-hybrid-wasi
+	@echo "Running with wasmtime (install from https://wasmtime.dev):"
+	wasmtime examples/wasm-hybrid-wasi/target/wasm32-wasip1/release/wasm-hybrid-wasi.wasm
+
 # Cross-testing
 scripts:
 	@echo "Run one of:"
@@ -169,5 +181,7 @@ help:
 	@echo "  wasm-p2p                  - Build and serve the WASM libp2p WebRTC example (port 8084)"
 	@echo "  run-wasm-p2p              - Alias for wasm-p2p"
 	@echo "  build-wasm-p2p-release    - Build WASM libp2p example for GitHub Pages deployment"
+	@echo "  wasm-hybrid-wasi          - Build wasm-hybrid-wasi (requires wasi-sdk)"
+	@echo "  run-wasm-hybrid-wasi-cli  - Run wasm-hybrid-wasi with wasmtime"
 	@echo "  cross-test     - Run cross-language alignment tests"
 	@echo "  scripts        - Show available test scripts"

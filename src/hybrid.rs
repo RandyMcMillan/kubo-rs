@@ -84,13 +84,18 @@ impl HybridNode {
         let mut events = Vec::new();
         let mut seen_ids = std::collections::HashSet::new();
 
-        // Drain from relay subscription
+        // Drain from relay subscription (non-blocking, loop while events available)
         if let Some(sub) = relay_sub_handle {
-            if let Some(evt) = nostr_relay_drain(sub)? {
-                if let Some(id) = extract_event_id(&evt) {
-                    seen_ids.insert(id);
+            loop {
+                match nostr_relay_drain(sub)? {
+                    Some(evt) => {
+                        if let Some(id) = extract_event_id(&evt) {
+                            seen_ids.insert(id);
+                        }
+                        events.push(evt);
+                    }
+                    None => break,
                 }
-                events.push(evt);
             }
         }
 

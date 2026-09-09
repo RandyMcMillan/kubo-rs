@@ -1,6 +1,7 @@
 [workspace]
 members = [".", "xcode/rustylib"]
 resolver = "3"
+exclude = ["examples/wasm-dashboard", "examples/website", "examples/shared"]
 
 [workspace.package]
 version = "0.8.0"

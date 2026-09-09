@@ -293,3 +293,5 @@ fn cli_p2p_peer_id_and_listen() {
     let addrs = String::from_utf8_lossy(&listen.stdout);
     assert!(!addrs.trim().is_empty(), "listen addrs should not be empty");
 }
+
+

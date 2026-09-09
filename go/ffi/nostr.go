@@ -255,6 +255,12 @@ var (
 	nostrRelayNext   uint64 = 1
 )
 
+var (
+	nostrSubsMu    sync.RWMutex
+	nostrSubs      = make(map[uint64]*nostr.Subscription)
+	nostrSubNext   uint64 = 1
+)
+
 //export kubo_nostr_relay_connect
 func kubo_nostr_relay_connect(url *C.char) uint64 {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -294,6 +300,94 @@ func kubo_nostr_relay_close(handle uint64) int64 {
 	}
 
 	relay.Close()
+	setError(nil)
+	return 0
+}
+
+//export kubo_nostr_relay_subscribe
+func kubo_nostr_relay_subscribe(handle uint64, filterJSON *C.char) uint64 {
+	nostrRelaysMu.RLock()
+	relay, ok := nostrRelays[handle]
+	nostrRelaysMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid relay handle %d", handle))
+		return 0
+	}
+
+	var filter nostr.Filter
+	if err := json.Unmarshal([]byte(C.GoString(filterJSON)), &filter); err != nil {
+		setError(fmt.Errorf("unmarshal filter: %w", err))
+		return 0
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	sub, err := relay.Subscribe(ctx, nostr.Filters{filter})
+	if err != nil {
+		setError(fmt.Errorf("relay subscribe: %w", err))
+		return 0
+	}
+
+	nostrSubsMu.Lock()
+	subHandle := nostrSubNext
+	nostrSubNext++
+	nostrSubs[subHandle] = sub
+	nostrSubsMu.Unlock()
+
+	setError(nil)
+	return subHandle
+}
+
+//export kubo_nostr_relay_drain
+func kubo_nostr_relay_drain(subHandle uint64) *C.char {
+	nostrSubsMu.RLock()
+	sub, ok := nostrSubs[subHandle]
+	nostrSubsMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid subscription handle %d", subHandle))
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	select {
+	case evt := <-sub.Events:
+		if evt == nil {
+			setError(nil)
+			return nil
+		}
+		jsonBytes, err := json.Marshal(evt)
+		if err != nil {
+			setError(fmt.Errorf("marshal event: %w", err))
+			return nil
+		}
+		setError(nil)
+		return C.CString(string(jsonBytes))
+	case <-ctx.Done():
+		setError(nil)
+		return nil
+	}
+}
+
+//export kubo_nostr_relay_unsubscribe
+func kubo_nostr_relay_unsubscribe(subHandle uint64) int64 {
+	nostrSubsMu.Lock()
+	sub, ok := nostrSubs[subHandle]
+	if ok {
+		delete(nostrSubs, subHandle)
+	}
+	nostrSubsMu.Unlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid subscription handle %d", subHandle))
+		return -1
+	}
+
+	sub.Unsub()
 	setError(nil)
 	return 0
 }

@@ -569,6 +569,35 @@ pub fn nostr_relay_publish(handle: u64, event_json: &str) -> Result<(), Error> {
     ffi::relay_publish(handle, event_json)
 }
 
+/// Subscribe to a Nostr relay with a filter and return a subscription handle.
+///
+/// # Errors
+///
+/// Returns an error if the relay handle is invalid or subscription fails.
+pub fn nostr_relay_subscribe(handle: u64, filter_json: &str) -> Result<u64, Error> {
+    ffi::relay_subscribe(handle, filter_json)
+}
+
+/// Drain the next event from a subscription (non-blocking with 3s timeout).
+///
+/// Returns `Ok(None)` if no event is available within the timeout.
+///
+/// # Errors
+///
+/// Returns an error if the subscription handle is invalid.
+pub fn nostr_relay_drain(sub_handle: u64) -> Result<Option<String>, Error> {
+    ffi::relay_drain(sub_handle)
+}
+
+/// Unsubscribe and close a subscription.
+///
+/// # Errors
+///
+/// Returns an error if the subscription handle is invalid.
+pub fn nostr_relay_unsubscribe(sub_handle: u64) -> Result<(), Error> {
+    ffi::relay_unsubscribe(sub_handle)
+}
+
 // ---------------------------------------------------------------------------
 // git
 // ---------------------------------------------------------------------------
@@ -1006,6 +1035,63 @@ mod tests {
         node_b.stop().expect("stop node_b should succeed");
     }
 
+    #[test]
+    #[ignore = "requires DHT bootstrap peers or local network discovery"]
+    fn test_name_publish_resolve() {
+        let repo = tmp_dir("name_publish_resolve").join("repo");
+        init_repo(&repo).expect("init_repo should succeed");
+
+        let node = Node::start(&repo, true).expect("start should succeed");
+        let cid = node.add_bytes(b"name test").expect("add_bytes should succeed");
+
+        let name = node
+            .name_publish(&cid, 60)
+            .expect("name_publish should succeed");
+        assert!(!name.is_empty(), "published name should not be empty");
+
+        let resolved = node
+            .name_resolve(&name)
+            .expect("name_resolve should succeed");
+        assert!(resolved.contains(&cid), "resolved path should contain the cid");
+
+        node.stop().expect("stop should succeed");
+    }
+
+    #[test]
+    #[ignore = "requires DHT bootstrap peers or local network discovery"]
+    fn test_dht_findpeer_local() {
+        let base = tmp_dir("dht_findpeer_local");
+        let repo_a = base.join("repo_a");
+        let repo_b = base.join("repo_b");
+
+        init_repo(&repo_a).expect("init_repo_a should succeed");
+        init_repo(&repo_b).expect("init_repo_b should succeed");
+
+        let node_a = Node::start(&repo_a, true).expect("start node_a should succeed");
+        let node_b = Node::start(&repo_b, true).expect("start node_b should succeed");
+
+        let peer_id_a = node_a.peer_id().expect("peer_id_a should succeed");
+
+        // Connect so each node knows about the other.
+        let addrs_a = node_a
+            .listening_addrs()
+            .expect("listening_addrs_a should succeed");
+        let dial_addr = format!("{}/p2p/{}", addrs_a[0], peer_id_a);
+        node_b
+            .connect(&dial_addr)
+            .expect("connect b->a should succeed");
+
+        // DHT lookup for peer A from node B.
+        let (found_id, found_addrs) = node_b
+            .dht_findpeer(&peer_id_a)
+            .expect("dht_findpeer should succeed");
+        assert_eq!(found_id, peer_id_a, "found peer id should match");
+        assert!(!found_addrs.is_empty(), "found peer should have addresses");
+
+        node_a.stop().expect("stop node_a should succeed");
+        node_b.stop().expect("stop node_b should succeed");
+    }
+
     // -----------------------------------------------------------------------
     // libp2p tests
     // -----------------------------------------------------------------------
@@ -1070,6 +1156,47 @@ mod tests {
             matches!(valid, Ok(false) | Err(_)),
             "invalid event should not verify"
         );
+    }
+
+    #[test]
+    fn test_nostr_relay_subscribe_invalid_handle() {
+        let result = nostr_relay_subscribe(0, r#"{"kinds":[1]}"#);
+        assert!(
+            result.is_err(),
+            "subscribe with invalid handle should fail"
+        );
+    }
+
+    #[test]
+    #[ignore = "requires public Nostr relay (wss://relay.damus.io)"]
+    fn test_nostr_relay_publish_and_drain() {
+        let relay = nostr_relay_connect("wss://relay.damus.io").expect("connect should succeed");
+
+        let sk = nostr_generate_key().expect("generate key should succeed");
+        let event = nostr_event_sign(&sk, "hybrid protocol test", 1).expect("sign should succeed");
+
+        // Subscribe to our own pubkey before publishing.
+        let pk = nostr_get_public_key(&sk).expect("get pubkey should succeed");
+        let filter = format!(r#"{{"kinds":[1],"authors":["{}"],"limit":1}}"#, pk);
+        let sub = nostr_relay_subscribe(relay, &filter).expect("subscribe should succeed");
+
+        // Publish the event.
+        nostr_relay_publish(relay, &event).expect("publish should succeed");
+
+        // Drain until we get it back (max 5 attempts, 3s timeout each).
+        let mut found = false;
+        for _ in 0..5 {
+            if let Some(evt) = nostr_relay_drain(sub).expect("drain should not error") {
+                assert!(evt.contains("hybrid protocol test"), "drained event should match");
+                found = true;
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_secs(1));
+        }
+        assert!(found, "should have received the published event");
+
+        nostr_relay_unsubscribe(sub).expect("unsubscribe should succeed");
+        nostr_relay_close(relay).expect("close should succeed");
     }
 
     // -----------------------------------------------------------------------

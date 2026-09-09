@@ -50,7 +50,7 @@ jobs:
           cd xcode/rustylib
           zip -r rustylib_framework.xcframework.zip rustylib_framework.xcframework
 
-      - name: Build kubo-macos (Mac Catalyst)
+      - name: Build kubo-macos (Designed for iPad)
         run: |
           cd xcode
           xcodebuild \
@@ -58,7 +58,7 @@ jobs:
             -scheme kubo-macos \
             -configuration Release \
             -derivedDataPath .build/kubo-macos \
-            -destination "generic/platform=macOS,variant=Mac Catalyst" \
+            -destination "platform=macOS,variant=Designed for iPad,name=My Mac" \
             ARCHS="$(uname -m)" \
             ONLY_ACTIVE_ARCH=YES \
             CODE_SIGN_IDENTITY="" \

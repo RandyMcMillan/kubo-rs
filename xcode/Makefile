@@ -13,20 +13,20 @@ OBJROOT := $(SYMROOT)/Intermediates.noindex
 HOST_ARCH := $(shell uname -m)
 SIMULATOR_ARCH := $(if $(filter arm64,$(HOST_ARCH)),arm64,x86_64)
 IOS_DESTINATION ?= generic/platform=iOS Simulator
-CATALYST_DESTINATION ?= generic/platform=macOS,variant=Mac Catalyst
-CATALYST_APP_PATH := $(SYMROOT)/$(CONFIGURATION)-maccatalyst/$(APP_NAME)
+MAC_DESTINATION ?= platform=macOS,variant=Designed for iPad,name=My Mac
+MAC_APP_PATH := $(SYMROOT)/$(CONFIGURATION)-iphoneos/$(APP_NAME)
 
 .DEFAULT_GOAL := help
 
-.PHONY: help rust resolve app catalyst install clean
+.PHONY: help rust resolve app mac install clean
 
 help:
 	@printf '%s\n' \
 		'make rust      - build the Rust library, bindings, and XCFramework' \
 		'make resolve   - resolve local Swift package dependencies' \
 		'make app       - build the iOS app for a generic simulator destination' \
-		'make catalyst  - build the app for Mac Catalyst' \
-		'make install   - install the Mac Catalyst app into ~/Applications' \
+		'make mac       - build the app for macOS (Designed for iPad)' \
+		'make install   - install the macOS (Designed for iPad) app into ~/Applications' \
 		'make clean     - clean Rust and Xcode build artifacts'
 
 rust:
@@ -48,7 +48,7 @@ app: rust resolve
 		ONLY_ACTIVE_ARCH=YES \
 		build
 
-catalyst: rust resolve
+mac: rust resolve
 	xcodebuild \
 		-project "$(PROJECT)" \
 		-scheme "$(SCHEME)" \
@@ -56,15 +56,15 @@ catalyst: rust resolve
 		-derivedDataPath "$(DERIVED_DATA)" \
 		SYMROOT="$(SYMROOT)" \
 		OBJROOT="$(OBJROOT)" \
-		-destination "$(CATALYST_DESTINATION)" \
+		-destination "$(MAC_DESTINATION)" \
 		ARCHS="$(HOST_ARCH)" \
 		ONLY_ACTIVE_ARCH=YES \
 		build
 
-install: catalyst
+install: mac
 	mkdir -p "$(INSTALL_DIR)"
 	rm -rf "$(INSTALL_DIR)/$(APP_NAME)"
-	cp -R "$(CATALYST_APP_PATH)" "$(INSTALL_DIR)/$(APP_NAME)"
+	cp -R "$(MAC_APP_PATH)" "$(INSTALL_DIR)/$(APP_NAME)"
 
 clean:
 	cd "$(RUST_CRATE_DIR)" && cargo clean

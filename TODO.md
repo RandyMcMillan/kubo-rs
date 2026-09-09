@@ -2,18 +2,21 @@
 
 ## Context / Handoff Note
 
-**Last session: 2026-09-05** — In progress: adding core IPFS protocol functions (Pin, Swarm disconnect, DHT, Name/IPNS).
+**Last session: 2026-09-09** — Xcode Cloud build tooling, workspace cleanup, and repo hygiene.
 
-**Uncommitted changes** (on `main` working tree):
-- `go/ffi/kubo.go` — 8 new Go FFI exports added
-- `src/ffi.rs` — Rust unsafe bindings + safe wrappers for all 8
-- `src/lib.rs` — `Node` methods added for all 8
-- `scripts/website.sh` + `examples/website/.gitignore` — new website tooling
-- `Makefile` — `website`, `run-website`, `build-website-release` targets
-- `.github/workflows/gh-pages.yml` — website build step added
-- `scripts/wasm-dashboard.sh` + `scripts/website.sh` — auto-port-selection + CORS restart fixes
+**Completed this session:**
+- `ci_scripts/ci_post_clone.sh` + `ci_scripts/ci_pre_xcodebuild.sh` — Xcode Cloud installs Go/Rust, pre-builds XCFramework before SPM resolution
+- `xcode/build.sh` + `xcode/Makefile` — ad-hoc signing on `make install`, fixed nested xcodebuild race in build phase script
+- `.github/workflows/xcode-release.yml` — fixed `secrets` context in `if` expressions, added `workflow_dispatch` with target/release/tag inputs
+- `.github/workflows/cache-factory.yml` — cache keys now hash `go/ffi/go.sum` (not stale `go/kubo-sys/ffi/go.sum`)
+- Workspace reorg — `xcode/rustylib/` added to root workspace, version aligned to `0.8.0`, `publish = false`
+- Removed stale `go/kubo-sys/ffi/` from submodule (diverged copy; canonical source is `go/ffi/`)
+- Updated docs — `FFI.md`, `README.md`, `CHANGELOG.md`, `RELEASE.md` now reference `go/ffi/`
+- **All tests pass** — `cargo test --workspace` (46 passed), `make test_unit` in submodule (2,165 passed)
 
-**Rust builds successfully** (`cargo build` passes). Go FFI not yet rebuilt/tested.
+**Still pending from 2026-09-05:**
+- CLI commands for new FFI functions (pin, dht, name, swarm-disconnect)
+- Tests for pin/dht/name
 
 ---
 
@@ -29,10 +32,20 @@
   - `p2p dht-findpeer <peer-id>`
   - `p2p dht-findprovs <cid>`
 - [ ] **Add tests** — inline `src/lib.rs` tests + `tests/cli.rs` tests for pin/dht/name
-- [ ] **Build Go FFI** — `cd go/ffi && go build` to verify new Go code compiles
-- [ ] **Run full matrix** — `cargo build && cargo test && cargo fmt && cargo clippy`
+- [ ] **Xcode Cloud validation** — push changes and verify a clean build on Xcode Cloud (ci_post_clone.sh builds XCFramework before SPM resolve)
 
-## Recently Completed (uncommitted)
+## Recently Completed (2026-09-09)
+
+- [x] **Xcode Cloud CI scripts** — `ci_scripts/ci_post_clone.sh` (installs Go/Rust, builds XCFramework) + `ci_pre_xcodebuild.sh` (verifies env)
+- [x] **Xcode build fixes** — build phase script skips redundant rebuilds; `make install` ad-hoc signs; `macOS (Designed for iPad)` destination works
+- [x] **GitHub workflow fixes** — `xcode-release.yml` uses `env.HAS_CERT` instead of `secrets` in `if`; added `workflow_dispatch` with target/release/tag inputs
+- [x] **Cache factory fix** — cache keys hash `go/ffi/go.sum` instead of stale submodule path
+- [x] **Workspace reorg** — `xcode/rustylib/` added to root workspace, version aligned to `0.8.0`, `publish = false`
+- [x] **Remove stale submodule copy** — `go/kubo-sys/ffi/` deleted (diverged; canonical is `go/ffi/`)
+- [x] **Doc updates** — `FFI.md`, `README.md`, `CHANGELOG.md`, `RELEASE.md` reference `go/ffi/`
+- [x] **Full test matrix green** — `cargo test --workspace` (46 passed) + `make test_unit` (2,165 passed)
+
+## Recently Completed (2026-09-05, uncommitted)
 
 - [x] **Add Pin/DHT/Name/Swarm-disconnect to Go FFI** (`go/ffi/kubo.go`)
   - `kubo_swarm_disconnect`
@@ -51,14 +64,14 @@
 
 ```
 kubo-rs/
-├── Cargo.toml              # Main crate manifest
+├── Cargo.toml              # Workspace root manifest (kubo-rs + xcode/rustylib)
 ├── build.rs                # FFI build script (CGO cross-compilation support)
 ├── src/
 │   ├── lib.rs              # Safe Rust API (Node, init_repo, version)
 │   ├── ffi.rs              # Unsafe extern "C" bindings (24+ functions now)
 │   ├── main.rs             # CLI binary (ipfs, p2p, nostr subcommands)
 │   └── error.rs            # Error enum
-├── tests/cli.rs            # CLI integration tests (7 tests)
+├── tests/cli.rs            # CLI integration tests (8 tests)
 ├── examples/
 │   ├── basic.rs            # Basic FFI demo
 │   ├── p2p.rs              # Two-node p2p demo
@@ -69,7 +82,14 @@ kubo-rs/
 │   ├── ffi/                # Go FFI source (kubo.go, libp2p.go, nostr.go, git.go)
 │   ├── kubo-sys/           # Go submodule (Kubo IPFS)
 │   └── nostr/              # Go nostr submodule
+├── xcode/
+│   ├── rustylib/           # Rust crate for iOS FFI (uniffi, staticlib, cdylib)
+│   ├── swiftyapp/          # SwiftUI iOS app + Xcode projects
+│   ├── build.sh            # Rust → XCFramework build script
+│   └── Makefile            # macOS / iOS build targets
+├── ci_scripts/             # Xcode Cloud hooks (ci_post_clone.sh, ci_pre_xcodebuild.sh)
 ├── scripts/                # Test scripts + wasm-dashboard.sh + website.sh
+├── .github/workflows/      # CI: rust.yml, xcode-release.yml, cache-factory.yml, gh-pages.yml
 ├── Makefile                # Build/test targets
 ├── FFI.md                  # FFI architecture documentation
 ├── RELEASE.md              # cargo-dist release guide
@@ -154,13 +174,12 @@ kubo-rs/
 
 ## Next Steps (Priority)
 
-1. **Finish CLI commands** — add match arms in `src/main.rs` for all 8 new functions
-2. **Add tests** — inline lib tests + CLI tests for pin/dht/name
-3. **Build Go FFI** — `cd go/ffi && go build` to verify Go compiles
-4. **Run full validation** — `cargo build && cargo test && cargo fmt && cargo clippy`
-5. **Future: DAG API** — `dag get`, `dag put`, `dag resolve` (complex due to ipld-prime)
-6. **Future: Key API** — `key gen`, `key list`, `key rm` (needed for advanced IPNS)
-7. **Future: MFS / Files API** — `files ls`, `files read`, `files write`, `files mkdir`
-8. **Future: PubSub** — `pubsub pub`, `pubsub sub`, `pubsub peers`, `pubsub ls`
-9. **Future: Bootstrap** — `bootstrap list`, `bootstrap add`, `bootstrap rm`
-10. **Future: Repo GC** — `repo stat`, `repo gc`
+1. **Xcode Cloud validation** — push all changes and verify a clean build on Xcode Cloud
+2. **Finish CLI commands** — add match arms in `src/main.rs` for all 8 new functions
+3. **Add tests** — inline lib tests + CLI tests for pin/dht/name
+4. **Future: DAG API** — `dag get`, `dag put`, `dag resolve` (complex due to ipld-prime)
+5. **Future: Key API** — `key gen`, `key list`, `key rm` (needed for advanced IPNS)
+6. **Future: MFS / Files API** — `files ls`, `files read`, `files write`, `files mkdir`
+7. **Future: PubSub** — `pubsub pub`, `pubsub sub`, `pubsub peers`, `pubsub ls`
+8. **Future: Bootstrap** — `bootstrap list`, `bootstrap add`, `bootstrap rm`
+9. **Future: Repo GC** — `repo stat`, `repo gc`

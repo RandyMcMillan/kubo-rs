@@ -64,10 +64,10 @@ impl HybridNode {
         }
 
         if let Some(topic) = gossip_topic {
-            // TODO: Phase 2 — multi-topic join before publishing
-            let _ = topic;
+            self.p2p.gossip_publish_to(topic, event_json)?;
+        } else {
+            self.p2p.gossip_publish(event_json)?;
         }
-        self.p2p.gossip_publish(event_json)?;
 
         Ok(())
     }

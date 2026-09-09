@@ -373,19 +373,21 @@ impl WebEventHandler for FpsTrackingBackend {
 ///
 /// # Example
 ///
-/// ```rust
+/// ```rust,no_run
 /// use examples_shared::backend::{BackendType, MultiBackendBuilder};
 /// use ratzilla::backend::canvas::CanvasBackendOptions;
 /// use ratzilla::backend::webgl2::WebGl2BackendOptions;
-/// use ratzilla::ratatui::TerminalOptions;
 ///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let terminal = MultiBackendBuilder::with_fallback(BackendType::Dom)
 ///     .canvas_options(CanvasBackendOptions::new().grid_id("terminal-id"))
 ///     .webgl2_options(WebGl2BackendOptions::new().size((1200, 800)))
 ///     .build_terminal()?;
 ///
 /// // Get backend type if needed
-/// let backend_type = terminal.backend().backend_type();
+/// let _backend_type = terminal.backend().backend_type();
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug, Default)]
 pub struct MultiBackendBuilder {
@@ -463,14 +465,16 @@ impl MultiBackendBuilder {
     ///
     /// # Example
     ///
-    /// ```rust
+    /// ```rust,no_run
     /// use examples_shared::backend::{BackendType, MultiBackendBuilder};
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let terminal = MultiBackendBuilder::with_fallback(BackendType::Canvas)
     ///     .build_terminal()?;
     ///
     /// // Get backend type if needed
-    /// let backend_type = terminal.backend().backend_type();
-    /// println!("Using {backend_type} backend");
+    /// let _backend_type = terminal.backend().backend_type();
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn build_terminal(self) -> io::Result<Terminal<FpsTrackingBackend>> {
         let backend_type = parse_backend_from_url(self.default_backend);

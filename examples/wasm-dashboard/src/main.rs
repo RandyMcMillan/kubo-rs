@@ -2,19 +2,19 @@ use std::cell::RefCell;
 use std::io;
 use std::rc::Rc;
 
+use futures::StreamExt;
+use gloo_timers::future::IntervalStream;
 use ratatui::{
+    Terminal,
     layout::{Alignment, Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
-    Terminal,
 };
 use ratzilla::{DomBackend, WebRenderer};
-use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::{spawn_local, JsFuture};
-use gloo_timers::future::IntervalStream;
-use futures::StreamExt;
+use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::{JsFuture, spawn_local};
 
 #[derive(Clone, Copy, PartialEq, Default)]
 enum Theme {
@@ -42,30 +42,46 @@ impl Theme {
     // Solarized palette
     fn bg(self) -> Color {
         match self {
-            Theme::Dark => Color::Rgb(0, 43, 54),    // base03
+            Theme::Dark => Color::Rgb(0, 43, 54),      // base03
             Theme::Light => Color::Rgb(253, 246, 227), // base3
         }
     }
     fn fg(self) -> Color {
         match self {
-            Theme::Dark => Color::Rgb(131, 148, 150), // base0
+            Theme::Dark => Color::Rgb(131, 148, 150),  // base0
             Theme::Light => Color::Rgb(101, 123, 131), // base00
         }
     }
     fn fg_secondary(self) -> Color {
         match self {
             Theme::Dark => Color::Rgb(147, 161, 161), // base1
-            Theme::Light => Color::Rgb(88, 110, 117),  // base01
+            Theme::Light => Color::Rgb(88, 110, 117), // base01
         }
     }
-    fn accent_yellow(self) -> Color { Color::Rgb(181, 137, 0) }
-    fn accent_orange(self) -> Color { Color::Rgb(203, 75, 22) }
-    fn accent_red(self) -> Color { Color::Rgb(220, 50, 47) }
-    fn accent_magenta(self) -> Color { Color::Rgb(211, 54, 130) }
-    fn accent_violet(self) -> Color { Color::Rgb(108, 113, 196) }
-    fn accent_blue(self) -> Color { Color::Rgb(38, 139, 210) }
-    fn accent_cyan(self) -> Color { Color::Rgb(42, 161, 152) }
-    fn accent_green(self) -> Color { Color::Rgb(133, 153, 0) }
+    fn accent_yellow(self) -> Color {
+        Color::Rgb(181, 137, 0)
+    }
+    fn accent_orange(self) -> Color {
+        Color::Rgb(203, 75, 22)
+    }
+    fn accent_red(self) -> Color {
+        Color::Rgb(220, 50, 47)
+    }
+    fn accent_magenta(self) -> Color {
+        Color::Rgb(211, 54, 130)
+    }
+    fn accent_violet(self) -> Color {
+        Color::Rgb(108, 113, 196)
+    }
+    fn accent_blue(self) -> Color {
+        Color::Rgb(38, 139, 210)
+    }
+    fn accent_cyan(self) -> Color {
+        Color::Rgb(42, 161, 152)
+    }
+    fn accent_green(self) -> Color {
+        Color::Rgb(133, 153, 0)
+    }
 }
 
 #[derive(Clone, Default)]
@@ -114,7 +130,8 @@ fn listen_system_theme(info: Rc<RefCell<NodeInfo>>) {
                 info_media.borrow_mut().theme = theme;
                 apply_theme_to_body(theme);
             }) as Box<dyn FnMut(_)>);
-            let _ = media.add_event_listener_with_callback("change", closure.as_ref().unchecked_ref());
+            let _ =
+                media.add_event_listener_with_callback("change", closure.as_ref().unchecked_ref());
             closure.forget();
         }
     }
@@ -123,8 +140,8 @@ fn listen_system_theme(info: Rc<RefCell<NodeInfo>>) {
 fn maybe_show_gh_pages_badge() {
     if let Some(window) = web_sys::window() {
         if let Ok(hostname) = window.location().hostname() {
-            let is_gh_pages = hostname == "kubo-rs.randymcmillan.net"
-                || hostname.ends_with(".github.io");
+            let is_gh_pages =
+                hostname == "kubo-rs.randymcmillan.net" || hostname.ends_with(".github.io");
             if is_gh_pages {
                 if let Some(document) = window.document() {
                     if let Some(body) = document.body() {
@@ -177,28 +194,29 @@ fn main() -> io::Result<()> {
 
     // Keyboard: 1/2/3 for tabs, t for theme toggle
     let info_keys = info.clone();
-    let closure = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
-        match event.key().as_str() {
-            "1" => info_keys.borrow_mut().tab = 0,
-            "2" => info_keys.borrow_mut().tab = 1,
-            "3" => info_keys.borrow_mut().tab = 2,
-            "4" => info_keys.borrow_mut().tab = 3,
-            "ArrowRight" => {
-                let mut i = info_keys.borrow_mut();
-                i.tab = (i.tab + 1) % 4;
-            }
-            "ArrowLeft" => {
-                let mut i = info_keys.borrow_mut();
-                i.tab = (i.tab + 3) % 4;
-            }
-            "t" | "T" => {
-                let new_theme = info_keys.borrow().theme.toggle();
-                info_keys.borrow_mut().theme = new_theme;
-                apply_theme_to_body(new_theme);
-            }
-            _ => {}
-        }
-    }) as Box<dyn FnMut(_)>);
+    let closure =
+        Closure::wrap(Box::new(
+            move |event: web_sys::KeyboardEvent| match event.key().as_str() {
+                "1" => info_keys.borrow_mut().tab = 0,
+                "2" => info_keys.borrow_mut().tab = 1,
+                "3" => info_keys.borrow_mut().tab = 2,
+                "4" => info_keys.borrow_mut().tab = 3,
+                "ArrowRight" => {
+                    let mut i = info_keys.borrow_mut();
+                    i.tab = (i.tab + 1) % 4;
+                }
+                "ArrowLeft" => {
+                    let mut i = info_keys.borrow_mut();
+                    i.tab = (i.tab + 3) % 4;
+                }
+                "t" | "T" => {
+                    let new_theme = info_keys.borrow().theme.toggle();
+                    info_keys.borrow_mut().theme = new_theme;
+                    apply_theme_to_body(new_theme);
+                }
+                _ => {}
+            },
+        ) as Box<dyn FnMut(_)>);
     web_sys::window()
         .unwrap()
         .add_event_listener_with_callback("keydown", closure.as_ref().unchecked_ref())
@@ -481,12 +499,10 @@ async fn poll_api(info: &RefCell<NodeInfo>, api_base: &str) {
         Err(e) => {
             let mut i = info.borrow_mut();
             i.connected = false;
-            i.error = Some(
-                format!(
-                    "Cannot connect to {}/api/v0/id. Error: {e:?}",
-                    api_base
-                ),
-            );
+            i.error = Some(format!(
+                "Cannot connect to {}/api/v0/id. Error: {e:?}",
+                api_base
+            ));
         }
     }
 }

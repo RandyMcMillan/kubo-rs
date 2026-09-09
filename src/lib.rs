@@ -378,6 +378,33 @@ impl Host {
         ffi::host_gossip_publish(self.handle, message)
     }
 
+    /// Join a GossipSub topic.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the topic cannot be joined.
+    pub fn gossip_join(&self, topic: &str) -> Result<(), Error> {
+        ffi::host_gossip_join(self.handle, topic)
+    }
+
+    /// Leave a previously joined GossipSub topic.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the topic is not joined.
+    pub fn gossip_leave(&self, topic: &str) -> Result<(), Error> {
+        ffi::host_gossip_leave(self.handle, topic)
+    }
+
+    /// Publish a gossip message to a specific topic.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the topic is not joined or publishing fails.
+    pub fn gossip_publish_to(&self, topic: &str, message: &str) -> Result<(), Error> {
+        ffi::host_gossip_publish_to(self.handle, topic, message)
+    }
+
     /// Drain any queued gossip messages received from the topic.
     ///
     /// # Errors

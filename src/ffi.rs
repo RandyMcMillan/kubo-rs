@@ -56,6 +56,13 @@ unsafe extern "C" {
     fn kubo_libp2p_host_gossip_topic(handle: u64) -> *mut c_char;
     fn kubo_libp2p_host_gossip_error(handle: u64) -> *mut c_char;
     fn kubo_libp2p_host_gossip_publish(handle: u64, message: *const c_char) -> i64;
+    fn kubo_libp2p_host_gossip_join(handle: u64, topic_name: *const c_char) -> i64;
+    fn kubo_libp2p_host_gossip_leave(handle: u64, topic_name: *const c_char) -> i64;
+    fn kubo_libp2p_host_gossip_publish_to(
+        handle: u64,
+        topic_name: *const c_char,
+        message: *const c_char,
+    ) -> i64;
     fn kubo_libp2p_host_gossip_drain(handle: u64) -> *mut c_char;
 
     // nostr
@@ -437,6 +444,28 @@ pub fn host_gossip_error(handle: u64) -> Result<Option<String>, Error> {
 pub fn host_gossip_publish(handle: u64, message: &str) -> Result<(), Error> {
     let c_message = CString::new(message)?;
     unsafe { check_err(kubo_libp2p_host_gossip_publish(handle, c_message.as_ptr())) }
+}
+
+pub fn host_gossip_join(handle: u64, topic_name: &str) -> Result<(), Error> {
+    let c_topic = CString::new(topic_name)?;
+    unsafe { check_err(kubo_libp2p_host_gossip_join(handle, c_topic.as_ptr())) }
+}
+
+pub fn host_gossip_leave(handle: u64, topic_name: &str) -> Result<(), Error> {
+    let c_topic = CString::new(topic_name)?;
+    unsafe { check_err(kubo_libp2p_host_gossip_leave(handle, c_topic.as_ptr())) }
+}
+
+pub fn host_gossip_publish_to(handle: u64, topic_name: &str, message: &str) -> Result<(), Error> {
+    let c_topic = CString::new(topic_name)?;
+    let c_message = CString::new(message)?;
+    unsafe {
+        check_err(kubo_libp2p_host_gossip_publish_to(
+            handle,
+            c_topic.as_ptr(),
+            c_message.as_ptr(),
+        ))
+    }
 }
 
 pub fn host_gossip_drain(handle: u64) -> Result<Vec<String>, Error> {

@@ -2,7 +2,11 @@ use std::cell::RefCell;
 use std::io;
 use std::rc::Rc;
 
+use examples_shared::backend::{BackendType, MultiBackendBuilder};
+use futures::StreamExt;
+use gloo_timers::future::IntervalStream;
 use layout::{Flex, Offset};
+use ratzilla::backend::webgl2::{SelectionMode, WebGl2BackendOptions};
 use ratzilla::{
     event::{KeyCode, KeyEvent},
     ratatui::{
@@ -13,17 +17,13 @@ use ratzilla::{
     widgets::Hyperlink,
     WebRenderer,
 };
-use examples_shared::backend::{BackendType, MultiBackendBuilder};
 use tachyonfx::{
     fx::{self, RepeatMode},
-    CenteredShrink, Duration, Effect, EffectRenderer, EffectTimer, Interpolation, Motion, 
+    CenteredShrink, Duration, Effect, EffectRenderer, EffectTimer, Interpolation, Motion,
 };
-use ratzilla::backend::webgl2::{SelectionMode, WebGl2BackendOptions};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::{spawn_local, JsFuture};
-use gloo_timers::future::IntervalStream;
-use futures::StreamExt;
 
 #[derive(Clone, Default)]
 struct NodeInfo {
@@ -82,11 +82,12 @@ impl Default for State {
 
 fn main() -> io::Result<()> {
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-    
+
     let mut terminal = MultiBackendBuilder::with_fallback(BackendType::Dom)
-        .webgl2_options(WebGl2BackendOptions::new()
-            .enable_hyperlinks()
-            .enable_mouse_selection_with_mode(SelectionMode::default())
+        .webgl2_options(
+            WebGl2BackendOptions::new()
+                .enable_hyperlinks()
+                .enable_mouse_selection_with_mode(SelectionMode::default()),
         )
         .build_terminal()?;
 
@@ -129,9 +130,10 @@ fn handle_key_event(key: KeyEvent) {
 }
 
 fn _render_text(f: &mut Frame<'_>, state: &mut State) {
-
     Clear.render(f.area(), f.buffer_mut());
-    let area = f.area().centered(Constraint::Length(33), Constraint::Length(10));
+    let area = f
+        .area()
+        .centered(Constraint::Length(33), Constraint::Length(10));
     let main_text = Text::from(vec![
         Line::from("| R A T Z I L L A |").bold(),
         Line::from("Stomping through the web").italic(),
@@ -142,28 +144,24 @@ fn _render_text(f: &mut Frame<'_>, state: &mut State) {
     f.render_effect(&mut state.intro_effect, area, Duration::from_millis(40));
 }
 fn render_intro(f: &mut Frame<'_>, state: &mut State) {
-
-   //_render_text(f, state);
+    //_render_text(f, state);
 
     let info = state.info.borrow();
 
-
-	//your pallette
-	//your pallette
-	//your pallette
-
+    //your pallette
+    //your pallette
+    //your pallette
 
     let ipfs_area = Layout::vertical([
         Constraint::Percentage(2),
         Constraint::Percentage(96),
         Constraint::Percentage(2),
-    ]).split(f.area())[1];
+    ])
+    .split(f.area())[1];
 
-
-	//your pallette end
-	//your pallette end
-	//your pallette end
-
+    //your pallette end
+    //your pallette end
+    //your pallette end
 
     let status_text = if info.connected {
         format!("Connected to {}", info.api_base)
@@ -178,14 +176,26 @@ fn render_intro(f: &mut Frame<'_>, state: &mut State) {
         Line::from(""),
         Line::from(vec![
             Span::raw("Peer ID:  "),
-            Span::raw(if info.peer_id.is_empty() { "-".to_string() } else { info.peer_id.clone() }),
+            Span::raw(if info.peer_id.is_empty() {
+                "-".to_string()
+            } else {
+                info.peer_id.clone()
+            }),
         ]),
         Line::from(vec![
             Span::raw("Version:  "),
-            Span::raw(if info.version.is_empty() { "-".to_string() } else { info.version.clone() }),
+            Span::raw(if info.version.is_empty() {
+                "-".to_string()
+            } else {
+                info.version.clone()
+            }),
         ]),
     ])
-    .block(Block::default().title(" Node Identity ").borders(Borders::ALL))
+    .block(
+        Block::default()
+            .title(" Node Identity ")
+            .borders(Borders::ALL),
+    )
     .wrap(Wrap { trim: true });
 
     let addrs_text = if info.addresses.is_empty() {
@@ -194,34 +204,28 @@ fn render_intro(f: &mut Frame<'_>, state: &mut State) {
         info.addresses.join("\n")
     };
     let addrs = Paragraph::new(addrs_text)
-        .block(Block::default().title(" Listening Addresses ").borders(Borders::ALL))
+        .block(
+            Block::default()
+                .title(" Listening Addresses ")
+                .borders(Borders::ALL),
+        )
         .wrap(Wrap { trim: true });
 
-    let chunks = Layout::horizontal(
-		[
-		//first in
-		Constraint::Percentage(2), //spacing correction
-
-
-
-
-		//your pallette
-		//your pallette
-		//your pallette
-		//your pallette
-		Constraint::Percentage(50),//spacing correction
-		Constraint::Percentage(60) //spacing correction
-		//your pallette end
-		//your pallette end
-		//your pallette end
-		//your pallette end
-
-
-
-
-		]
-		)
-        .split(ipfs_area);
+    let chunks = Layout::horizontal([
+        //first in
+        Constraint::Percentage(2), //spacing correction
+        //your pallette
+        //your pallette
+        //your pallette
+        //your pallette
+        Constraint::Percentage(50), //spacing correction
+        Constraint::Percentage(60), //spacing correction
+                                    //your pallette end
+                                    //your pallette end
+                                    //your pallette end
+                                    //your pallette end
+    ])
+    .split(ipfs_area);
 
     f.render_widget(status, chunks[1]);
     f.render_widget(addrs, chunks[2]);

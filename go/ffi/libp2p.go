@@ -36,13 +36,15 @@ type libp2pHostHandle struct {
 	cancel context.CancelFunc
 	host   host.Host
 
-	pubsubMu      sync.Mutex
-	pubsub        *pubsub.PubSub
-	pubsubTopic   *pubsub.Topic
-	pubsubSub     *pubsub.Subscription
-	pubsubTopicID string
-	pubsubMsgs    []string
-	gossipInitErr string
+	pubsubMu       sync.Mutex
+	pubsub         *pubsub.PubSub
+	pubsubTopic    *pubsub.Topic        // default topic (backward compat)
+	pubsubSub      *pubsub.Subscription // default sub (backward compat)
+	pubsubTopicID  string               // default topic name
+	pubsubTopics   map[string]*pubsub.Topic
+	pubsubSubs     map[string]*pubsub.Subscription
+	pubsubMsgs     []string
+	gossipInitErr  string
 }
 
 func bootstrapEnabled() bool {
@@ -157,6 +159,8 @@ func startGossip(handle *libp2pHostHandle) error {
 	handle.pubsubTopic = topic
 	handle.pubsubSub = sub
 	handle.pubsubTopicID = topicName
+	handle.pubsubTopics = make(map[string]*pubsub.Topic)
+	handle.pubsubSubs = make(map[string]*pubsub.Subscription)
 	handle.pubsubMu.Unlock()
 
 	go func() {
@@ -477,6 +481,142 @@ func kubo_libp2p_host_gossip_publish(handle uint64, message *C.char) int64 {
 
 	h.pubsubMu.Lock()
 	h.pubsubMsgs = append(h.pubsubMsgs, fmt.Sprintf("%s|self|%s", topicName, msg))
+	h.pubsubMu.Unlock()
+
+	setError(nil)
+	return 0
+}
+
+//export kubo_libp2p_host_gossip_join
+func kubo_libp2p_host_gossip_join(handle uint64, topicName *C.char) int64 {
+	libp2pHostsMu.RLock()
+	h, ok := libp2pHosts[handle]
+	libp2pHostsMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid libp2p handle %d", handle))
+		return -1
+	}
+
+	name := C.GoString(topicName)
+	h.pubsubMu.Lock()
+	ps := h.pubsub
+	if ps == nil {
+		h.pubsubMu.Unlock()
+		setError(fmt.Errorf("pubsub not initialized"))
+		return -1
+	}
+	if _, exists := h.pubsubTopics[name]; exists {
+		h.pubsubMu.Unlock()
+		setError(nil)
+		return 0
+	}
+	h.pubsubMu.Unlock()
+
+	topic, err := ps.Join(name)
+	if err != nil {
+		setError(fmt.Errorf("pubsub join %s: %w", name, err))
+		return -1
+	}
+
+	sub, err := topic.Subscribe()
+	if err != nil {
+		setError(fmt.Errorf("pubsub subscribe %s: %w", name, err))
+		return -1
+	}
+
+	h.pubsubMu.Lock()
+	h.pubsubTopics[name] = topic
+	h.pubsubSubs[name] = sub
+	h.pubsubMu.Unlock()
+
+	go func() {
+		for {
+			msg, err := sub.Next(h.ctx)
+			if err != nil {
+				return
+			}
+
+			payload := strings.TrimSpace(string(msg.Data))
+			if payload == "" || msg.ReceivedFrom == h.host.ID() {
+				continue
+			}
+
+			entry := fmt.Sprintf("%s|%s|%s", name, msg.ReceivedFrom.String(), payload)
+			h.pubsubMu.Lock()
+			h.pubsubMsgs = append(h.pubsubMsgs, entry)
+			h.pubsubMu.Unlock()
+		}
+	}()
+
+	setError(nil)
+	return 0
+}
+
+//export kubo_libp2p_host_gossip_leave
+func kubo_libp2p_host_gossip_leave(handle uint64, topicName *C.char) int64 {
+	libp2pHostsMu.RLock()
+	h, ok := libp2pHosts[handle]
+	libp2pHostsMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid libp2p handle %d", handle))
+		return -1
+	}
+
+	name := C.GoString(topicName)
+	h.pubsubMu.Lock()
+	if sub, exists := h.pubsubSubs[name]; exists {
+		sub.Cancel()
+		delete(h.pubsubSubs, name)
+	}
+	if topic, exists := h.pubsubTopics[name]; exists {
+		_ = topic.Close()
+		delete(h.pubsubTopics, name)
+	}
+	h.pubsubMu.Unlock()
+
+	setError(nil)
+	return 0
+}
+
+//export kubo_libp2p_host_gossip_publish_to
+func kubo_libp2p_host_gossip_publish_to(handle uint64, topicName *C.char, message *C.char) int64 {
+	libp2pHostsMu.RLock()
+	h, ok := libp2pHosts[handle]
+	libp2pHostsMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid libp2p handle %d", handle))
+		return -1
+	}
+
+	name := C.GoString(topicName)
+	msg := C.GoString(message)
+
+	h.pubsubMu.Lock()
+	topic, exists := h.pubsubTopics[name]
+	if !exists {
+		// fallback to default topic if name matches
+		if h.pubsubTopicID == name && h.pubsubTopic != nil {
+			topic = h.pubsubTopic
+			exists = true
+		}
+	}
+	h.pubsubMu.Unlock()
+
+	if !exists {
+		setError(fmt.Errorf("gossip topic %s not joined", name))
+		return -1
+	}
+
+	if err := topic.Publish(h.ctx, []byte(msg)); err != nil {
+		setError(fmt.Errorf("pubsub publish: %w", err))
+		return -1
+	}
+
+	h.pubsubMu.Lock()
+	h.pubsubMsgs = append(h.pubsubMsgs, fmt.Sprintf("%s|self|%s", name, msg))
 	h.pubsubMu.Unlock()
 
 	setError(nil)

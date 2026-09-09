@@ -2,15 +2,43 @@
 <html>
 <head>
   <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Hybrid Protocol — WASM Demo</title>
   <style>
     body { background: #002b36; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }
-    #terminal { font-family: monospace; white-space: pre; }
   </style>
 </head>
 <body>
-  <div id="terminal"></div>
   <script type="module">
+    import { generatePrivateKey, getPublicKey, finishEvent, validateEvent, verifySignature } from "https://cdn.jsdelivr.net/npm/nostr-tools@1.17.0/+esm";
+
+    window.nostrGenerateKey = () => generatePrivateKey();
+    window.nostrGetPubkey = (sk) => getPublicKey(sk);
+    window.nostrSignEvent = (sk, content, kind) => {
+      const event = finishEvent({ kind, content, created_at: Math.floor(Date.now() / 1000), tags: [] }, sk);
+      return JSON.stringify(event);
+    };
+    window.nostrVerifyEvent = (eventJson) => {
+      try {
+        const event = JSON.parse(eventJson);
+        return validateEvent(event) && verifySignature(event);
+      } catch {
+        return false;
+      }
+    };
+    window.nostrBuildNip94 = (sk, filename, cid) => {
+      const event = finishEvent({
+        kind: 1063,
+        content: filename,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [
+          ["url", "ipfs://" + cid],
+          ["m", "text/plain"],
+        ],
+      }, sk);
+      return JSON.stringify(event);
+    };
+
     import init from "./pkg/wasm_hybrid.js";
     init();
   </script>

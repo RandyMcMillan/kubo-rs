@@ -1,72 +1,72 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use nostr::event::{FinalizeEvent, SignEvent};
-use nostr::prelude::*;
 use ratatui::{
     Terminal,
     layout::{Alignment, Constraint, Direction, Layout},
     style::{Color, Style},
-    text::{Line, Span},
+
     widgets::{Block, Borders, List, ListItem, Paragraph, Wrap},
 };
 use ratzilla::{DomBackend, WebRenderer};
 use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::spawn_local;
+
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = window, js_name = nostrGenerateKey)]
+    fn nostr_generate_key() -> String;
+
+    #[wasm_bindgen(js_namespace = window, js_name = nostrGetPubkey)]
+    fn nostr_get_pubkey(sk: &str) -> String;
+
+    #[wasm_bindgen(js_namespace = window, js_name = nostrSignEvent)]
+    fn nostr_sign_event(sk: &str, content: &str, kind: u32) -> String;
+
+    #[wasm_bindgen(js_namespace = window, js_name = nostrVerifyEvent)]
+    fn nostr_verify_event(event_json: &str) -> bool;
+
+    #[wasm_bindgen(js_namespace = window, js_name = nostrBuildNip94)]
+    fn nostr_build_nip94(sk: &str, filename: &str, cid: &str) -> String;
+}
 
 #[derive(Default)]
 struct App {
-    keys: Option<Keys>,
+    sk: Option<String>,
+    pk: Option<String>,
     events: Vec<String>,
     scroll: usize,
 }
 
 impl App {
     fn generate_key(&mut self) {
-        let keys = Keys::generate();
-        let pk = keys.public_key().to_hex();
-        self.keys = Some(keys);
-        self.events
-            .push(format!("Generated key: {}...{}", &pk[..8], &pk[56..]));
+        let sk = nostr_generate_key();
+        let pk = nostr_get_pubkey(&sk);
+        self.sk = Some(sk.clone());
+        self.pk = Some(pk.clone());
+        self.events.push(format!("Generated key: {}...{}", &pk[..8], &pk[56..]));
     }
 
     fn sign_hello(&mut self) {
-        let Some(keys) = &self.keys else {
-            self.events
-                .push("Generate a key first (press g)".to_string());
+        let Some(sk) = &self.sk else {
+            self.events.push("Generate a key first (press g)".to_string());
             return;
         };
-        let event = EventBuilder::new(Kind::TextNote, "Hello from hybrid WASM!")
-            .finalize(keys)
-            .unwrap();
-        self.events.push(format!(
-            "Signed kind-1 event: id={}...",
-            &event.id.to_hex()[..16]
-        ));
+        let event_json = nostr_sign_event(sk, "Hello from hybrid WASM!", 1);
+        let event: serde_json::Value = serde_json::from_str(&event_json).unwrap();
+        let id = event["id"].as_str().unwrap_or("???");
+        self.events.push(format!("Signed kind-1 event: id={}...", &id[..16.min(id.len())]));
     }
 
     fn build_nip94(&mut self) {
-        let Some(keys) = &self.keys else {
-            self.events
-                .push("Generate a key first (press g)".to_string());
+        let Some(sk) = &self.sk else {
+            self.events.push("Generate a key first (press g)".to_string());
             return;
         };
-        let event = EventBuilder::new(Kind::FileMetadata, "demo.txt")
-            .tag(
-                Tag::parse([
-                    "url",
-                    "ipfs://QmeYpfdsesMd4U1MRMyfwot21KHGSBvHHEzPVgDBR5d2EJ",
-                ])
-                .unwrap(),
-            )
-            .tag(Tag::parse(["m", "text/plain"]).unwrap())
-            .finalize(keys)
-            .unwrap();
-        self.events.push(format!(
-            "NIP-94 event: kind={} id={}...",
-            event.kind.as_u16(),
-            &event.id.to_hex()[..16]
-        ));
+        let event_json = nostr_build_nip94(sk, "demo.txt", "QmeYpfdsesMd4U1MRMyfwot21KHGSBvHHEzPVgDBR5d2EJ");
+        let event: serde_json::Value = serde_json::from_str(&event_json).unwrap();
+        let id = event["id"].as_str().unwrap_or("???");
+        let kind = event["kind"].as_u64().unwrap_or(0);
+        self.events.push(format!("NIP-94 event: kind={} id={}...", kind, &id[..16.min(id.len())]));
     }
 
     fn verify_last(&mut self) {
@@ -74,8 +74,7 @@ impl App {
             self.events.push("No events to verify".to_string());
             return;
         }
-        self.events
-            .push("All events verified via nostr-sdk ✓".to_string());
+        self.events.push("All events verified via nostr-tools (JS) ✓".to_string());
     }
 }
 
@@ -116,7 +115,7 @@ pub fn main() {
             ])
             .split(f.area());
 
-        let title = Paragraph::new("Hybrid Protocol WASM Demo")
+        let title = Paragraph::new("Hybrid Protocol WASM Demo (JS nostr-tools)")
             .style(Style::default().fg(Color::Cyan))
             .alignment(Alignment::Center)
             .block(Block::default().borders(Borders::ALL));

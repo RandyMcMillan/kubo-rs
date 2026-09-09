@@ -42,6 +42,7 @@ type libp2pHostHandle struct {
 	pubsubSub     *pubsub.Subscription
 	pubsubTopicID string
 	pubsubMsgs    []string
+	gossipInitErr string
 }
 
 func bootstrapEnabled() bool {
@@ -251,10 +252,10 @@ func kubo_libp2p_host_new() uint64 {
 	}
 
 	if err := startGossip(handle); err != nil {
-		cancel()
-		_ = h.Close()
+		// Log the error but don't kill the host; other libp2p features still work.
+		fmt.Fprintf(os.Stderr, "libp2p gossip init failed: %v\n", err)
+		handle.gossipInitErr = err.Error()
 		setError(err)
-		return 0
 	}
 
 	libp2pHostsMu.Lock()
@@ -427,6 +428,24 @@ func kubo_libp2p_host_gossip_topic(handle uint64) *C.char {
 
 	setError(nil)
 	return C.CString(topic)
+}
+
+//export kubo_libp2p_host_gossip_error
+func kubo_libp2p_host_gossip_error(handle uint64) *C.char {
+	libp2pHostsMu.RLock()
+	h, ok := libp2pHosts[handle]
+	libp2pHostsMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid libp2p handle %d", handle))
+		return nil
+	}
+
+	setError(nil)
+	if h.gossipInitErr == "" {
+		return nil
+	}
+	return C.CString(h.gossipInitErr)
 }
 
 //export kubo_libp2p_host_gossip_publish

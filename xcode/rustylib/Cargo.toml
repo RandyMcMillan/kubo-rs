@@ -12,7 +12,7 @@ name = "uniffi-bindgen"
 path = "uniffi-bindgen.rs"
 
 [dependencies]
-kubo-rs = { version = "0.6.0", path = "../.." }
+kubo-rs = { version = "0.7.0", path = "../.." }
 uniffi = { version = "0.28.0", features = [ "cli" ] }
 
 [build-dependencies]

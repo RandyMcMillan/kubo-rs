@@ -358,6 +358,15 @@ impl Host {
         ffi::host_gossip_topic(self.handle)
     }
 
+    /// Return the gossip initialization error, if any.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the error string cannot be read.
+    pub fn gossip_error(&self) -> Result<Option<String>, Error> {
+        ffi::host_gossip_error(self.handle)
+    }
+
     /// Publish a gossip message to the topic joined by this host.
     ///
     /// # Errors

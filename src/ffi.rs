@@ -54,6 +54,7 @@ unsafe extern "C" {
     fn kubo_libp2p_host_ping(handle: u64, peer_id: *const c_char) -> i64;
     fn kubo_libp2p_host_protocols(handle: u64) -> *mut c_char;
     fn kubo_libp2p_host_gossip_topic(handle: u64) -> *mut c_char;
+    fn kubo_libp2p_host_gossip_error(handle: u64) -> *mut c_char;
     fn kubo_libp2p_host_gossip_publish(handle: u64, message: *const c_char) -> i64;
     fn kubo_libp2p_host_gossip_drain(handle: u64) -> *mut c_char;
 
@@ -418,6 +419,12 @@ pub fn host_gossip_topic(handle: u64) -> Result<String, Error> {
     unsafe {
         ptr_to_string(kubo_libp2p_host_gossip_topic(handle))
             .ok_or_else(|| Error::Go(last_error()))
+    }
+}
+
+pub fn host_gossip_error(handle: u64) -> Result<Option<String>, Error> {
+    unsafe {
+        Ok(ptr_to_string(kubo_libp2p_host_gossip_error(handle)))
     }
 }
 

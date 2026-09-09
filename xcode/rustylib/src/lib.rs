@@ -8,6 +8,7 @@ use std::{
 uniffi::setup_scaffolding!();
 
 static P2P_HOST: Mutex<Option<kubo_rs::Host>> = Mutex::new(None);
+static P2P_LAST_ERROR: Mutex<String> = Mutex::new(String::new());
 
 fn demo_repo_path() -> PathBuf {
     let stamp = SystemTime::now()
@@ -51,7 +52,11 @@ fn p2p_host<R>(f: impl FnOnce(&kubo_rs::Host) -> R) -> Option<R> {
         let host = match kubo_rs::Host::new() {
             Ok(host) => host,
             Err(err) => {
-                eprintln!("p2p host start failed: {err}");
+                let msg = format!("{err}");
+                eprintln!("p2p host start failed: {msg}");
+                if let Ok(mut last) = P2P_LAST_ERROR.lock() {
+                    *last = msg;
+                }
                 return None;
             }
         };
@@ -60,6 +65,11 @@ fn p2p_host<R>(f: impl FnOnce(&kubo_rs::Host) -> R) -> Option<R> {
 
     let host = guard.as_ref()?;
     Some(f(host))
+}
+
+#[uniffi::export]
+pub fn p2p_last_error() -> String {
+    P2P_LAST_ERROR.lock().map(|s| s.clone()).unwrap_or_default()
 }
 
 #[uniffi::export]
@@ -114,6 +124,14 @@ pub fn p2p_protocols() -> Vec<String> {
 #[uniffi::export]
 pub fn p2p_gossip_topic() -> String {
     p2p_host(|host| host.gossip_topic().ok())
+        .flatten()
+        .unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn p2p_gossip_error() -> String {
+    p2p_host(|host| host.gossip_error().ok())
+        .flatten()
         .flatten()
         .unwrap_or_default()
 }

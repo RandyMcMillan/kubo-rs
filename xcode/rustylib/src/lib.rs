@@ -467,6 +467,84 @@ pub fn ipfs_name_resolve(name: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
+// Git API
+// ---------------------------------------------------------------------------
+
+#[uniffi::export]
+pub fn git_clone(url: &str, path: &str, bare: bool) -> bool {
+    kubo_rs::git_clone(url, path, bare).is_ok()
+}
+
+#[uniffi::export]
+pub fn git_init(path: &str, bare: bool) -> bool {
+    kubo_rs::git_init(path, bare).is_ok()
+}
+
+#[uniffi::export]
+pub fn git_head(path: &str) -> String {
+    match kubo_rs::Repository::open(path) {
+        Ok(repo) => repo.head().unwrap_or_default(),
+        Err(_) => String::new(),
+    }
+}
+
+#[uniffi::export]
+pub fn git_branches(path: &str) -> Vec<String> {
+    match kubo_rs::Repository::open(path) {
+        Ok(repo) => repo.branches().unwrap_or_default(),
+        Err(_) => Vec::new(),
+    }
+}
+
+#[uniffi::export]
+pub fn git_remotes(path: &str) -> Vec<String> {
+    match kubo_rs::Repository::open(path) {
+        Ok(repo) => repo.remotes().unwrap_or_default(),
+        Err(_) => Vec::new(),
+    }
+}
+
+#[uniffi::export]
+pub fn git_is_bare(path: &str) -> bool {
+    match kubo_rs::Repository::open(path) {
+        Ok(repo) => repo.is_bare().unwrap_or(false),
+        Err(_) => false,
+    }
+}
+
+#[uniffi::export]
+pub fn git_create_branch(path: &str, name: &str, commit_hash: &str) -> bool {
+    match kubo_rs::Repository::open(path) {
+        Ok(repo) => repo.create_branch(name, commit_hash).is_ok(),
+        Err(_) => false,
+    }
+}
+
+#[uniffi::export]
+pub fn git_commit_message(path: &str, hash: &str) -> String {
+    match kubo_rs::Repository::open(path) {
+        Ok(repo) => repo.commit_message(hash).unwrap_or_default(),
+        Err(_) => String::new(),
+    }
+}
+
+#[uniffi::export]
+pub fn git_status(path: &str) -> String {
+    match kubo_rs::Repository::open(path) {
+        Ok(repo) => repo.status().unwrap_or_default(),
+        Err(_) => String::new(),
+    }
+}
+
+#[uniffi::export]
+pub fn git_diff_trees(path: &str, old_hash: &str, new_hash: &str) -> String {
+    match kubo_rs::Repository::open(path) {
+        Ok(repo) => repo.diff_trees(old_hash, new_hash).unwrap_or_default(),
+        Err(_) => String::new(),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Nostr helpers
 // ---------------------------------------------------------------------------
 

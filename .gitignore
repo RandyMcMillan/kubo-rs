@@ -2,6 +2,14 @@
 Cargo.lock
 
 # Go FFI build artifacts that may be generated during development
+/go/ffi/ffi.h
+/go/ffi/*.h
+/go/ffi/*.a
+/go/ffi/*.lib
+/go/ffi/*.so
+/go/ffi/*.dll
+/go/ffi/tmp/
+# Stale copy inside the kubo submodule (source of truth is go/ffi/)
 /go/kubo-sys/ffi/ffi.h
 /go/kubo-sys/ffi/*.h
 /go/kubo-sys/ffi/*.a

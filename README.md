@@ -143,9 +143,9 @@ GitHub Actions builds and tests on:
 | `src/main.rs` | `kubo-rs` CLI binary |
 | `src/ffi.rs` | Unsafe `extern "C"` bindings |
 | `src/error.rs` | `Error` enum |
-| `build.rs` | Compiles `go/kubo-sys/ffi/` via CGO |
+| `build.rs` | Compiles `go/ffi/` via CGO |
 | `go/kubo-sys/` | Kubo git submodule (Go) |
-| `go/kubo-sys/ffi/` | CGo library exporting C symbols |
+| `go/ffi/` | CGo library exporting C symbols |
 | `scripts/` | Cross-platform test scripts |
 | `examples/` | Usage examples |
 | `benches/` | Criterion benchmarks |

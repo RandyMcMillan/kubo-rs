@@ -71,7 +71,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('go/kubo-sys/go.sum', 'go/kubo-sys/ffi/go.sum') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('go/kubo-sys/go.sum', 'go/ffi/go.sum') }}
           restore-keys: ${{ runner.os }}-go-
 
       - name: Populate Rust cache
@@ -118,7 +118,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('go/kubo-sys/go.sum', 'go/kubo-sys/ffi/go.sum') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('go/kubo-sys/go.sum', 'go/ffi/go.sum') }}
           restore-keys: ${{ runner.os }}-go-
 
       - name: Populate Go module cache

@@ -1,8 +1,8 @@
 // testrust — standalone Rust test runner for the kubo FFI layer.
 // Build the archive first:
-//   cd kubo-sys/ffi && go build -buildmode=c-archive -o tmp/libkubo_ffi.a ffi.go
+//   cd go/ffi && go build -buildmode=c-archive -o tmp/libkubo_ffi.a .
 // Then compile and run:
-//   cd kubo-sys/ffi/cmd/testrust
+//   cd go/ffi/cmd/testrust
 //   rustc main.rs -L ../../tmp -lkubo_ffi -o testrust
 // On macOS add: -framework Security -framework CoreFoundation -lresolv -lpthread -ldl
 // On Linux add: -lpthread -ldl

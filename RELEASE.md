@@ -89,7 +89,7 @@ GitHub Windows runners ship with the MSVC toolchain by default. We must install 
 
 ## build.rs Cross-Compilation Support
 
-`build.rs` compiles `go/kubo-sys/ffi/` into a static C archive. It must allow cross-compilation for the following target/host pairs:
+`build.rs` compiles `go/ffi/` into a static C archive. It must allow cross-compilation for the following target/host pairs:
 
 | Target | Host | Reason |
 |--------|------|--------|

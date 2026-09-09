@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Initial Rust FFI bridge to Kubo (Go IPFS implementation).
-- `kubo-sys/ffi/` — CGo library exporting C symbols for:
+- `go/ffi/` — CGo library exporting C symbols for:
   - Repo initialization (`kubo_init_repo`)
   - Node lifecycle (`kubo_node_start`, `kubo_node_stop`)
   - Peer identity (`kubo_node_peer_id`, `kubo_node_listening_addrs`)

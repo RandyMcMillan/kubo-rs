@@ -73,7 +73,33 @@ rustup target add aarch64-apple-ios-sim
 rustup target add aarch64-apple-ios-macabi
 
 # ------------------------------------------------------------------
-# 5. Verify everything is on PATH for the Xcode build phases.
+# 5. Build the Rust XCFramework so it exists before Xcode Cloud
+#    resolves Swift Package Manager dependencies.
+# ------------------------------------------------------------------
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+BUILD_SCRIPT="$REPO_ROOT/xcode/build.sh"
+
+if [ -x "$BUILD_SCRIPT" ]; then
+    echo ""
+    echo "=== Building Rust XCFramework for SPM ==="
+    # Ensure build.rs can find Go even though build.sh also checks.
+    export GO="$GO_INSTALL_DIR/bin/go"
+    (cd "$REPO_ROOT/xcode" && "$BUILD_SCRIPT")
+else
+    echo "Build script not found: $BUILD_SCRIPT" >&2
+    exit 1
+fi
+
+XCFRAMEWORK="$REPO_ROOT/xcode/swiftyapp/Lib/swiftyrustlib/artifacts/RustyCore.xcframework"
+if [ ! -d "$XCFRAMEWORK" ]; then
+    echo "XCFramework missing after build: $XCFRAMEWORK" >&2
+    exit 1
+fi
+
+echo "XCFramework ready: $XCFRAMEWORK"
+
+# ------------------------------------------------------------------
+# 6. Verify everything is on PATH for the Xcode build phases.
 # ------------------------------------------------------------------
 echo ""
 echo "=== Verification ==="

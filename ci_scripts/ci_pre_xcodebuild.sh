@@ -17,25 +17,24 @@ if [ -x "$GO_INSTALL_DIR/bin/go" ]; then
     export PATH="$GO_INSTALL_DIR/bin:$PATH"
 fi
 
-# In Xcode Cloud the repo is checked out to the working directory.
-# Build the Rust XCFramework here so it is already present when Xcode
-# resolves Swift Package Manager dependencies (which happens before
-# any build-phase scripts run).
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-BUILD_SCRIPT="$REPO_ROOT/xcode/build.sh"
+XCFRAMEWORK="$REPO_ROOT/xcode/swiftyapp/Lib/swiftyrustlib/artifacts/RustyCore.xcframework"
 
-if [ -x "$BUILD_SCRIPT" ]; then
-    echo "Building Rust XCFramework for SPM..."
-    (cd "$REPO_ROOT/xcode" && "$BUILD_SCRIPT")
-else
-    echo "Build script not found: $BUILD_SCRIPT" >&2
-    exit 1
+# If the XCFramework is missing (shouldn't happen when ci_post_clone.sh
+# runs first), rebuild it now as a last resort.
+if [ ! -d "$XCFRAMEWORK" ]; then
+    echo "XCFramework missing — rebuilding..." >&2
+    BUILD_SCRIPT="$REPO_ROOT/xcode/build.sh"
+    if [ -x "$BUILD_SCRIPT" ]; then
+        (cd "$REPO_ROOT/xcode" && "$BUILD_SCRIPT")
+    else
+        echo "Build script not found: $BUILD_SCRIPT" >&2
+        exit 1
+    fi
 fi
 
-# Verify the XCFramework that SPM expects is in place.
-XCFRAMEWORK="$REPO_ROOT/xcode/swiftyapp/Lib/swiftyrustlib/artifacts/RustyCore.xcframework"
 if [ ! -d "$XCFRAMEWORK" ]; then
-    echo "XCFramework missing after build: $XCFRAMEWORK" >&2
+    echo "XCFramework still missing after build: $XCFRAMEWORK" >&2
     exit 1
 fi
 

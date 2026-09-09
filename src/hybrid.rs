@@ -3,8 +3,8 @@
 use std::path::Path;
 
 use crate::{
-    Error, Host, Node, init_repo, nostr_event_sign_with_tags, nostr_event_verify,
-    nostr_relay_drain, nostr_relay_publish,
+    Error, Host, Node, Repository, init_repo, nip34_issue, nip34_patch, nostr_event_sign_with_tags,
+    nostr_event_verify, nostr_relay_drain, nostr_relay_publish,
 };
 
 /// A unified handle that owns both an IPFS node and a libp2p host.
@@ -196,6 +196,76 @@ impl HybridNode {
         let cid = cid.ok_or_else(|| Error::Go("no ipfs:// URL found in tags".to_string()))?;
         let content = self.ipfs.cat(&cid)?;
         Ok((cid, content))
+    }
+
+    /// Open a Git repository, create a NIP-34 announcement event, and broadcast.
+    ///
+    /// Returns the signed event JSON.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if repo reading, event signing, or broadcast fails.
+    pub fn publish_repo(
+        &self,
+        repo_path: &str,
+        repo_id: &str,
+        name: &str,
+        description: &str,
+        clone_urls: &[String],
+        secret_key: &str,
+        relay_handle: Option<u64>,
+        gossip_topic: Option<&str>,
+    ) -> Result<String, Error> {
+        let repo = Repository::open(repo_path)?;
+        let event =
+            repo.create_nip34_announcement(repo_id, name, description, clone_urls, secret_key)?;
+        self.broadcast_event(&event, relay_handle, gossip_topic)?;
+        Ok(event)
+    }
+
+    /// Create a diff between two trees, build a NIP-34 patch event, and broadcast.
+    ///
+    /// Returns the signed event JSON.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if diff creation, event signing, or broadcast fails.
+    pub fn publish_patch(
+        &self,
+        repo_path: &str,
+        repo_ref: &str,
+        old_hash: &str,
+        new_hash: &str,
+        secret_key: &str,
+        relay_handle: Option<u64>,
+        gossip_topic: Option<&str>,
+    ) -> Result<String, Error> {
+        let repo = Repository::open(repo_path)?;
+        let diff = repo.diff_trees(old_hash, new_hash)?;
+        let event = nip34_patch(secret_key, repo_ref, &diff)?;
+        self.broadcast_event(&event, relay_handle, gossip_topic)?;
+        Ok(event)
+    }
+
+    /// Create a NIP-34 issue event and broadcast.
+    ///
+    /// Returns the signed event JSON.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if event signing or broadcast fails.
+    pub fn publish_issue(
+        &self,
+        repo_ref: &str,
+        title: &str,
+        body: &str,
+        secret_key: &str,
+        relay_handle: Option<u64>,
+        gossip_topic: Option<&str>,
+    ) -> Result<String, Error> {
+        let event = nip34_issue(secret_key, repo_ref, title, body)?;
+        self.broadcast_event(&event, relay_handle, gossip_topic)?;
+        Ok(event)
     }
 }
 

@@ -1,16 +1,27 @@
-[package]
-name = "kubo-rs"
+[workspace]
+members = [".", "xcode/rustylib"]
+resolver = "3"
+
+[workspace.package]
 version = "0.8.0"
-edition = "2024"
-build = "build.rs"
-links = "kubo_ffi"
 authors = ["Randy McMillan <randy.lee.mcmillan@gmail.com>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/RandyMcMillan/kubo-rs"
+rust-version = "1.85"
+
+[package]
+name = "kubo-rs"
+version.workspace = true
+edition = "2024"
+build = "build.rs"
+links = "kubo_ffi"
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
 description = "Rust bindings for Kubo (IPFS in Go) via CGO/FFI"
 keywords = ["ipfs", "kubo", "p2p", "libp2p", "ffi"]
 categories = ["filesystem", "network-programming"]
-rust-version = "1.85"
+rust-version.workspace = true
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }

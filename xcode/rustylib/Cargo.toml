@@ -1,6 +1,10 @@
 [package]
 name = "rustylib"
-version = "0.1.0"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 edition = "2021"
 
 [lib]
@@ -12,7 +16,7 @@ name = "uniffi-bindgen"
 path = "uniffi-bindgen.rs"
 
 [dependencies]
-kubo-rs = { version = "0.8.0", path = "../.." }
+kubo-rs = { path = "../.." }
 uniffi = { version = "0.28.0", features = [ "cli" ] }
 
 [build-dependencies]

@@ -312,16 +312,23 @@ final class PeerNetworkStore: NSObject, ObservableObject {
         let topic = p2pGossipTopic()
 
         if peerID.isEmpty {
+            let reason = p2pLastError()
             libp2pPeerID = "Unavailable"
             libp2pAddrs = []
             libp2pProtocols = []
             gossipTopic = "Unavailable"
-            addMessage("libp2p host failed to start")
+            addMessage("libp2p host failed to start: \(reason.isEmpty ? "unknown" : reason)")
         } else {
             libp2pPeerID = peerID
             libp2pAddrs = addrs
             libp2pProtocols = protocols
-            gossipTopic = topic.isEmpty ? "disabled" : topic
+            if topic.isEmpty {
+                let err = p2pGossipError()
+                gossipTopic = err.isEmpty ? "disabled" : "error"
+                addMessage("libp2p gossip disabled: \(err.isEmpty ? "no topic" : err)")
+            } else {
+                gossipTopic = topic
+            }
             addMessage("Started libp2p host \(libp2pPeerID)")
         }
     }

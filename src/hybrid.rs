@@ -157,6 +157,46 @@ impl HybridNode {
         self.p2p.close()?;
         Ok(())
     }
+
+    /// Parse a NIP-94 file metadata event and fetch the referenced IPFS content.
+    ///
+    /// Returns `(cid, content)` where `cid` is extracted from the `url` tag
+    /// (`ipfs://<cid>`).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the event is not a valid NIP-94 event, has no
+    /// `ipfs://` URL, or the content cannot be fetched.
+    pub fn resolve_nip94(&self, event_json: &str) -> Result<(String, Vec<u8>), Error> {
+        let event: serde_json::Value = serde_json::from_str(event_json)
+            .map_err(|e| Error::Go(format!("invalid JSON: {e}")))?;
+
+        let kind = event.get("kind").and_then(|v| v.as_i64()).unwrap_or(0);
+        if kind != 1063 {
+            return Err(Error::Go(format!("expected kind 1063, got {kind}")));
+        }
+
+        let tags = event.get("tags").and_then(|v| v.as_array());
+        let mut cid = None;
+        if let Some(tags) = tags {
+            for tag in tags {
+                if let Some(arr) = tag.as_array() {
+                    if arr.len() >= 2 && arr[0].as_str() == Some("url") && arr[1].as_str().is_some()
+                    {
+                        let url = arr[1].as_str().unwrap();
+                        if let Some(stripped) = url.strip_prefix("ipfs://") {
+                            cid = Some(stripped.to_string());
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        let cid = cid.ok_or_else(|| Error::Go("no ipfs:// URL found in tags".to_string()))?;
+        let content = self.ipfs.cat(&cid)?;
+        Ok((cid, content))
+    }
 }
 
 /// Extract the `id` field from a Nostr event JSON string.
@@ -246,5 +286,34 @@ mod tests {
         let json = r#"{"id":"abc123","pubkey":"def456","kind":1}"#;
         assert_eq!(extract_event_id(json), Some("abc123".to_string()));
         assert_eq!(extract_event_id("{}"), None);
+    }
+
+    #[test]
+    fn test_resolve_nip94() {
+        let base = tmp_dir("resolve_nip94");
+        let repo = base.join("repo");
+        let file = base.join("test.txt");
+        std::fs::write(&file, b"nip94 content").unwrap();
+
+        let node = HybridNode::start(&repo, false).expect("start should succeed");
+        let sk = crate::nostr_generate_key().expect("keygen should succeed");
+
+        let cid = node
+            .publish_file(&file, &sk, None, None)
+            .expect("publish_file should succeed");
+
+        // Build a synthetic NIP-94 event JSON
+        let event = format!(
+            r#"{{"id":"test","pubkey":"pk","created_at":0,"kind":1063,"tags":[["url","ipfs://{}"],["m","text/plain"]],"content":"test.txt","sig":"sig"}}"#,
+            cid
+        );
+
+        let (resolved_cid, content) = node
+            .resolve_nip94(&event)
+            .expect("resolve_nip94 should succeed");
+        assert_eq!(resolved_cid, cid);
+        assert_eq!(content, b"nip94 content");
+
+        node.stop().expect("stop should succeed");
     }
 }

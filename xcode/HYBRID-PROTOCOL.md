@@ -23,13 +23,39 @@ The `xcode/rustylib/` crate wraps `kubo-rs` and exposes a **small subset** of th
 | `p2p_gossip_publish(msg)` | `p2pGossipPublish(message:)` | ✅ |
 | `p2p_gossip_drain()` | `p2pGossipDrain()` | ✅ |
 
+### Implemented in Rust, Exposed to Swift (via `#[uniffi::export]`)
+
+| Rust Function | Swift Name | Status |
+|---|---|---|
+| `hybrid_start(online)` | `hybridStart(online:)` | ✅ Phase 8 |
+| `hybrid_stop()` | `hybridStop()` | ✅ Phase 8 |
+| `hybrid_ipfs_peer_id()` | `hybridIpfsPeerId()` | ✅ Phase 8 |
+| `hybrid_p2p_peer_id()` | `hybridP2pPeerId()` | ✅ Phase 8 |
+| `hybrid_broadcast_event(...)` | `hybridBroadcastEvent(...)` | ✅ Phase 8 |
+| `hybrid_drain_events(...)` | `hybridDrainEvents(...)` | ✅ Phase 8 |
+| `hybrid_publish_file(...)` | `hybridPublishFile(...)` | ✅ Phase 8 |
+| `hybrid_resolve_nip94(...)` | `hybridResolveNip94(...)` | ✅ Phase 11 |
+| `hybrid_publish_repo(...)` | `hybridPublishRepo(...)` | ✅ Phase 11 |
+| `hybrid_publish_patch(...)` | `hybridPublishPatch(...)` | ✅ Phase 11 |
+| `hybrid_publish_issue(...)` | `hybridPublishIssue(...)` | ✅ Phase 11 |
+| `p2p_gossip_join(topic)` | `p2pGossipJoin(topic:)` | ✅ Phase 8 |
+| `p2p_gossip_leave(topic)` | `p2pGossipLeave(topic:)` | ✅ Phase 8 |
+| `p2p_gossip_publish_to(...)` | `p2pGossipPublishTo(...)` | ✅ Phase 8 |
+| `nostr_generate_key()` | `nostrGenerateKey()` | ✅ Phase 8 |
+| `nostr_get_public_key(sk)` | `nostrGetPublicKey(sk:)` | ✅ Phase 8 |
+| `nostr_event_sign(...)` | `nostrEventSign(...)` | ✅ Phase 8 |
+| `nostr_event_verify(...)` | `nostrEventVerify(...)` | ✅ Phase 8 |
+| `nostr_relay_connect(url)` | `nostrRelayConnect(url:)` | ✅ Phase 8 |
+| `nostr_relay_close(handle)` | `nostrRelayClose(handle:)` | ✅ Phase 8 |
+| `nostr_relay_publish(...)` | `nostrRelayPublish(...)` | ✅ Phase 8 |
+| `nostr_relay_subscribe(...)` | `nostrRelaySubscribe(...)` | ✅ Phase 8 |
+| `nostr_relay_drain(...)` | `nostrRelayDrain(...)` | ✅ Phase 8 |
+| `nostr_relay_unsubscribe(...)` | `nostrRelayUnsubscribe(...)` | ✅ Phase 8 |
+
 ### Implemented in Rust, NOT Yet Exposed to Swift
 
-- **IPFS Node** — `Node::start`, `add_bytes`, `cat`, `pin_*`, `block_*`, `dht_*`, `name_*`
-- **Nostr** — keygen, sign, verify, relay connect/publish/subscribe/drain
+- **IPFS Node** — `add_bytes`, `cat`, `pin_*`, `block_*`, `dht_*`, `name_*`
 - **Git** — `git_clone`, `Repository` handle
-- **HybridNode** — `HybridNode::start`, `broadcast_event`, `drain_events`, `publish_file` (Phase 4 ✅)
-- **examples/hybrid.rs** — full end-to-end Rust demo (Phase 5 ✅)
 
 ---
 
@@ -126,6 +152,49 @@ pub fn create_nip94_event(file_path: &str, mime_type: Option<String>) -> String 
 - IPFS browser (list pinned CIDs, cat content)
 - NIP-94 event composer (attach IPFS file → generate event JSON)
 - `ipfs://<cid>` URL handler in SwiftUI
+
+---
+
+### Phase 7: Multi-Topic GossipSub ✅ (Rust Done)
+
+**Go FFI:** `kubo_libp2p_host_gossip_join`, `gossip_leave`, `gossip_publish_to`
+
+**Rust FFI:** `host_gossip_join`, `host_gossip_leave`, `host_gossip_publish_to`
+
+**Safe API:** `Host::gossip_join`, `Host::gossip_leave`, `Host::gossip_publish_to`
+
+**Swift exposure:** `p2pGossipJoin`, `p2pGossipLeave`, `p2pGossipPublishTo`
+
+---
+
+### Phase 8: Swift UniFFI Exposure ✅ (Rust Done)
+
+All HybridNode, multi-topic, and Nostr methods exposed via `#[uniffi::export]` in `xcode/rustylib/src/lib.rs`.
+
+---
+
+### Phase 9: NIP-94 IPFS Resolution ✅ (Rust Done)
+
+**Safe API:** `HybridNode::resolve_nip94(event_json)` → parses kind 1063, extracts `ipfs://` CID, fetches content.
+
+**Swift exposure:** `hybridResolveNip94`
+
+---
+
+### Phase 10: NIP-34 Git over GossipSub ✅ (Rust Done)
+
+**Safe API:**
+- `HybridNode::publish_repo(...)` — repo → announcement (kind 30617) → broadcast
+- `HybridNode::publish_patch(...)` — diff → patch event (kind 1617) → broadcast
+- `HybridNode::publish_issue(...)` — issue event (kind 1621) → broadcast
+
+**Swift exposure:** `hybridPublishRepo`, `hybridPublishPatch`, `hybridPublishIssue`
+
+---
+
+### Phase 11: Swift UniFFI Update ✅ (Rust Done)
+
+Exposed Phase 9 + Phase 10 methods to Swift.
 
 ---
 

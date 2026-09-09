@@ -96,16 +96,17 @@ for event_json in host.gossip_drain_nostr()? {
 
 ---
 
-## Multi-Topic Routing (Planned)
+## Multi-Topic Routing
 
-In Phase 2, `Host` will support joining multiple topics:
+`Host` supports joining multiple topics (Phase 7):
 
 ```rust
 host.gossip_join("kubo-hybrid")?;
 host.gossip_join("nip34-patches")?;
+host.gossip_publish_to("nip34-patches", &event)?;
 ```
 
-Each topic carries the same pipe-delimited format. `gossip_drain_nostr()` will verify events from ALL joined topics.
+Each topic carries the same pipe-delimited format. `gossip_drain_nostr()` verifies events from ALL joined topics. Use `gossip_leave("topic")` to unsubscribe.
 
 ---
 

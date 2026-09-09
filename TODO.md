@@ -36,6 +36,12 @@
 
 ## Recently Completed (2026-09-09)
 
+- [x] **Phase 7: Multi-topic GossipSub** — Go FFI `gossip_join/leave/publish_to`; Rust safe API; Swift UniFFI exposure
+- [x] **Phase 8: Swift UniFFI Exposure** — `hybrid_start/stop`, `broadcast_event`, `drain_events`, `publish_file`, `nostr_*`, `relay_*`, `p2p_gossip_join/leave/publish_to`
+- [x] **Phase 9: NIP-94 IPFS Resolution** — `HybridNode::resolve_nip94` parses kind 1063 events, extracts `ipfs://` CID, fetches content via IPFS
+- [x] **Phase 10: NIP-34 Git over GossipSub** — `HybridNode::publish_repo`, `publish_patch`, `publish_issue`
+- [x] **Phase 11: Swift UniFFI Update** — exposed `resolve_nip94`, `publish_repo`, `publish_patch`, `publish_issue` to Swift
+- [x] **Phase 12: Documentation** — `xcode/HYBRID-PROTOCOL.md`, `P2P-MESSAGE-TYPES.md`, `TODO.md` updated for Phases 7-11
 - [x] **Phase 4: HybridNode wrapper** — `src/hybrid.rs` with `broadcast_event`, `drain_events`, `publish_file`, `stop`; wired into `src/lib.rs`; unit tests pass
 - [x] **Phase 5: Hybrid example** — `examples/hybrid.rs` demonstrates end-to-end IPFS + Nostr + GossipSub flow
 - [x] **Xcode Cloud CI scripts** — `ci_scripts/ci_post_clone.sh` (installs Go/Rust, builds XCFramework) + `ci_pre_xcodebuild.sh` (verifies env)

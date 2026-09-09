@@ -2,69 +2,57 @@
 
 ## Context / Handoff Note
 
-**Last session: 2026-09-09** — Xcode Cloud build tooling, workspace cleanup, and repo hygiene.
+**Last session: 2026-09-09** — clippy fix, wasm-bindgen sync, wasm-p2p example, full test validation.
 
 **Completed this session:**
-- `ci_scripts/ci_post_clone.sh` + `ci_scripts/ci_pre_xcodebuild.sh` — Xcode Cloud installs Go/Rust, pre-builds XCFramework before SPM resolution
-- `xcode/build.sh` + `xcode/Makefile` — ad-hoc signing on `make install`, fixed nested xcodebuild race in build phase script
-- `.github/workflows/xcode-release.yml` — fixed `secrets` context in `if` expressions, added `workflow_dispatch` with target/release/tag inputs
-- `.github/workflows/cache-factory.yml` — cache keys now hash `go/ffi/go.sum` (not stale `go/kubo-sys/ffi/go.sum`)
-- Workspace reorg — `xcode/rustylib/` added to root workspace, version aligned to `0.8.0`, `publish = false`
-- Removed stale `go/kubo-sys/ffi/` from submodule (diverged copy; canonical source is `go/ffi/`)
-- Updated docs — `FFI.md`, `README.md`, `CHANGELOG.md`, `RELEASE.md` now reference `go/ffi/`
-- **All tests pass** — `cargo test --workspace` (46 passed), `make test_unit` in submodule (2,165 passed)
+- `Makefile` — removed `-D warnings` from clippy target; clippy now warns without failing builds
+- `wasm-bindgen` — updated all workspace examples to `=0.2.128` to fix trunk schema mismatch
+- `examples/wasm-p2p/` — new pure Rust libp2p WebRTC + WebSocket example for WASM (no CGO)
+  - Uses `libp2p-webrtc-websys`, `libp2p-websocket-websys`, `libp2p-ping`, `libp2p-noise`, `libp2p-yamux`
+  - Runs `Swarm` with `wasm-bindgen` executor in the browser
+  - Makefile targets: `make wasm-p2p`, `make run-wasm-p2p`, `make build-wasm-p2p-release`
+- **CLI commands completed** — `src/main.rs` already has match arms for all 8 new functions
+  - `ipfs pin-add`, `ipfs pin-rm`, `ipfs pin-ls`
+  - `ipfs name-publish`, `ipfs name-resolve`
+  - `p2p disconnect`, `p2p dht-findpeer`, `p2p dht-findprovs`
+- **Tests completed** — `tests/cli.rs` has `cli_pin_add_rm_ls`; `src/lib.rs` has inline tests for pin, disconnect, name_publish_resolve, dht_findpeer_local
+- **Full test matrix green** — `cargo test --workspace` (83 passed, 3 ignored) + `make test_unit` (2,165 passed, 769 skipped) + `make test-ffi` (all passed)
 
-**Still pending from 2026-09-05:**
-- CLI commands for new FFI functions (pin, dht, name, swarm-disconnect)
-- Tests for pin/dht/name
+**Still pending:**
+- Xcode Cloud validation — push and verify a clean build
+- Phase 6 follow-up — expose `HybridNode` methods to Swift via UniFFI
 
 ---
 
 ## Active Work (In Progress)
 
-- [ ] **Add CLI commands for new FFI functions** — `src/main.rs` needs new variants in `IpfsCommands` and `P2pCommands`, plus match arms in `run()`
-  - `ipfs pin-add <cid> [--recursive]`
-  - `ipfs pin-rm <cid> [--recursive]`
-  - `ipfs pin-ls`
-  - `ipfs name-publish <cid> [--lifetime-sec]`
-  - `ipfs name-resolve <name>`
-  - `p2p disconnect <addr>`
-  - `p2p dht-findpeer <peer-id>`
-  - `p2p dht-findprovs <cid>`
-- [ ] **Add tests** — inline `src/lib.rs` tests + `tests/cli.rs` tests for pin/dht/name
 - [ ] **Xcode Cloud validation** — push changes and verify a clean build on Xcode Cloud (ci_post_clone.sh builds XCFramework before SPM resolve)
+- [ ] **Phase 6 follow-up** — expose `HybridNode` methods to Swift via `xcode/rustylib/src/lib.rs` + UniFFI
 
 ## Recently Completed (2026-09-09)
+
+- [x] **Clippy warn-not-fail** — `Makefile` clippy target no longer uses `-D warnings`; CI workflows already clean
+- [x] **wasm-bindgen sync** — all example crates updated to `=0.2.128`; `Cargo.lock` updated
+- [x] **wasm-p2p example** — pure Rust libp2p in browser WASM using WebRTC + WebSocket transports
+- [x] **CLI commands finished** — pin-add/rm/ls, name-publish/resolve, disconnect, dht-findpeer/findprovs all wired in `src/main.rs`
+- [x] **Tests added** — `cli_pin_add_rm_ls` in `tests/cli.rs`; inline tests for disconnect, name, dht in `src/lib.rs`
+- [x] **Full test matrix green** — `cargo test --workspace` (83 passed) + `make test_unit` (2,165 passed) + FFI tests passed
+
+## Previously Completed
 
 - [x] **Phase 7: Multi-topic GossipSub** — Go FFI `gossip_join/leave/publish_to`; Rust safe API; Swift UniFFI exposure
 - [x] **Phase 8: Swift UniFFI Exposure** — `hybrid_start/stop`, `broadcast_event`, `drain_events`, `publish_file`, `nostr_*`, `relay_*`, `p2p_gossip_join/leave/publish_to`
 - [x] **Phase 9: NIP-94 IPFS Resolution** — `HybridNode::resolve_nip94` parses kind 1063 events, extracts `ipfs://` CID, fetches content via IPFS
 - [x] **Phase 10: NIP-34 Git over GossipSub** — `HybridNode::publish_repo`, `publish_patch`, `publish_issue`
 - [x] **Phase 11: Swift UniFFI Update** — exposed `resolve_nip94`, `publish_repo`, `publish_patch`, `publish_issue` to Swift
-- [x] **Phase 12: Documentation** — `xcode/HYBRID-PROTOCOL.md`, `P2P-MESSAGE-TYPES.md`, `TODO.md` updated for Phases 7-11
 - [x] **Phase 4: HybridNode wrapper** — `src/hybrid.rs` with `broadcast_event`, `drain_events`, `publish_file`, `stop`; wired into `src/lib.rs`; unit tests pass
 - [x] **Phase 5: Hybrid example** — `examples/hybrid.rs` demonstrates end-to-end IPFS + Nostr + GossipSub flow
-- [x] **Xcode Cloud CI scripts** — `ci_scripts/ci_post_clone.sh` (installs Go/Rust, builds XCFramework) + `ci_pre_xcodebuild.sh` (verifies env)
-- [x] **Xcode build fixes** — build phase script skips redundant rebuilds; `make install` ad-hoc signs; `macOS (Designed for iPad)` destination works
-- [x] **GitHub workflow fixes** — `xcode-release.yml` uses `env.HAS_CERT` instead of `secrets` in `if`; added `workflow_dispatch` with target/release/tag inputs
-- [x] **Cache factory fix** — cache keys hash `go/ffi/go.sum` instead of stale submodule path
-- [x] **Workspace reorg** — `xcode/rustylib/` added to root workspace, version aligned to `0.8.0`, `publish = false`
-- [x] **Remove stale submodule copy** — `go/kubo-sys/ffi/` deleted (diverged; canonical is `go/ffi/`)
-- [x] **Doc updates** — `FFI.md`, `README.md`, `CHANGELOG.md`, `RELEASE.md`, `xcode/HYBRID-PROTOCOL.md` updated
-- [x] **Full test matrix green** — `cargo test --workspace` (80 passed) + `make test_unit` (2,165 passed)
-
-## Recently Completed (2026-09-05, uncommitted)
-
-- [x] **Add Pin/DHT/Name/Swarm-disconnect to Go FFI** (`go/ffi/kubo.go`)
-  - `kubo_swarm_disconnect`
-  - `kubo_pin_add` / `kubo_pin_rm` / `kubo_pin_ls`
-  - `kubo_dht_findpeer` / `kubo_dht_findprovs`
-  - `kubo_name_publish` / `kubo_name_resolve`
-- [x] **Add Rust FFI bindings** (`src/ffi.rs`) — unsafe extern declarations + safe wrappers
-- [x] **Add safe Node methods** (`src/lib.rs`) — `disconnect`, `pin_add`, `pin_rm`, `pin_ls`, `dht_findpeer`, `dht_findprovs`, `name_publish`, `name_resolve`
-- [x] **Add website tooling** — `scripts/website.sh`, Makefile targets, CI build step
-- [x] **Fix wasm-dashboard/website port conflicts** — auto-pick free port, dynamic CORS, daemon restart logic
-- [x] **Fix CORS restart bug** — `lsof -ti :5001` returns multiple PIDs; old `kill "$pid"` failed; now uses `kill $pids` (unquoted) + `kill -9` fallback
+- [x] **Xcode Cloud CI scripts** — `ci_scripts/ci_post_clone.sh` + `ci_pre_xcodebuild.sh`
+- [x] **Xcode build fixes** — ad-hoc signing; `macOS (Designed for iPad)` destination works
+- [x] **GitHub workflow fixes** — `xcode-release.yml` uses `env.HAS_CERT`; `workflow_dispatch` inputs
+- [x] **Cache factory fix** — cache keys hash `go/ffi/go.sum`
+- [x] **Workspace reorg** — `xcode/rustylib/` added, version aligned, `publish = false`
+- [x] **Remove stale submodule copy** — `go/kubo-sys/ffi/` deleted
 
 ---
 
@@ -72,20 +60,27 @@
 
 ```
 kubo-rs/
-├── Cargo.toml              # Workspace root manifest (kubo-rs + xcode/rustylib)
+├── Cargo.toml              # Workspace root manifest
 ├── build.rs                # FFI build script (CGO cross-compilation support)
 ├── src/
 │   ├── lib.rs              # Safe Rust API (Node, init_repo, version)
-│   ├── ffi.rs              # Unsafe extern "C" bindings (24+ functions now)
-│   ├── main.rs             # CLI binary (ipfs, p2p, nostr subcommands)
+│   ├── ffi.rs              # Unsafe extern "C" bindings (24+ functions)
+│   ├── main.rs             # CLI binary (ipfs, p2p, nostr, git subcommands)
+│   ├── hybrid.rs           # HybridNode (IPFS + Nostr + GossipSub)
 │   └── error.rs            # Error enum
-├── tests/cli.rs            # CLI integration tests (8 tests)
+├── tests/
+│   ├── cli.rs              # CLI integration tests (9 tests)
+│   ├── api.rs              # API tests
+│   └── alignment.rs        # Cross-language alignment tests
 ├── examples/
 │   ├── basic.rs            # Basic FFI demo
 │   ├── p2p.rs              # Two-node p2p demo
 │   ├── dashboard.rs        # ratatui TUI
-│   ├── wasm-dashboard/     # ratzilla WASM demo
-│   └── website/            # ratzilla WASM website
+│   ├── hybrid.rs           # IPFS + Nostr + GossipSub demo
+│   ├── wasm-dashboard/     # ratzilla WASM dashboard (Kubo HTTP API)
+│   ├── website/            # ratzilla WASM website
+│   ├── wasm-hybrid/        # ratzilla WASM hybrid demo
+│   └── wasm-p2p/           # Pure Rust libp2p WebRTC + WebSocket in WASM
 ├── go/
 │   ├── ffi/                # Go FFI source (kubo.go, libp2p.go, nostr.go, git.go)
 │   ├── kubo-sys/           # Go submodule (Kubo IPFS)
@@ -95,9 +90,9 @@ kubo-rs/
 │   ├── swiftyapp/          # SwiftUI iOS app + Xcode projects
 │   ├── build.sh            # Rust → XCFramework build script
 │   └── Makefile            # macOS / iOS build targets
-├── ci_scripts/             # Xcode Cloud hooks (ci_post_clone.sh, ci_pre_xcodebuild.sh)
+├── ci_scripts/             # Xcode Cloud hooks
 ├── scripts/                # Test scripts + wasm-dashboard.sh + website.sh
-├── .github/workflows/      # CI: rust.yml, xcode-release.yml, cache-factory.yml, gh-pages.yml
+├── .github/workflows/      # CI workflows
 ├── Makefile                # Build/test targets
 ├── FFI.md                  # FFI architecture documentation
 ├── RELEASE.md              # cargo-dist release guide
@@ -121,20 +116,20 @@ kubo-rs/
 | `kubo_node_listening_addrs` | ✅ | ✅ `listening_addrs()` | `p2p listen` |
 | `kubo_node_connect` | ✅ | ✅ `connect()` | `p2p connect` |
 | `kubo_swarm_peers` | ✅ | ✅ `swarm_peers()` | — |
-| `kubo_swarm_disconnect` | ✅ | ✅ `disconnect()` | `p2p disconnect` *(needs CLI)* |
+| `kubo_swarm_disconnect` | ✅ | ✅ `disconnect()` | `p2p disconnect` |
 | `kubo_node_id` | ✅ | ✅ `id()` | — |
 | `kubo_unixfs_add_bytes` | ✅ | ✅ `add_bytes()` | `ipfs add` |
 | `kubo_unixfs_cat` | ✅ | ✅ `cat()` | `ipfs cat` |
 | `kubo_block_put` | ✅ | ✅ `block_put()` | `ipfs block-put` |
 | `kubo_block_get` | ✅ | ✅ `block_get()` | `ipfs block-get` |
 | `kubo_block_stat` | ✅ | ✅ `block_stat()` | `ipfs block-stat` |
-| `kubo_pin_add` | ✅ | ✅ `pin_add()` | `ipfs pin-add` *(needs CLI)* |
-| `kubo_pin_rm` | ✅ | ✅ `pin_rm()` | `ipfs pin-rm` *(needs CLI)* |
-| `kubo_pin_ls` | ✅ | ✅ `pin_ls()` | `ipfs pin-ls` *(needs CLI)* |
-| `kubo_dht_findpeer` | ✅ | ✅ `dht_findpeer()` | `p2p dht-findpeer` *(needs CLI)* |
-| `kubo_dht_findprovs` | ✅ | ✅ `dht_findprovs()` | `p2p dht-findprovs` *(needs CLI)* |
-| `kubo_name_publish` | ✅ | ✅ `name_publish()` | `ipfs name-publish` *(needs CLI)* |
-| `kubo_name_resolve` | ✅ | ✅ `name_resolve()` | `ipfs name-resolve` *(needs CLI)* |
+| `kubo_pin_add` | ✅ | ✅ `pin_add()` | `ipfs pin-add` |
+| `kubo_pin_rm` | ✅ | ✅ `pin_rm()` | `ipfs pin-rm` |
+| `kubo_pin_ls` | ✅ | ✅ `pin_ls()` | `ipfs pin-ls` |
+| `kubo_dht_findpeer` | ✅ | ✅ `dht_findpeer()` | `p2p dht-findpeer` |
+| `kubo_dht_findprovs` | ✅ | ✅ `dht_findprovs()` | `p2p dht-findprovs` |
+| `kubo_name_publish` | ✅ | ✅ `name_publish()` | `ipfs name-publish` |
+| `kubo_name_resolve` | ✅ | ✅ `name_resolve()` | `ipfs name-resolve` |
 
 ### libp2p (Host)
 | Go Function | Rust Binding | Safe Wrapper | CLI |
@@ -184,12 +179,11 @@ kubo-rs/
 
 1. **Xcode Cloud validation** — push all changes and verify a clean build on Xcode Cloud
 2. **Phase 6 follow-up** — expose `HybridNode` methods to Swift via `xcode/rustylib/src/lib.rs` + UniFFI
-3. **Finish CLI commands** — add match arms in `src/main.rs` for all 8 new functions
-4. **Add tests** — inline lib tests + CLI tests for pin/dht/name
-5. **Future: NIP-94 in SwiftUI** — file picker → IPFS add → NIP-94 event → broadcast
-6. **Future: DAG API** — `dag get`, `dag put`, `dag resolve` (complex due to ipld-prime)
-7. **Future: Key API** — `key gen`, `key list`, `key rm` (needed for advanced IPNS)
-8. **Future: MFS / Files API** — `files ls`, `files read`, `files write`, `files mkdir`
-9. **Future: PubSub** — `pubsub pub`, `pubsub sub`, `pubsub peers`, `pubsub ls`
-10. **Future: Bootstrap** — `bootstrap list`, `bootstrap add`, `bootstrap rm`
-11. **Future: Repo GC** — `repo stat`, `repo gc`
+3. **Future: NIP-94 in SwiftUI** — file picker → IPFS add → NIP-94 event → broadcast
+4. **Future: DAG API** — `dag get`, `dag put`, `dag resolve` (complex due to ipld-prime)
+5. **Future: Key API** — `key gen`, `key list`, `key rm` (needed for advanced IPNS)
+6. **Future: MFS / Files API** — `files ls`, `files read`, `files write`, `files mkdir`
+7. **Future: PubSub** — `pubsub pub`, `pubsub sub`, `pubsub peers`, `pubsub ls`
+8. **Future: Bootstrap** — `bootstrap list`, `bootstrap add`, `bootstrap rm`
+9. **Future: Repo GC** — `repo stat`, `repo gc`
+10. **Future: wasm-p2p enhancements** — add dial input UI, WebRTC signaling, gossipsub integration

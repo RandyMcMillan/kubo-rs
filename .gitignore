@@ -34,3 +34,7 @@ Thumbs.db
 !.ipfs/.gitkeep
 
 examples/website/dist/
+
+# FFI test binaries
+go/ffi/cmd/testffi/testffi
+go/ffi/cmd/testrust/testrust

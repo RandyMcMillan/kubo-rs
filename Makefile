@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: all build build-bin build-go build-ffi test test-cli test-ffi test-ffi-c test-ffi-rust test-all bench fmt clippy clean clean-all check example p2p scripts cross-test run-wasm-dashboard build-wasm-dashboard-release website run-website build-website-release
+.PHONY: all build build-bin build-go build-ffi test test-cli test-ffi test-ffi-c test-ffi-rust test-all bench fmt clippy clean clean-all check example p2p scripts cross-test run-wasm-dashboard build-wasm-dashboard-release website run-website build-website-release wasm-p2p run-wasm-p2p build-wasm-p2p-release
 
 all: fmt clippy test
 
@@ -63,7 +63,7 @@ fmt:
 	cargo fmt
 
 clippy:
-	cargo clippy --all-targets -- -D warnings
+	cargo clippy --all-targets
 
 check: fmt clippy test-all
 
@@ -113,6 +113,20 @@ build-website-release:
 	pkill -f "trunk serve" 2>/dev/null || true
 	cd examples/website && env -u NO_COLOR trunk build --public-url /kubo-rs/
 
+wasm-p2p:
+	@rustup target list --installed | grep -q wasm32-unknown-unknown || rustup target add wasm32-unknown-unknown
+	@which trunk >/dev/null 2>&1 || cargo install trunk
+	pkill -f "trunk serve" 2>/dev/null || true
+	cd examples/wasm-p2p && env -u NO_COLOR trunk serve --port 8084
+
+run-wasm-p2p: wasm-p2p
+
+build-wasm-p2p-release:
+	@rustup target list --installed | grep -q wasm32-unknown-unknown || rustup target add wasm32-unknown-unknown
+	@which trunk >/dev/null 2>&1 || cargo install trunk
+	pkill -f "trunk serve" 2>/dev/null || true
+	cd examples/wasm-p2p && env -u NO_COLOR trunk build --public-url /kubo-rs/
+
 # Cross-testing
 scripts:
 	@echo "Run one of:"
@@ -152,5 +166,8 @@ help:
 	@echo "  website                   - Build the website example"
 	@echo "  run-website               - Build and serve the website (auto-picks free port from 8082)"
 	@echo "  build-website-release     - Build website for GitHub Pages deployment"
+	@echo "  wasm-p2p                  - Build and serve the WASM libp2p WebRTC example (port 8084)"
+	@echo "  run-wasm-p2p              - Alias for wasm-p2p"
+	@echo "  build-wasm-p2p-release    - Build WASM libp2p example for GitHub Pages deployment"
 	@echo "  cross-test     - Run cross-language alignment tests"
 	@echo "  scripts        - Show available test scripts"

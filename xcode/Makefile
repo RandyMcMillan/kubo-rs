@@ -64,7 +64,18 @@ mac: rust resolve
 install: mac
 	mkdir -p "$(INSTALL_DIR)"
 	rm -rf "$(INSTALL_DIR)/$(APP_NAME)"
-	cp -R "$(MAC_APP_PATH)" "$(INSTALL_DIR)/$(APP_NAME)"
+	# Build a native macOS launcher app (AppleScript) that delegates to the iOS app.
+	# A "Designed for iPad" app is an iOS binary; Finder rejects it when double-clicked.
+	# The launcher lets the user open it normally from ~/Applications or Launchpad.
+	osacompile -e 'do shell script "open -b org.gnostr.kubo-macos"' -o "$(INSTALL_DIR)/$(APP_NAME)"
+	# Embed the real iOS app inside the launcher so Launch Services can find it.
+	mkdir -p "$(INSTALL_DIR)/$(APP_NAME)/Contents/Resources"
+	cp -R "$(MAC_APP_PATH)" "$(INSTALL_DIR)/$(APP_NAME)/Contents/Resources/kubo-macos-ios.app"
+	# Register with Launch Services
+	/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister -f "$(INSTALL_DIR)/$(APP_NAME)"
+	@echo ""
+	@echo "Installed $(APP_NAME) to $(INSTALL_DIR)"
+	@echo "Launch by double-clicking in Finder or Launchpad, or run: open -a \"kubo-macos\""
 
 clean:
 	cd "$(RUST_CRATE_DIR)" && cargo clean

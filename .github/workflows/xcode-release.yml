@@ -29,12 +29,11 @@ on:
 permissions:
   contents: write
 
-env:
-  HAS_CERT: ${{ secrets.BUILD_CERTIFICATE_BASE64 != '' }}
-
 jobs:
   build-xcode-release:
     runs-on: macos-latest
+    env:
+      HAS_CERT: ${{ secrets.BUILD_CERTIFICATE_BASE64 != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

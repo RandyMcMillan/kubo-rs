@@ -99,6 +99,18 @@ final class HybridNodeStore: ObservableObject {
     @Published var gossipTopic: String = "kubo-hybrid"
     @Published var gossipMessage: String = ""
 
+    // Typed Messages (Phase 15)
+    @Published var typedMessages: [HybridMessage] = []
+    @Published var typedCategoryFilter: MessageCategory? = nil
+    @Published var typedBroadcastCategory: MessageCategory = .file
+    @Published var typedContent: String = ""
+    @Published var typedCID: String = ""
+    @Published var typedFilename: String = ""
+    @Published var typedRepoRef: String = ""
+    @Published var typedTitle: String = ""
+    @Published var typedBody: String = ""
+    @Published var typedDiff: String = ""
+
     // Network / DHT
     @Published var dhtPeerID: String = ""
     @Published var dhtPeerAddrs: [String] = []
@@ -324,6 +336,177 @@ final class HybridNodeStore: ObservableObject {
         appendActivity("Drained \(events.count) gossip events")
     }
 
+    // MARK: - Typed Messages (Phase 15)
+
+    func broadcastTypedFile() {
+        guard !nostrSecretKey.isEmpty else {
+            appendActivity("No Nostr key — generate one first")
+            return
+        }
+        let cid = typedCID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let filename = typedFilename.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cid.isEmpty, !filename.isEmpty else {
+            appendActivity("Need CID and filename for NIP-94 file")
+            return
+        }
+        let msg = HybridMessage(
+            kind: 1063,
+            content: filename,
+            tags: [
+                ["url", "ipfs://\(cid)"],
+                ["m", guessMime(filename)],
+            ]
+        )
+        do {
+            let event = try hybridBroadcastTyped(msg: msg, secretKey: nostrSecretKey, relayHandle: relayHandle == 0 ? nil : relayHandle, gossipTopic: gossipTopic)
+            appendActivity("Broadcast NIP-94 file: \(shortCID(cid))")
+            typedContent = event
+        } catch let error as RustyError {
+            appendActivity("Broadcast failed: \(error.localizedDescription)")
+        } catch {
+            appendActivity("Broadcast failed: \(error)")
+        }
+    }
+
+    func broadcastTypedRepo() {
+        guard !nostrSecretKey.isEmpty else {
+            appendActivity("No Nostr key — generate one first")
+            return
+        }
+        let repoRef = typedRepoRef.trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = typedTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let body = typedBody.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !repoRef.isEmpty, !title.isEmpty else {
+            appendActivity("Need repo ref and title for NIP-34 repo")
+            return
+        }
+        let msg = HybridMessage(
+            kind: 30617,
+            content: body,
+            tags: [
+                ["d", repoRef],
+                ["name", title],
+            ]
+        )
+        do {
+            let event = try hybridBroadcastTyped(msg: msg, secretKey: nostrSecretKey, relayHandle: relayHandle == 0 ? nil : relayHandle, gossipTopic: gossipTopic)
+            appendActivity("Broadcast NIP-34 repo: \(repoRef)")
+            typedContent = event
+        } catch let error as RustyError {
+            appendActivity("Broadcast failed: \(error.localizedDescription)")
+        } catch {
+            appendActivity("Broadcast failed: \(error)")
+        }
+    }
+
+    func broadcastTypedPatch() {
+        guard !nostrSecretKey.isEmpty else {
+            appendActivity("No Nostr key — generate one first")
+            return
+        }
+        let repoRef = typedRepoRef.trimmingCharacters(in: .whitespacesAndNewlines)
+        let diff = typedDiff.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !repoRef.isEmpty, !diff.isEmpty else {
+            appendActivity("Need repo ref and diff for NIP-34 patch")
+            return
+        }
+        let msg = HybridMessage(
+            kind: 1617,
+            content: diff,
+            tags: [
+                ["e", repoRef],
+                ["a", repoRef],
+            ]
+        )
+        do {
+            let event = try hybridBroadcastTyped(msg: msg, secretKey: nostrSecretKey, relayHandle: relayHandle == 0 ? nil : relayHandle, gossipTopic: gossipTopic)
+            appendActivity("Broadcast NIP-34 patch: \(repoRef)")
+            typedContent = event
+        } catch let error as RustyError {
+            appendActivity("Broadcast failed: \(error.localizedDescription)")
+        } catch {
+            appendActivity("Broadcast failed: \(error)")
+        }
+    }
+
+    func broadcastTypedIssue() {
+        guard !nostrSecretKey.isEmpty else {
+            appendActivity("No Nostr key — generate one first")
+            return
+        }
+        let repoRef = typedRepoRef.trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = typedTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let body = typedBody.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !repoRef.isEmpty, !title.isEmpty else {
+            appendActivity("Need repo ref and title for NIP-34 issue")
+            return
+        }
+        let msg = HybridMessage(
+            kind: 1621,
+            content: "\(title)\n\n\(body)",
+            tags: [
+                ["e", repoRef],
+                ["a", repoRef],
+            ]
+        )
+        do {
+            let event = try hybridBroadcastTyped(msg: msg, secretKey: nostrSecretKey, relayHandle: relayHandle == 0 ? nil : relayHandle, gossipTopic: gossipTopic)
+            appendActivity("Broadcast NIP-34 issue: \(repoRef)")
+            typedContent = event
+        } catch let error as RustyError {
+            appendActivity("Broadcast failed: \(error.localizedDescription)")
+        } catch {
+            appendActivity("Broadcast failed: \(error)")
+        }
+    }
+
+    func drainTyped() {
+        do {
+            let messages = try hybridDrainTyped(relaySubHandle: relayHandle == 0 ? nil : relayHandle)
+            typedMessages = messages
+            appendActivity("Drained \(messages.count) typed messages")
+        } catch let error as RustyError {
+            appendActivity("Drain failed: \(error.localizedDescription)")
+        } catch {
+            appendActivity("Drain failed: \(error)")
+        }
+    }
+
+    func broadcastTyped() {
+        switch typedBroadcastCategory {
+        case .file: broadcastTypedFile()
+        case .repo: broadcastTypedRepo()
+        case .patch: broadcastTypedPatch()
+        case .issue: broadcastTypedIssue()
+        case .other: appendActivity("Select a valid category")
+        }
+    }
+
+    func categoryFor(_ msg: HybridMessage) -> MessageCategory {
+        switch msg.kind {
+        case 1063: return .file
+        case 30617: return .repo
+        case 1617: return .patch
+        case 1621: return .issue
+        default: return .other
+        }
+    }
+
+    func categoryName(_ msg: HybridMessage) -> String {
+        switch msg.kind {
+        case 1063: return "File"
+        case 30617: return "Repo"
+        case 1617: return "Patch"
+        case 1621: return "Issue"
+        default: return "Other"
+        }
+    }
+
+    func filteredTypedMessages() -> [HybridMessage] {
+        guard let filter = typedCategoryFilter else { return typedMessages }
+        return typedMessages.filter { categoryFor($0) == filter }
+    }
+
     // MARK: - Network / DHT
 
     func dhtFindPeer() {
@@ -433,6 +616,32 @@ final class HybridNodeStore: ObservableObject {
     func shortKey(_ key: String) -> String {
         guard key.count > 16 else { return key }
         return "\(key.prefix(8))…\(key.suffix(8))"
+    }
+
+    func guessMime(_ fileName: String) -> String {
+        let ext = fileName.split(separator: ".").last?.lowercased() ?? ""
+        switch ext {
+        case "txt": return "text/plain"
+        case "html", "htm": return "text/html"
+        case "css": return "text/css"
+        case "js": return "application/javascript"
+        case "json": return "application/json"
+        case "png": return "image/png"
+        case "jpg", "jpeg": return "image/jpeg"
+        case "gif": return "image/gif"
+        case "svg": return "image/svg+xml"
+        case "mp4": return "video/mp4"
+        case "mp3": return "audio/mpeg"
+        case "pdf": return "application/pdf"
+        case "zip": return "application/zip"
+        case "gz": return "application/gzip"
+        case "tar": return "application/x-tar"
+        case "md": return "text/markdown"
+        case "rs": return "text/rust"
+        case "go": return "text/x-go"
+        case "swift": return "text/x-swift"
+        default: return "application/octet-stream"
+        }
     }
 }
 
@@ -1720,6 +1929,113 @@ struct ContentView: View {
                 }
             }
 
+            DashboardCard(title: "Typed Messages") {
+                VStack(alignment: .leading, spacing: 12) {
+                    Picker("Category", selection: $store.typedBroadcastCategory) {
+                        Text("File").tag(MessageCategory.file)
+                        Text("Repo").tag(MessageCategory.repo)
+                        Text("Patch").tag(MessageCategory.patch)
+                        Text("Issue").tag(MessageCategory.issue)
+                    }
+                    .pickerStyle(.segmented)
+
+                    if store.typedBroadcastCategory == .file {
+                        TextField("CID", text: $store.typedCID)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("Filename", text: $store.typedFilename)
+                            .textFieldStyle(.roundedBorder)
+                    } else if store.typedBroadcastCategory == .repo {
+                        TextField("Repo ref", text: $store.typedRepoRef)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("Title", text: $store.typedTitle)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("Body", text: $store.typedBody, axis: .vertical)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(2...4)
+                    } else if store.typedBroadcastCategory == .patch {
+                        TextField("Repo ref", text: $store.typedRepoRef)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("Diff", text: $store.typedDiff, axis: .vertical)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(3...6)
+                    } else if store.typedBroadcastCategory == .issue {
+                        TextField("Repo ref", text: $store.typedRepoRef)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("Title", text: $store.typedTitle)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("Body", text: $store.typedBody, axis: .vertical)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(2...4)
+                    }
+
+                    HStack(spacing: 12) {
+                        Button {
+                            store.broadcastTyped()
+                        } label: {
+                            Label("Broadcast", systemImage: "dot.radiowaves.left.and.right")
+                        }
+                        .buttonStyle(.borderedProminent)
+
+                        Button {
+                            store.drainTyped()
+                        } label: {
+                            Label("Drain", systemImage: "arrow.down")
+                        }
+                        .buttonStyle(.bordered)
+
+                        Spacer()
+                    }
+
+                    Divider()
+
+                    HStack(spacing: 12) {
+                        Text("Filter:")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Picker("Filter", selection: $store.typedCategoryFilter) {
+                            Text("All").tag(MessageCategory?.none)
+                            Text("File").tag(MessageCategory?.some(.file))
+                            Text("Repo").tag(MessageCategory?.some(.repo))
+                            Text("Patch").tag(MessageCategory?.some(.patch))
+                            Text("Issue").tag(MessageCategory?.some(.issue))
+                        }
+                        .pickerStyle(.segmented)
+                    }
+
+                    let filtered = store.filteredTypedMessages()
+                    if filtered.isEmpty {
+                        Text("No typed messages yet.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(Array(filtered.enumerated()), id: \.offset) { _, msg in
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(spacing: 8) {
+                                    Text(store.categoryName(msg))
+                                        .font(.caption.weight(.semibold))
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(Capsule(style: .continuous).fill(Color.accentColor.opacity(0.15)))
+                                    Text("kind:\(msg.kind)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                }
+                                Text(msg.content)
+                                    .font(.system(.body, design: .monospaced))
+                                    .lineLimit(3)
+                                if !msg.tags.isEmpty {
+                                    Text(msg.tags.map { $0.joined(separator: ":") }.joined(separator: ", "))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+            }
+
             DashboardCard(title: "Chat transcript") {
                 VStack(alignment: .leading, spacing: 10) {
                     if peers.chatMessages.isEmpty {
@@ -1817,6 +2133,7 @@ struct ContentView: View {
         guard cid.count > 18 else { return cid }
         return "\(cid.prefix(10))…\(cid.suffix(6))"
     }
+
 }
 
 private struct FlowLayout: Layout {

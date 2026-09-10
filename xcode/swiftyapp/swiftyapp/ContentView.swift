@@ -57,87 +57,253 @@ struct KuboSnapshot {
     var roundTrip: String = "—"
     var mathResult: String = "—"
     var status: String = "Waiting for snapshot"
-    var rawSummary: String = "Tap Refresh Snapshot to build a temporary repo and capture a live Kubo result."
+    var rawSummary: String = "Tap Refresh to start the HybridNode and capture live state."
     var updatedAt: Date?
 
     static let placeholder = KuboSnapshot()
 }
 
 @MainActor
-final class DashboardStore: ObservableObject {
+final class HybridNodeStore: ObservableObject {
     @Published var selection: DashboardSection = .overview
     @Published var snapshot: KuboSnapshot = .placeholder
     @Published var activity: [String] = []
     @Published var isRefreshing = false
+    @Published var nodeStarted = false
+    @Published var nodeError: String = ""
 
-    func refresh() {
+    // IPFS
+    @Published var pins: [String] = []
+    @Published var lastAddedCID: String = ""
+    @Published var catResult: String = ""
+    @Published var addDraft: String = ""
+    @Published var catDraft: String = ""
+
+    // Git
+    @Published var gitPath: String = ""
+    @Published var gitHeadResult: String = ""
+    @Published var gitBranchesResult: [String] = []
+    @Published var gitRemotesResult: [String] = []
+    @Published var gitStatusResult: String = ""
+    @Published var cloneURL: String = ""
+    @Published var clonePath: String = ""
+
+    // Nostr
+    @Published var nostrSecretKey: String = ""
+    @Published var nostrPublicKey: String = ""
+    @Published var nostrEventJson: String = ""
+    @Published var relayURL: String = "wss://relay.damus.io"
+    @Published var relayHandle: UInt64 = 0
+    @Published var drainResult: String = ""
+    @Published var nostrContent: String = ""
+    @Published var gossipTopic: String = "kubo-hybrid"
+    @Published var gossipMessage: String = ""
+
+    init() {
+        startNode()
+    }
+
+    func startNode() {
         guard !isRefreshing else { return }
         isRefreshing = true
-        appendActivity("Refreshing live Kubo snapshot…")
+        appendActivity("Starting HybridNode…")
+        do {
+            try hybridStartTry(online: true)
+            nodeStarted = true
+            nodeError = ""
+            refreshState()
+            appendActivity("HybridNode started (online)")
+        } catch let error as RustyError {
+            nodeStarted = false
+            nodeError = error.localizedDescription
+            appendActivity("Start failed: \(error.localizedDescription)")
+        } catch {
+            nodeStarted = false
+            nodeError = "\(error)"
+            appendActivity("Start failed: \(error)")
+        }
+        isRefreshing = false
+    }
 
-        Task {
-            let result = Self.captureSnapshot()
-            await MainActor.run {
-                self.snapshot = result.snapshot
-                self.isRefreshing = false
-                self.appendActivity(result.logMessage)
-            }
+    func stopNode() {
+        do {
+            try hybridStopTry()
+            nodeStarted = false
+            appendActivity("HybridNode stopped")
+        } catch let error as RustyError {
+            appendActivity("Stop failed: \(error.localizedDescription)")
+        } catch {
+            appendActivity("Stop failed: \(error)")
         }
     }
 
-    private static func captureSnapshot() -> (snapshot: KuboSnapshot, logMessage: String) {
-        let summary = rustHello()
-        let sum = rustAdd(a: 10, b: 32)
-        let parsed = parseSummary(summary)
+    func refreshState() {
+        let ipfsID = hybridIpfsPeerId()
+        let p2pID = hybridP2pPeerId()
+        let pinList = ipfsPinLs()
+        pins = pinList
 
-        let snapshot = KuboSnapshot(
-            version: parsed.version,
-            peerID: parsed.peerID,
-            cid: parsed.cid,
-            roundTrip: parsed.roundTrip,
-            mathResult: "10 + 32 = \(sum)",
-            status: parsed.isHealthy ? "Ready" : "Needs attention",
-            rawSummary: summary,
+        snapshot = KuboSnapshot(
+            version: kubo_rs_version(),
+            peerID: ipfsID,
+            cid: lastAddedCID.isEmpty ? "—" : lastAddedCID,
+            roundTrip: catResult.isEmpty ? "—" : catResult,
+            mathResult: nodeStarted ? "Node active" : "Node offline",
+            status: nodeStarted ? (nodeError.isEmpty ? "Online" : "Error") : "Offline",
+            rawSummary: "IPFS: \(ipfsID)\nP2P: \(p2pID)\nPins: \(pinList.count)",
             updatedAt: Date()
         )
-
-        let message = parsed.isHealthy
-            ? "Snapshot refreshed with CID \(parsed.cid)"
-            : "Snapshot returned a fallback message"
-        return (snapshot, message)
     }
 
-    private static func parseSummary(_ summary: String) -> (version: String, peerID: String, cid: String, roundTrip: String, isHealthy: Bool) {
-        let parts = summary
-            .split(separator: "|")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-
-        var version = "—"
-        var peerID = "—"
-        var cid = "—"
-        var roundTrip = "—"
-
-        for part in parts {
-            if part.hasPrefix("kubo-rs ") {
-                version = String(part.dropFirst("kubo-rs ".count))
-            } else if part.hasPrefix("peer ") {
-                peerID = String(part.dropFirst("peer ".count))
-            } else if part.hasPrefix("cid ") {
-                cid = String(part.dropFirst("cid ".count))
-            } else if part.hasPrefix("round-trip ") {
-                roundTrip = String(part.dropFirst("round-trip ".count))
-            }
+    func ipfsAdd() {
+        let text = addDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        do {
+            let cid = try ipfsAddTry(data: text.data(using: .utf8) ?? Data())
+            lastAddedCID = cid
+            addDraft = ""
+            appendActivity("IPFS add → \(shortCID(cid))")
+            refreshState()
+        } catch let error as RustyError {
+            appendActivity("IPFS add failed: \(error.localizedDescription)")
+        } catch {
+            appendActivity("IPFS add failed: \(error)")
         }
+    }
 
-        let isHealthy = summary.contains("kubo-rs") && summary.contains("round-trip")
-        return (version, peerID, cid, roundTrip, isHealthy)
+    func ipfsCat() {
+        let cid = catDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cid.isEmpty else { return }
+        do {
+            let data = try ipfsCatTry(cid: cid)
+            catResult = String(data: data, encoding: .utf8) ?? "<\(data.count) bytes>"
+            appendActivity("IPFS cat → \(shortCID(cid)) (\(data.count) bytes)")
+        } catch let error as RustyError {
+            appendActivity("IPFS cat failed: \(error.localizedDescription)")
+        } catch {
+            appendActivity("IPFS cat failed: \(error)")
+        }
+    }
+
+    func ipfsPin(cid: String) {
+        guard !cid.isEmpty else { return }
+        let ok = ipfsPinAdd(cid: cid, recursive: true)
+        appendActivity(ok ? "Pinned \(shortCID(cid))" : "Pin failed")
+        refreshState()
+    }
+
+    func ipfsUnpin(cid: String) {
+        guard !cid.isEmpty else { return }
+        let ok = ipfsPinRm(cid: cid, recursive: true)
+        appendActivity(ok ? "Unpinned \(shortCID(cid))" : "Unpin failed")
+        refreshState()
+    }
+
+    // Git
+    func gitInitRepo() {
+        let path = gitPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty else { return }
+        let ok = gitInit(path: path, bare: false)
+        appendActivity(ok ? "Git init: \(path)" : "Git init failed")
+        if ok { refreshGit() }
+    }
+
+    func gitCloneRepo() {
+        let url = cloneURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let path = clonePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !url.isEmpty, !path.isEmpty else { return }
+        let ok = gitClone(url: url, path: path, bare: false)
+        appendActivity(ok ? "Git clone → \(path)" : "Git clone failed")
+        if ok {
+            gitPath = path
+            refreshGit()
+        }
+    }
+
+    func refreshGit() {
+        let path = gitPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty else { return }
+        gitHeadResult = gitHead(path: path)
+        gitBranchesResult = gitBranches(path: path)
+        gitRemotesResult = gitRemotes(path: path)
+        gitStatusResult = gitStatus(path: path)
+    }
+
+    // Nostr
+    func generateNostrKey() {
+        let sk = nostrGenerateKey()
+        nostrSecretKey = sk
+        nostrPublicKey = nostrGetPublicKey(sk: sk)
+        appendActivity("Generated Nostr key: \(shortKey(nostrPublicKey))")
+    }
+
+    func signEvent() {
+        guard !nostrSecretKey.isEmpty else {
+            appendActivity("No Nostr key — generate one first")
+            return
+        }
+        let content = nostrContent.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !content.isEmpty else { return }
+        let eventJson = nostrEventSign(sk: nostrSecretKey, content: content, kind: 1)
+        nostrEventJson = eventJson
+        nostrContent = ""
+        appendActivity("Signed kind-1 event")
+    }
+
+    func connectRelay() {
+        let url = relayURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !url.isEmpty else { return }
+        let handle = nostrRelayConnect(url: url)
+        if handle != 0 {
+            relayHandle = handle
+            appendActivity("Relay connected: \(url) (#\(handle))")
+        } else {
+            appendActivity("Relay connect failed: \(url)")
+        }
+    }
+
+    func publishToRelay() {
+        guard relayHandle != 0, !nostrEventJson.isEmpty else {
+            appendActivity("Need relay + signed event")
+            return
+        }
+        let ok = nostrRelayPublish(handle: relayHandle, eventJson: nostrEventJson)
+        appendActivity(ok ? "Published to relay" : "Relay publish failed")
+    }
+
+    func drainRelay() {
+        guard relayHandle != 0 else {
+            appendActivity("No relay connected")
+            return
+        }
+        let subHandle = nostrRelaySubscribe(handle: relayHandle, filterJson: "{\"kinds\":[1,1063],\"limit\":10}")
+        var events: [String] = []
+        while let msg = nostrRelayDrain(subHandle: subHandle) {
+            events.append(msg)
+        }
+        nostrRelayUnsubscribe(subHandle: subHandle)
+        drainResult = events.joined(separator: "\n---\n")
+        appendActivity("Drained \(events.count) relay events")
+    }
+
+    func publishGossip() {
+        let msg = gossipMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !msg.isEmpty else { return }
+        let ok = hybridBroadcastEvent(eventJson: msg, relayHandle: nil, gossipTopic: gossipTopic)
+        appendActivity(ok ? "Gossip published to \(gossipTopic)" : "Gossip publish failed")
+        gossipMessage = ""
+    }
+
+    func drainGossip() {
+        let events = hybridDrainEvents(relaySubHandle: nil)
+        appendActivity("Drained \(events.count) gossip events")
     }
 
     private func appendActivity(_ message: String) {
         let timestamp = Self.timestampFormatter.string(from: Date())
         activity.insert("[\(timestamp)] \(message)", at: 0)
-        if activity.count > 8 {
-            activity.removeLast(activity.count - 8)
+        if activity.count > 50 {
+            activity.removeLast(activity.count - 50)
         }
     }
 
@@ -147,6 +313,23 @@ final class DashboardStore: ObservableObject {
         formatter.timeStyle = .medium
         return formatter
     }()
+
+    func shortCID(_ cid: String) -> String {
+        guard cid.count > 18 else { return cid }
+        return "\(cid.prefix(10))…\(cid.suffix(6))"
+    }
+
+    func shortKey(_ key: String) -> String {
+        guard key.count > 16 else { return key }
+        return "\(key.prefix(8))…\(key.suffix(8))"
+    }
+}
+
+func kubo_rs_version() -> String {
+    // UniFFI doesn't expose the plain version() function; use a tiny round-trip.
+    // If the node is running, we can get peer IDs. Otherwise return a placeholder.
+    let id = hybridIpfsPeerId()
+    return id.isEmpty ? "kubo-rs 0.8.1" : "kubo-rs (live)"
 }
 
 struct NearbyPeer: Identifiable, Hashable {
@@ -598,7 +781,7 @@ extension PeerNetworkStore: MCSessionDelegate {
 }
 
 struct ContentView: View {
-    @StateObject private var store = DashboardStore()
+    @StateObject private var store = HybridNodeStore()
     @StateObject private var peers = PeerNetworkStore()
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -615,15 +798,12 @@ struct ContentView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    store.refresh()
+                    store.refreshState()
                 } label: {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
                 .disabled(store.isRefreshing)
             }
-        }
-        .task {
-            store.refresh()
         }
     }
 
@@ -748,67 +928,174 @@ struct ContentView: View {
     private var overviewContent: some View {
         VStack(alignment: .leading, spacing: 20) {
             LazyVGrid(columns: adaptiveColumns, spacing: 16) {
-                MetricCard(title: "Peer ID", value: store.snapshot.peerID, symbol: "person.2.circle", subtitle: "Node identity from the live repo snapshot")
-                MetricCard(title: "CID", value: store.snapshot.cid, symbol: "doc.richtext", subtitle: "UnixFS round-trip content address")
-                MetricCard(title: "Round-trip", value: store.snapshot.roundTrip, symbol: "arrow.2.circlepath", subtitle: "Bytes written to and read back from Kubo")
-                MetricCard(title: "Arithmetic", value: store.snapshot.mathResult, symbol: "plus.forwardslash.minus", subtitle: "A tiny sanity check that the UI is responsive")
+                MetricCard(title: "IPFS Peer", value: shortPeerID(store.snapshot.peerID), symbol: "person.2.circle", subtitle: "HybridNode IPFS identity")
+                MetricCard(title: "P2P Peer", value: shortPeerID(hybridP2pPeerId()), symbol: "network", subtitle: "HybridNode libp2p identity")
+                MetricCard(title: "Pins", value: "\(store.pins.count)", symbol: "pin", subtitle: "Locally pinned CIDs")
+                MetricCard(title: "Status", value: store.snapshot.status, symbol: "power.circle", subtitle: "HybridNode online state")
             }
 
-            DashboardCard(title: "Actions") {
-                HStack(spacing: 12) {
-                    Button {
-                        store.refresh()
-                    } label: {
-                        Label("Refresh snapshot", systemImage: "arrow.clockwise")
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(store.isRefreshing)
+            DashboardCard(title: "IPFS Add") {
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField("Type text to add to IPFS…", text: $store.addDraft, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .lineLimit(2...4)
+                    HStack(spacing: 12) {
+                        Button {
+                            store.ipfsAdd()
+                        } label: {
+                            Label("Add to IPFS", systemImage: "plus.circle")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(store.addDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.isRefreshing)
 
-                    Button {
-                        store.refresh()
-                    } label: {
-                        Label("Re-run demo", systemImage: "play.circle")
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(store.isRefreshing)
+                        if !store.lastAddedCID.isEmpty {
+                            Text("CID: \(shortCID(store.lastAddedCID))")
+                                .font(.system(.body, design: .monospaced))
+                                .textSelection(.enabled)
+                        }
 
-                    Spacer()
-
-                    if let updatedAt = store.snapshot.updatedAt {
-                        Text("Updated \(updatedAt.formatted(date: .omitted, time: .standard))")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        Spacer()
                     }
                 }
             }
 
-            DashboardCard(title: "Raw snapshot") {
-                Text(store.snapshot.rawSummary)
-                    .font(.system(.body, design: .monospaced))
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            DashboardCard(title: "IPFS Cat") {
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField("Enter CID to fetch…", text: $store.catDraft)
+                        .textFieldStyle(.roundedBorder)
+                    HStack(spacing: 12) {
+                        Button {
+                            store.ipfsCat()
+                        } label: {
+                            Label("Fetch", systemImage: "arrow.down.circle")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(store.catDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        if !store.lastAddedCID.isEmpty {
+                            Button {
+                                store.catDraft = store.lastAddedCID
+                                store.ipfsCat()
+                            } label: {
+                                Label("Cat last CID", systemImage: "doc.text")
+                            }
+                            .buttonStyle(.bordered)
+                        }
+
+                        Spacer()
+                    }
+                    if !store.catResult.isEmpty {
+                        Text(store.catResult)
+                            .font(.system(.body, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, 4)
+                    }
+                }
+            }
+
+            DashboardCard(title: "Pin Management") {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        Button {
+                            store.ipfsPin(cid: store.lastAddedCID)
+                        } label: {
+                            Label("Pin last CID", systemImage: "pin")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(store.lastAddedCID.isEmpty)
+
+                        Button {
+                            store.ipfsUnpin(cid: store.lastAddedCID)
+                        } label: {
+                            Label("Unpin last CID", systemImage: "pin.slash")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(store.lastAddedCID.isEmpty)
+
+                        Spacer()
+                    }
+
+                    if store.pins.isEmpty {
+                        Text("No pinned CIDs yet.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(store.pins, id: \.self) { pin in
+                            Text(pin)
+                                .font(.system(.body, design: .monospaced))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
             }
         }
     }
 
     private var repositoryContent: some View {
         VStack(alignment: .leading, spacing: 20) {
-            DashboardCard(title: "Repository lifecycle") {
+            DashboardCard(title: "Git Init") {
                 VStack(alignment: .leading, spacing: 12) {
-                    infoRow(number: "1", title: "Create a temporary repo", detail: "The Rust bridge initializes Kubo in a fresh directory before each demo.")
-                    infoRow(number: "2", title: "Start an offline node", detail: "The sample keeps the node local so the GUI stays safe and deterministic.")
-                    infoRow(number: "3", title: "Write and read bytes", detail: "A live UnixFS add/cat round-trip proves the integration path works.")
+                    TextField("Local path for new repo…", text: $store.gitPath)
+                        .textFieldStyle(.roundedBorder)
+                    HStack(spacing: 12) {
+                        Button {
+                            store.gitInitRepo()
+                        } label: {
+                            Label("Init repo", systemImage: "folder.badge.plus")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(store.gitPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        Button {
+                            store.refreshGit()
+                        } label: {
+                            Label("Refresh", systemImage: "arrow.clockwise")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(store.gitPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        Spacer()
+                    }
                 }
             }
 
-            DashboardCard(title: "Demo output") {
+            DashboardCard(title: "Git Clone") {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Version \(store.snapshot.version)")
-                    Text("Peer ID \(store.snapshot.peerID)")
-                    Text("CID \(store.snapshot.cid)")
-                    Text("Round-trip payload \(store.snapshot.roundTrip)")
+                    TextField("Remote URL…", text: $store.cloneURL)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("Local path…", text: $store.clonePath)
+                        .textFieldStyle(.roundedBorder)
+                    Button {
+                        store.gitCloneRepo()
+                    } label: {
+                        Label("Clone", systemImage: "arrow.down.doc")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(store.cloneURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.clonePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+
+            DashboardCard(title: "Repo state") {
+                VStack(alignment: .leading, spacing: 12) {
+                    if store.gitHeadResult.isEmpty {
+                        Text("No repo loaded. Init or clone a repository above.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("HEAD: \(store.gitHeadResult)")
+                        if !store.gitBranchesResult.isEmpty {
+                            Text("Branches: \(store.gitBranchesResult.joined(separator: ", "))")
+                        }
+                        if !store.gitRemotesResult.isEmpty {
+                            Text("Remotes: \(store.gitRemotesResult.joined(separator: ", "))")
+                        }
+                        if !store.gitStatusResult.isEmpty {
+                            Text("Status:\n\(store.gitStatusResult)")
+                        }
+                    }
                 }
                 .font(.system(.body, design: .monospaced))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
@@ -945,25 +1232,114 @@ struct ContentView: View {
                 MetricCard(title: "Last message", value: peers.lastMessage, symbol: "message", subtitle: "Most recent chat or network event")
             }
 
-            DashboardCard(title: "Compose message") {
+            DashboardCard(title: "Nostr Keys") {
                 VStack(alignment: .leading, spacing: 12) {
-                    TextField("Type a message to the gossip topic", text: $peers.chatDraft, axis: .vertical)
-                        .textFieldStyle(.roundedBorder)
-                        .lineLimit(3...6)
-
                     HStack(spacing: 12) {
                         Button {
-                            peers.sendChatMessage()
+                            store.generateNostrKey()
                         } label: {
-                            Label("Send chat", systemImage: "paperplane.fill")
+                            Label("Generate key", systemImage: "key")
                         }
                         .buttonStyle(.borderedProminent)
-                        .disabled(peers.chatDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        Spacer()
+                    }
+
+                    if !store.nostrPublicKey.isEmpty {
+                        Text("Public: \(store.nostrPublicKey)")
+                            .font(.system(.body, design: .monospaced))
+                            .textSelection(.enabled)
+                        Text("Secret: \(store.shortKey(store.nostrSecretKey))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            DashboardCard(title: "Nostr Event") {
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField("Event content…", text: $store.nostrContent, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .lineLimit(2...4)
+                    HStack(spacing: 12) {
+                        Button {
+                            store.signEvent()
+                        } label: {
+                            Label("Sign kind-1", systemImage: "signature")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(store.nostrContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.nostrSecretKey.isEmpty)
+
+                        Spacer()
+                    }
+                    if !store.nostrEventJson.isEmpty {
+                        Text(store.nostrEventJson)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+
+            DashboardCard(title: "Relay") {
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField("Relay URL", text: $store.relayURL)
+                        .textFieldStyle(.roundedBorder)
+                    HStack(spacing: 12) {
+                        Button {
+                            store.connectRelay()
+                        } label: {
+                            Label("Connect", systemImage: "network")
+                        }
+                        .buttonStyle(.borderedProminent)
 
                         Button {
-                            peers.broadcastCurrentState()
+                            store.publishToRelay()
                         } label: {
-                            Label("Share presence", systemImage: "dot.radiowaves.left.and.right")
+                            Label("Publish", systemImage: "paperplane")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(store.relayHandle == 0 || store.nostrEventJson.isEmpty)
+
+                        Button {
+                            store.drainRelay()
+                        } label: {
+                            Label("Drain", systemImage: "arrow.down")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(store.relayHandle == 0)
+
+                        Spacer()
+                    }
+                    if !store.drainResult.isEmpty {
+                        Text(store.drainResult)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+
+            DashboardCard(title: "Hybrid Gossip") {
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField("Topic", text: $store.gossipTopic)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("Message JSON…", text: $store.gossipMessage, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .lineLimit(2...4)
+                    HStack(spacing: 12) {
+                        Button {
+                            store.publishGossip()
+                        } label: {
+                            Label("Publish", systemImage: "dot.radiowaves.left.and.right")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(store.gossipMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        Button {
+                            store.drainGossip()
+                        } label: {
+                            Label("Drain", systemImage: "arrow.down")
                         }
                         .buttonStyle(.bordered)
 

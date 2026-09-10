@@ -198,140 +198,50 @@ Exposed Phase 9 + Phase 10 methods to Swift.
 
 ---
 
-### Phase 12: IPFS Node API in Swift 🔄 (In Progress)
+### Phase 12: IPFS Node API in Swift ✅ (Done)
 
 **Goal:** Expose the full IPFS Node API to Swift so the SwiftUI app can add/cat/pin/dht/name without going through the Rust CLI.
 
-**Rust changes in `xcode/rustylib/src/lib.rs`:**
+**Status:** All functions exposed in `xcode/rustylib/src/lib.rs` and wired into `HybridNodeStore`.
 
-```rust
-#[uniffi::export]
-pub fn ipfs_add(data: Vec<u8>) -> String { ... }
-
-#[uniffi::export]
-pub fn ipfs_cat(cid: &str) -> Vec<u8> { ... }
-
-#[uniffi::export]
-pub fn ipfs_pin_add(cid: &str, recursive: bool) -> bool { ... }
-
-#[uniffi::export]
-pub fn ipfs_pin_rm(cid: &str, recursive: bool) -> bool { ... }
-
-#[uniffi::export]
-pub fn ipfs_pin_ls() -> Vec<(String, String)> { ... }
-
-#[uniffi::export]
-pub fn ipfs_block_put(data: Vec<u8>) -> String { ... }
-
-#[uniffi::export]
-pub fn ipfs_block_get(cid: &str) -> Vec<u8> { ... }
-
-#[uniffi::export]
-pub fn ipfs_block_stat(cid: &str) -> u64 { ... }
-
-#[uniffi::export]
-pub fn ipfs_dht_findpeer(peer_id: &str) -> Vec<String> { ... }
-
-#[uniffi::export]
-pub fn ipfs_dht_findprovs(cid: &str) -> Vec<String> { ... }
-
-#[uniffi::export]
-pub fn ipfs_name_publish(cid: &str, lifetime_sec: i64) -> String { ... }
-
-#[uniffi::export]
-pub fn ipfs_name_resolve(name: &str) -> String { ... }
-```
-
-**SwiftUI implications:**
-- "Files" tab: add files, browse CIDs, cat content
-- "Pins" tab: manage pinned objects
-- "DHT" tab: peer lookup, provider search
-- "IPNS" tab: publish and resolve names
+**SwiftUI:** Overview tab has IPFS Add, IPFS Cat, Pin Management, and Block Operations cards. Network tab has DHT FindPeer, FindProvs, IPNS Publish, and IPNS Resolve.
 
 ---
 
-### Phase 13: Git API in Swift 🔄 (In Progress)
+### Phase 13: Git API in Swift ✅ (Done)
 
 **Goal:** Expose Git operations to Swift for NIP-34 repo management.
 
-**Rust changes:**
-```rust
-#[uniffi::export]
-pub fn git_clone(url: &str, path: &str, bare: bool) -> bool { ... }
+**Status:** `git_clone`, `git_init`, `git_head`, `git_branches`, `git_remotes`, `git_status`, `git_commit_message`, `git_diff_trees` all exposed via UniFFI.
 
-#[uniffi::export]
-pub fn git_init(path: &str, bare: bool) -> bool { ... }
-
-#[uniffi::export]
-pub fn git_head(path: &str) -> String { ... }
-
-#[uniffi::export]
-pub fn git_branches(path: &str) -> Vec<String> { ... }
-```
-
-**SwiftUI implications:**
-- "Git" tab: clone/init repos, browse branches, view HEAD
-- Integration with NIP-34 publish buttons
+**SwiftUI:** Repository tab has Git Init, Git Clone, Repo State, Commit Lookup, and Diff Trees cards.
 
 ---
 
-### Phase 14: Error Handling Improvement 🔄 (In Progress)
+### Phase 14: Error Handling Improvement ✅ (Done)
 
 **Goal:** Replace `bool` / empty-string error discarding with proper `throws` in Swift.
 
-**Rust changes:**
-```rust
-#[derive(uniffi::Error)]
-pub enum RustyError {
-    Ipfs { msg: String },
-    P2p { msg: String },
-    Nostr { msg: String },
-    Git { msg: String },
-}
-```
+**Status:** `RustyError` enum defined with `#[derive(uniffi::Error)]`. Throwing variants: `hybrid_start_try`, `hybrid_stop_try`, `ipfs_add_try`, `ipfs_cat_try`, `p2p_connect_try`, `hybrid_publish_file_try`.
 
-Then change critical functions to return `Result<T, RustyError>`:
-```rust
-#[uniffi::export]
-pub fn ipfs_add(data: Vec<u8>) -> Result<String, RustyError> { ... }
-```
-
-**SwiftUI implications:**
-- Use `do/try/catch` in Swift
-- Show meaningful error alerts instead of silent failures
+**SwiftUI:** `HybridNodeStore` uses `do/try/catch` and appends error descriptions to the activity log.
 
 ---
 
-### Phase 15: NIP-34 P2P GossipSub Message Types 🔄 (In Progress)
+### Phase 15: NIP-34 P2P GossipSub Message Types ✅ (Done)
 
 **Goal:** Define typed GossipSub messages for NIP-34 so peers can route git events intelligently.
 
-**Problem:** Currently NIP-34 events are broadcast as raw JSON strings. Peers can't filter by message type without parsing JSON.
+**Status:** `HybridMessage` record and `MessageCategory` enum exposed via UniFFI. `HybridNode::broadcast_typed` and `drain_typed` implemented. Swift bindings regenerated with macOS slice.
 
-**Solution:** Define a protocol envelope:
+**Rust:**
+- `src/p2p_messages.rs` — `HybridMessage` { kind, content, tags } + `MessageCategory` enum
+- `src/hybrid.rs` — `broadcast_typed(msg, sk, relay, topic)` and `drain_typed()`
+- `xcode/rustylib/src/lib.rs` — `hybrid_broadcast_typed`, `hybrid_drain_typed` wrappers
 
-```rust
-pub enum NostrMessage {
-    Nip94File { cid: String, filename: String, mime: String },
-    Nip34Repo { repo_id: String, name: String, clone_urls: Vec<String> },
-    Nip34Patch { repo_ref: String, diff: String },
-    Nip34Issue { repo_ref: String, title: String, body: String },
-    GenericEvent { kind: u16, json: String },
-}
-```
-
-Serialize with a 1-byte type prefix + CBOR/JSON payload. GossipSub handlers can route by type without full JSON parsing.
-
-**Rust changes:**
-- New module: `src/p2p_messages.rs`
-- `HybridNode::broadcast_typed(...)` — publishes typed messages
-- `HybridNode::drain_typed(...)` — returns `Vec<NostrMessage>`
-- Swift exposure: `hybridBroadcastTyped`, `hybridDrainTyped`
-
-**SwiftUI implications:**
-- Filter event feed by type (files, repos, patches, issues)
-- Route patches to a "Code Review" view
-- Route issues to an "Issue Tracker" view
+**SwiftUI (next):**
+- Filter event feed by `MessageCategory` (File, Repo, Patch, Issue)
+- Route patches to "Code Review" view, issues to "Issue Tracker"
 
 ---
 

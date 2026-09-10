@@ -7,6 +7,56 @@ use std::{
 
 uniffi::setup_scaffolding!();
 
+/// UniFFI-compatible wrapper for `kubo_rs::p2p_messages::HybridMessage`.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct HybridMessage {
+    pub kind: u16,
+    pub content: String,
+    pub tags: Vec<Vec<String>>,
+}
+
+impl From<kubo_rs::p2p_messages::HybridMessage> for HybridMessage {
+    fn from(msg: kubo_rs::p2p_messages::HybridMessage) -> Self {
+        HybridMessage {
+            kind: msg.kind,
+            content: msg.content,
+            tags: msg.tags,
+        }
+    }
+}
+
+impl From<HybridMessage> for kubo_rs::p2p_messages::HybridMessage {
+    fn from(msg: HybridMessage) -> Self {
+        kubo_rs::p2p_messages::HybridMessage {
+            kind: msg.kind,
+            content: msg.content,
+            tags: msg.tags,
+        }
+    }
+}
+
+/// UniFFI-compatible wrapper for `kubo_rs::p2p_messages::MessageCategory`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, uniffi::Enum)]
+pub enum MessageCategory {
+    File,
+    Repo,
+    Patch,
+    Issue,
+    Other,
+}
+
+impl From<kubo_rs::p2p_messages::MessageCategory> for MessageCategory {
+    fn from(cat: kubo_rs::p2p_messages::MessageCategory) -> Self {
+        match cat {
+            kubo_rs::p2p_messages::MessageCategory::File => MessageCategory::File,
+            kubo_rs::p2p_messages::MessageCategory::Repo => MessageCategory::Repo,
+            kubo_rs::p2p_messages::MessageCategory::Patch => MessageCategory::Patch,
+            kubo_rs::p2p_messages::MessageCategory::Issue => MessageCategory::Issue,
+            kubo_rs::p2p_messages::MessageCategory::Other => MessageCategory::Other,
+        }
+    }
+}
+
 /// Error type exposed to Swift via UniFFI `throws`.
 #[derive(Debug, uniffi::Error)]
 pub enum RustyError {
@@ -710,6 +760,39 @@ pub fn nostr_relay_drain(sub_handle: u64) -> Option<String> {
 #[uniffi::export]
 pub fn nostr_relay_unsubscribe(sub_handle: u64) -> bool {
     kubo_rs::nostr_relay_unsubscribe(sub_handle).is_ok()
+}
+
+// ---------------------------------------------------------------------------
+// Phase 15: Typed GossipSub Messages
+// ---------------------------------------------------------------------------
+
+#[uniffi::export]
+pub fn hybrid_broadcast_typed(
+    msg: HybridMessage,
+    secret_key: &str,
+    relay_handle: Option<u64>,
+    gossip_topic: Option<String>,
+) -> Result<String, RustyError> {
+    let inner: kubo_rs::p2p_messages::HybridMessage = msg.into();
+    let event = hybrid_with(|node| {
+        node.broadcast_typed(inner, secret_key, relay_handle, gossip_topic.as_deref())
+    })
+    .ok_or_else(|| RustyError::Generic {
+        msg: "hybrid node not started".to_string(),
+    })??;
+    Ok(event)
+}
+
+#[uniffi::export]
+pub fn hybrid_drain_typed(relay_sub_handle: Option<u64>) -> Result<Vec<HybridMessage>, RustyError> {
+    let messages: Vec<HybridMessage> = hybrid_with(|node| node.drain_typed(relay_sub_handle))
+        .ok_or_else(|| RustyError::Generic {
+            msg: "hybrid node not started".to_string(),
+        })??
+        .into_iter()
+        .map(|m| m.into())
+        .collect();
+    Ok(messages)
 }
 
 #[cfg(test)]

@@ -170,6 +170,43 @@ impl HybridNode {
         Ok(cid)
     }
 
+    /// Broadcast a typed protocol message.
+    ///
+    /// Constructs a signed Nostr event from the `HybridMessage` template,
+    /// then publishes it to the configured relay and/or GossipSub topic.
+    ///
+    /// Returns the signed event JSON string.
+    pub fn broadcast_typed(
+        &self,
+        msg: crate::p2p_messages::HybridMessage,
+        secret_key: &str,
+        relay_handle: Option<u64>,
+        gossip_topic: Option<&str>,
+    ) -> Result<String, Error> {
+        let tags_json = serde_json::to_string(&msg.tags)
+            .map_err(|e| Error::Go(format!("serialize tags: {e}")))?;
+        let event = crate::nostr_event_sign_with_tags(secret_key, &msg.content, msg.kind as i32, &tags_json)?;
+        self.broadcast_event(&event, relay_handle, gossip_topic)?;
+        Ok(event)
+    }
+
+    /// Drain events from relay + gossip and parse them into typed messages.
+    ///
+    /// Events that cannot be parsed are skipped (logged at debug level).
+    pub fn drain_typed(&self, relay_sub_handle: Option<u64>) -> Result<Vec<crate::p2p_messages::HybridMessage>, Error> {
+        let raw = self.drain_events(relay_sub_handle)?;
+        let mut typed = Vec::with_capacity(raw.len());
+        for evt in raw {
+            match crate::p2p_messages::HybridMessage::from_event_json(&evt) {
+                Ok(msg) => typed.push(msg),
+                Err(_) => {
+                    // Silently skip unparsable events
+                }
+            }
+        }
+        Ok(typed)
+    }
+
     /// Shut down both subsystems.
     ///
     /// # Errors

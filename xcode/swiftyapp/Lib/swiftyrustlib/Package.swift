@@ -16,15 +16,9 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "rustylibFFI",
-            path: "Sources/rustylibFFI",
-            publicHeadersPath: "."
-        ),
-        .target(
             name: "RustyLib",
             dependencies: [
                 .byName(name: "RustyCore"),
-                .byName(name: "rustylibFFI"),
             ],
             path: "Sources/RustyLib",
             linkerSettings: [

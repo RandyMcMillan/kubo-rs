@@ -2,7 +2,7 @@
 
 This document tracks what needs to happen in the Xcode/Swift layer as the Nostr+IPFS+P2P hybrid protocol evolves in the parent Rust crate.
 
-## Current State (2026-09-09)
+## Current State (2026-09-10)
 
 The `xcode/rustylib/` crate wraps `kubo-rs` and exposes a **small subset** of the API to Swift via UniFFI. The SwiftUI app (`swiftyapp/`) consumes these through the `RustyLib` local package.
 
@@ -239,9 +239,7 @@ Exposed Phase 9 + Phase 10 methods to Swift.
 - `src/hybrid.rs` — `broadcast_typed(msg, sk, relay, topic)` and `drain_typed()`
 - `xcode/rustylib/src/lib.rs` — `hybrid_broadcast_typed`, `hybrid_drain_typed` wrappers
 
-**SwiftUI (next):**
-- Filter event feed by `MessageCategory` (File, Repo, Patch, Issue)
-- Route patches to "Code Review" view, issues to "Issue Tracker"
+**SwiftUI:** ✅ Done — Typed Messages card in Chat tab with category picker, dynamic input fields per type (File/Repo/Patch/Issue), Broadcast + Drain buttons, and filtered message list with category badges.
 
 ---
 

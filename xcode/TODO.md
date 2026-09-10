@@ -10,12 +10,12 @@
 
 ## Active Work
 
-- [ ] **Phase 15: Typed GossipSub Messages in SwiftUI**
+- [x] **Phase 15: Typed GossipSub Messages in SwiftUI**
   - [x] Rust: `HybridMessage` + `MessageCategory` UniFFI wrappers
   - [x] Rust: `HybridNode::broadcast_typed` + `drain_typed`
   - [x] UniFFI: expose `hybridBroadcastTyped`, `hybridDrainTyped`
-  - [ ] SwiftUI: add "Typed Messages" card to Chat/Network tab
-  - [ ] SwiftUI: filter event feed by `MessageCategory` (File, Repo, Patch, Issue)
+  - [x] SwiftUI: add "Typed Messages" card to Chat tab with category picker
+  - [x] SwiftUI: filter event feed by `MessageCategory` (File, Repo, Patch, Issue)
   - [ ] SwiftUI: route patches to "Code Review" view, issues to "Issue Tracker"
 
 ## Swift Tests

@@ -18,7 +18,7 @@ MAC_APP_PATH := $(SYMROOT)/$(CONFIGURATION)-iphoneos/$(APP_NAME)
 
 .DEFAULT_GOAL := help
 
-.PHONY: help rust resolve app mac install clean
+.PHONY: help rust resolve app mac install swift-test clean
 
 help:
 	@printf '%s\n' \
@@ -27,6 +27,7 @@ help:
 		'make app       - build the iOS app for a generic simulator destination' \
 		'make mac       - build the app for macOS (Designed for iPad)' \
 		'make install   - install the macOS (Designed for iPad) app into ~/Applications' \
+		'make swift-test- run Swift Package tests for RustyLib' \
 		'make clean     - clean Rust and Xcode build artifacts'
 
 rust:
@@ -77,6 +78,9 @@ install: mac
 	@echo "  2. Or open the project in Xcode and press Run."
 	@echo "  3. Or run: make mac"
 	@echo ""
+
+swift-test:
+	cd swiftyapp/Lib/swiftyrustlib && swift test
 
 clean:
 	cd "$(RUST_CRATE_DIR)" && cargo clean

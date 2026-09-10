@@ -99,6 +99,31 @@ final class HybridNodeStore: ObservableObject {
     @Published var gossipTopic: String = "kubo-hybrid"
     @Published var gossipMessage: String = ""
 
+    // Network / DHT
+    @Published var dhtPeerID: String = ""
+    @Published var dhtPeerAddrs: [String] = []
+    @Published var dhtCID: String = ""
+    @Published var dhtProviders: [String] = []
+    @Published var p2pConnectAddr: String = ""
+
+    // Name / Block
+    @Published var namePublishCID: String = ""
+    @Published var namePublishLifetime: String = "86400"
+    @Published var namePublishResult: String = ""
+    @Published var nameResolveName: String = ""
+    @Published var nameResolveResult: String = ""
+    @Published var blockData: String = ""
+    @Published var blockCID: String = ""
+    @Published var blockResult: String = ""
+    @Published var blockStatSize: UInt64 = 0
+
+    // Git extras
+    @Published var commitHash: String = ""
+    @Published var commitMessageResult: String = ""
+    @Published var diffOldHash: String = ""
+    @Published var diffNewHash: String = ""
+    @Published var diffResult: String = ""
+
     init() {
         startNode()
     }
@@ -297,6 +322,92 @@ final class HybridNodeStore: ObservableObject {
     func drainGossip() {
         let events = hybridDrainEvents(relaySubHandle: nil)
         appendActivity("Drained \(events.count) gossip events")
+    }
+
+    // MARK: - Network / DHT
+
+    func dhtFindPeer() {
+        let peerID = dhtPeerID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !peerID.isEmpty else { return }
+        let addrs = ipfsDhtFindpeer(peerId: peerID)
+        dhtPeerAddrs = addrs
+        appendActivity(addrs.isEmpty ? "DHT findpeer: no addrs" : "DHT findpeer: \(addrs.count) addrs")
+    }
+
+    func dhtFindProvs() {
+        let cid = dhtCID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cid.isEmpty else { return }
+        let provs = ipfsDhtFindprovs(cid: cid)
+        dhtProviders = provs
+        appendActivity(provs.isEmpty ? "DHT findprovs: none" : "DHT findprovs: \(provs.count) providers")
+    }
+
+    func p2pConnectTo() {
+        let addr = p2pConnectAddr.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !addr.isEmpty else { return }
+        let ok = p2pConnect(addr: addr)
+        appendActivity(ok ? "Connected to \(addr)" : "Connect failed: \(addr)")
+    }
+
+    // MARK: - Name / Block
+
+    func namePublish() {
+        let cid = namePublishCID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lifetime = Int64(namePublishLifetime) ?? 86400
+        guard !cid.isEmpty else { return }
+        let result = ipfsNamePublish(cid: cid, lifetimeSec: lifetime)
+        namePublishResult = result
+        appendActivity(result.isEmpty ? "Name publish failed" : "Name published → \(shortCID(result))")
+    }
+
+    func nameResolve() {
+        let name = nameResolveName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        let result = ipfsNameResolve(name: name)
+        nameResolveResult = result
+        appendActivity(result.isEmpty ? "Name resolve failed" : "Name resolved → \(shortCID(result))")
+    }
+
+    func blockPut() {
+        let data = blockData.data(using: .utf8) ?? Data()
+        guard !data.isEmpty else { return }
+        let cid = ipfsBlockPut(data: data)
+        blockCID = cid
+        appendActivity(cid.isEmpty ? "Block put failed" : "Block put → \(shortCID(cid))")
+    }
+
+    func blockGet() {
+        let cid = blockCID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cid.isEmpty else { return }
+        let data = ipfsBlockGet(cid: cid)
+        blockResult = String(data: data, encoding: .utf8) ?? "<\(data.count) bytes>"
+        appendActivity("Block get → \(shortCID(cid)) (\(data.count) bytes)")
+    }
+
+    func blockStat() {
+        let cid = blockCID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cid.isEmpty else { return }
+        blockStatSize = ipfsBlockStat(cid: cid)
+        appendActivity("Block stat → \(shortCID(cid)) size=\(blockStatSize)")
+    }
+
+    // MARK: - Git extras
+
+    func lookupCommit() {
+        let path = gitPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hash = commitHash.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty, !hash.isEmpty else { return }
+        commitMessageResult = gitCommitMessage(path: path, hash: hash)
+        appendActivity(commitMessageResult.isEmpty ? "Commit lookup failed" : "Commit: \(commitMessageResult.prefix(40))…")
+    }
+
+    func diffTrees() {
+        let path = gitPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        let oldH = diffOldHash.trimmingCharacters(in: .whitespacesAndNewlines)
+        let newH = diffNewHash.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty, !oldH.isEmpty, !newH.isEmpty else { return }
+        diffResult = gitDiffTrees(path: path, oldHash: oldH, newHash: newH)
+        appendActivity(diffResult.isEmpty ? "Diff failed" : "Diff generated (\(diffResult.count) chars)")
     }
 
     private func appendActivity(_ message: String) {
@@ -1028,6 +1139,57 @@ struct ContentView: View {
                     }
                 }
             }
+
+            DashboardCard(title: "Block Operations") {
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField("Block data…", text: $store.blockData, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .lineLimit(1...3)
+                    HStack(spacing: 12) {
+                        Button {
+                            store.blockPut()
+                        } label: {
+                            Label("Put", systemImage: "square.and.arrow.down")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(store.blockData.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        if !store.blockCID.isEmpty {
+                            Button {
+                                store.blockGet()
+                            } label: {
+                                Label("Get", systemImage: "square.and.arrow.up")
+                            }
+                            .buttonStyle(.bordered)
+
+                            Button {
+                                store.blockStat()
+                            } label: {
+                                Label("Stat", systemImage: "info.circle")
+                            }
+                            .buttonStyle(.bordered)
+                        }
+
+                        Spacer()
+                    }
+                    if !store.blockCID.isEmpty {
+                        Text("CID: \(shortCID(store.blockCID))")
+                            .font(.system(.body, design: .monospaced))
+                            .textSelection(.enabled)
+                    }
+                    if !store.blockResult.isEmpty {
+                        Text(store.blockResult)
+                            .font(.system(.body, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    if store.blockStatSize > 0 {
+                        Text("Size: \(store.blockStatSize) bytes")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
         }
     }
 
@@ -1097,6 +1259,49 @@ struct ContentView: View {
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+
+            DashboardCard(title: "Commit lookup") {
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField("Commit hash…", text: $store.commitHash)
+                        .textFieldStyle(.roundedBorder)
+                    Button {
+                        store.lookupCommit()
+                    } label: {
+                        Label("Lookup", systemImage: "doc.text.magnifyingglass")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(store.commitHash.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.gitPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    if !store.commitMessageResult.isEmpty {
+                        Text(store.commitMessageResult)
+                            .font(.system(.body, design: .monospaced))
+                            .textSelection(.enabled)
+                    }
+                }
+            }
+
+            DashboardCard(title: "Diff trees") {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        TextField("Old hash…", text: $store.diffOldHash)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("New hash…", text: $store.diffNewHash)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                    Button {
+                        store.diffTrees()
+                    } label: {
+                        Label("Diff", systemImage: "doc.text.below.ecg")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(store.diffOldHash.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.diffNewHash.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.gitPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    if !store.diffResult.isEmpty {
+                        Text(store.diffResult)
+                            .font(.system(.body, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
         }
     }
 
@@ -1136,6 +1341,173 @@ struct ContentView: View {
                         ForEach(peers.libp2pProtocols, id: \.self) { proto in
                             Text(proto)
                                 .font(.system(.body, design: .monospaced))
+                        }
+                    }
+
+                    Text("Dial peer")
+                        .font(.headline)
+                        .padding(.top, 4)
+                    TextField("Multiaddr…", text: $store.p2pConnectAddr)
+                        .textFieldStyle(.roundedBorder)
+                    Button {
+                        store.p2pConnectTo()
+                    } label: {
+                        Label("Connect", systemImage: "network.badge.shield.half.filled")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(store.p2pConnectAddr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+
+            DashboardCard(title: "IPFS Network") {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("DHT FindPeer")
+                            .font(.headline)
+                        TextField("Peer ID…", text: $store.dhtPeerID)
+                            .textFieldStyle(.roundedBorder)
+                        Button {
+                            store.dhtFindPeer()
+                        } label: {
+                            Label("Find peer", systemImage: "magnifyingglass.circle")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(store.dhtPeerID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        if !store.dhtPeerAddrs.isEmpty {
+                            ForEach(store.dhtPeerAddrs, id: \.self) { addr in
+                                Text(addr)
+                                    .font(.system(.caption, design: .monospaced))
+                            }
+                        }
+                    }
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("DHT FindProvs")
+                            .font(.headline)
+                        TextField("CID…", text: $store.dhtCID)
+                            .textFieldStyle(.roundedBorder)
+                        Button {
+                            store.dhtFindProvs()
+                        } label: {
+                            Label("Find providers", systemImage: "magnifyingglass.circle.fill")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(store.dhtCID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        if !store.dhtProviders.isEmpty {
+                            ForEach(store.dhtProviders, id: \.self) { prov in
+                                Text(prov)
+                                    .font(.system(.caption, design: .monospaced))
+                            }
+                        }
+                    }
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("IPNS Publish")
+                            .font(.headline)
+                        HStack(spacing: 12) {
+                            TextField("CID…", text: $store.namePublishCID)
+                                .textFieldStyle(.roundedBorder)
+                            TextField("Lifetime (s)", text: $store.namePublishLifetime)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 100)
+                        }
+                        Button {
+                            store.namePublish()
+                        } label: {
+                            Label("Publish", systemImage: "globe")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(store.namePublishCID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        if !store.namePublishResult.isEmpty {
+                            Text(store.namePublishResult)
+                                .font(.system(.caption, design: .monospaced))
+                                .textSelection(.enabled)
+                        }
+                    }
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("IPNS Resolve")
+                            .font(.headline)
+                        TextField("Name / IPNS key…", text: $store.nameResolveName)
+                            .textFieldStyle(.roundedBorder)
+                        Button {
+                            store.nameResolve()
+                        } label: {
+                            Label("Resolve", systemImage: "globe.badge.chevron.backward")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(store.nameResolveName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        if !store.nameResolveResult.isEmpty {
+                            Text(store.nameResolveResult)
+                                .font(.system(.caption, design: .monospaced))
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
+            }
+
+            DashboardCard(title: "Nostr Network") {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Relay")
+                            .font(.headline)
+                        TextField("Relay URL", text: $store.relayURL)
+                            .textFieldStyle(.roundedBorder)
+                        HStack(spacing: 12) {
+                            Button {
+                                store.connectRelay()
+                            } label: {
+                                Label("Connect", systemImage: "network")
+                            }
+                            .buttonStyle(.borderedProminent)
+
+                            Button {
+                                store.drainRelay()
+                            } label: {
+                                Label("Drain", systemImage: "arrow.down")
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(store.relayHandle == 0)
+
+                            Spacer()
+                        }
+                        Text("Handle: \(store.relayHandle)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("GossipSub")
+                            .font(.headline)
+                        TextField("Topic", text: $store.gossipTopic)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("Message JSON…", text: $store.gossipMessage)
+                            .textFieldStyle(.roundedBorder)
+                        HStack(spacing: 12) {
+                            Button {
+                                store.publishGossip()
+                            } label: {
+                                Label("Publish", systemImage: "dot.radiowaves.left.and.right")
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(store.gossipMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                            Button {
+                                store.drainGossip()
+                            } label: {
+                                Label("Drain", systemImage: "arrow.down")
+                            }
+                            .buttonStyle(.bordered)
+
+                            Spacer()
                         }
                     }
                 }

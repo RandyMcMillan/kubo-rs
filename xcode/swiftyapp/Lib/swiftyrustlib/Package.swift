@@ -16,11 +16,17 @@ let package = Package(
     ],
     targets: [
         .target(
+            name: "rustylibFFI",
+            path: "Sources/rustylibFFI",
+            publicHeadersPath: "."
+        ),
+        .target(
             name: "RustyLib",
             dependencies: [
-                .byName(name: "RustyCore")
+                .byName(name: "RustyCore"),
+                .byName(name: "rustylibFFI"),
             ],
-            path: "Sources/",
+            path: "Sources/RustyLib",
             linkerSettings: [
                 .linkedLibrary("resolv"),
                 .linkedFramework("Security"),
@@ -30,6 +36,10 @@ let package = Package(
         .binaryTarget(
             name: "RustyCore",
             path: "artifacts/RustyCore.xcframework"
+        ),
+        .testTarget(
+            name: "RustyLibTests",
+            dependencies: ["RustyLib"]
         ),
     ]
 )

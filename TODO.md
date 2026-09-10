@@ -2,41 +2,40 @@
 
 ## Context / Handoff Note
 
-**Last session: 2026-09-09** — clippy fix, wasm-bindgen sync, wasm-p2p example, full test validation.
+**Last session: 2026-09-09** — SwiftUI real functionality, Network/IPFS/Nostr menus, xcode-release fix, full test validation.
 
 **Completed this session:**
-- `Makefile` — removed `-D warnings` from clippy target; clippy now warns without failing builds
-- `wasm-bindgen` — updated all workspace examples to `=0.2.128` to fix trunk schema mismatch
-- `examples/wasm-p2p/` — new pure Rust libp2p WebRTC + WebSocket example for WASM (no CGO)
-  - Uses `libp2p-webrtc-websys`, `libp2p-websocket-websys`, `libp2p-ping`, `libp2p-noise`, `libp2p-yamux`
-  - Runs `Swarm` with `wasm-bindgen` executor in the browser
-  - Makefile targets: `make wasm-p2p`, `make run-wasm-p2p`, `make build-wasm-p2p-release`
-- **CLI commands completed** — `src/main.rs` already has match arms for all 8 new functions
-  - `ipfs pin-add`, `ipfs pin-rm`, `ipfs pin-ls`
-  - `ipfs name-publish`, `ipfs name-resolve`
-  - `p2p disconnect`, `p2p dht-findpeer`, `p2p dht-findprovs`
-- **Tests completed** — `tests/cli.rs` has `cli_pin_add_rm_ls`; `src/lib.rs` has inline tests for pin, disconnect, name_publish_resolve, dht_findpeer_local
-- **Full test matrix green** — `cargo test --workspace` (83 passed, 3 ignored) + `make test_unit` (2,165 passed, 769 skipped) + `make test-ffi` (all passed)
-
-**Still pending:**
-- Xcode Cloud validation — push and verify a clean build
-- Phase 6 follow-up — expose `HybridNode` methods to Swift via UniFFI
+- **Regenerated UniFFI bindings** — throwing functions (`hybridStartTry`, `ipfsAddTry`, `ipfsCatTry`, etc.) now in generated Swift
+- **SwiftUI real functionality** — `DashboardStore` replaced with `HybridNodeStore` using live UniFFI APIs
+  - **Overview**: IPFS add/cat/pin, block put/get/stat, live peer IDs, pin list
+  - **Repository**: Git init/clone, head/branches/remotes/status, commit lookup, diff trees
+  - **Network**: libp2p dial, DHT findpeer/findprovs, IPNS publish/resolve, Nostr relay/gossip
+  - **Chat**: Nostr keygen, kind-1 event signing, relay connect/publish/drain, hybrid gossip pub/drain
+- **xcode-release.yml fix** — moved `HAS_CERT` from workflow-level `env` to job-level `env` (GitHub Actions `secrets` context restriction)
+- **Xcode build green** — `make mac` succeeds for `macOS (Designed for iPad)` target
+- **Full test matrix green** — `cargo test --workspace` + `make test_unit` (2,165 passed) + `make test-ffi` (all passed)
 
 ---
 
 ## Active Work (In Progress)
 
-- [ ] **Xcode Cloud validation** — push changes and verify a clean build on Xcode Cloud (ci_post_clone.sh builds XCFramework before SPM resolve)
-- [ ] **Phase 6 follow-up** — expose `HybridNode` methods to Swift via `xcode/rustylib/src/lib.rs` + UniFFI
+- [ ] **Xcode Cloud validation** — push changes and verify a clean build on Xcode Cloud
+- [ ] **Protocol phase continuation** — NIP-34 hybrid integration, p2p nostr message types, WASM examples
 
 ## Recently Completed (2026-09-09)
 
-- [x] **Clippy warn-not-fail** — `Makefile` clippy target no longer uses `-D warnings`; CI workflows already clean
-- [x] **wasm-bindgen sync** — all example crates updated to `=0.2.128`; `Cargo.lock` updated
-- [x] **wasm-p2p example** — pure Rust libp2p in browser WASM using WebRTC + WebSocket transports
-- [x] **CLI commands finished** — pin-add/rm/ls, name-publish/resolve, disconnect, dht-findpeer/findprovs all wired in `src/main.rs`
-- [x] **Tests added** — `cli_pin_add_rm_ls` in `tests/cli.rs`; inline tests for disconnect, name, dht in `src/lib.rs`
-- [x] **Full test matrix green** — `cargo test --workspace` (83 passed) + `make test_unit` (2,165 passed) + FFI tests passed
+- [x] **SwiftUI real functionality** — `HybridNodeStore` with live IPFS, Git, Nostr, GossipSub APIs
+- [x] **Network tab enrichment** — IPFS DHT, IPNS, libp2p dial + Nostr relay/gossip sub-menus
+- [x] **Repository extras** — Git commit lookup and diff trees
+- [x] **Overview extras** — Block put/get/stat operations
+- [x] **xcode-release.yml fix** — `secrets` context moved to job-level `env`
+- [x] **UniFFI bindings regenerated** — throwing functions now available in Swift
+- [x] **Clippy warn-not-fail** — `Makefile` and CI workflows clean
+- [x] **wasm-bindgen sync** — all example crates updated to `=0.2.128`
+- [x] **wasm-p2p example** — pure Rust libp2p in browser WASM using WebRTC + WebSocket
+- [x] **CLI commands finished** — pin-add/rm/ls, name-publish/resolve, disconnect, dht-findpeer/findprovs
+- [x] **Tests added** — `cli_pin_add_rm_ls` in `tests/cli.rs`; inline tests for disconnect, name, dht
+- [x] **Full test matrix green** — `cargo test --workspace` + `make test_unit` (2,165 passed) + FFI tests passed
 
 ## Previously Completed
 
@@ -45,6 +44,7 @@
 - [x] **Phase 9: NIP-94 IPFS Resolution** — `HybridNode::resolve_nip94` parses kind 1063 events, extracts `ipfs://` CID, fetches content via IPFS
 - [x] **Phase 10: NIP-34 Git over GossipSub** — `HybridNode::publish_repo`, `publish_patch`, `publish_issue`
 - [x] **Phase 11: Swift UniFFI Update** — exposed `resolve_nip94`, `publish_repo`, `publish_patch`, `publish_issue` to Swift
+- [x] **Phase 12-14: Git API + RustyError** — `git_clone`, `git_init`, `Repository` methods; `RustyError` enum with throwing variants
 - [x] **Phase 4: HybridNode wrapper** — `src/hybrid.rs` with `broadcast_event`, `drain_events`, `publish_file`, `stop`; wired into `src/lib.rs`; unit tests pass
 - [x] **Phase 5: Hybrid example** — `examples/hybrid.rs` demonstrates end-to-end IPFS + Nostr + GossipSub flow
 - [x] **Xcode Cloud CI scripts** — `ci_scripts/ci_post_clone.sh` + `ci_pre_xcodebuild.sh`
@@ -178,12 +178,13 @@ kubo-rs/
 ## Next Steps (Priority)
 
 1. **Xcode Cloud validation** — push all changes and verify a clean build on Xcode Cloud
-2. **Phase 6 follow-up** — expose `HybridNode` methods to Swift via `xcode/rustylib/src/lib.rs` + UniFFI
-3. **Future: NIP-94 in SwiftUI** — file picker → IPFS add → NIP-94 event → broadcast
-4. **Future: DAG API** — `dag get`, `dag put`, `dag resolve` (complex due to ipld-prime)
-5. **Future: Key API** — `key gen`, `key list`, `key rm` (needed for advanced IPNS)
-6. **Future: MFS / Files API** — `files ls`, `files read`, `files write`, `files mkdir`
-7. **Future: PubSub** — `pubsub pub`, `pubsub sub`, `pubsub peers`, `pubsub ls`
-8. **Future: Bootstrap** — `bootstrap list`, `bootstrap add`, `bootstrap rm`
-9. **Future: Repo GC** — `repo stat`, `repo gc`
-10. **Future: wasm-p2p enhancements** — add dial input UI, WebRTC signaling, gossipsub integration
+2. **NIP-94 in SwiftUI** — file picker → IPFS add → NIP-94 event → broadcast to relay + gossip
+3. **NIP-34 in SwiftUI** — publish repo/patch/issue from the Repository tab using generated Nostr keys
+4. **Protocol phase continuation** — NIP-34 hybrid integration, p2p nostr message types, WASM examples
+5. **Future: DAG API** — `dag get`, `dag put`, `dag resolve` (complex due to ipld-prime)
+6. **Future: Key API** — `key gen`, `key list`, `key rm` (needed for advanced IPNS)
+7. **Future: MFS / Files API** — `files ls`, `files read`, `files write`, `files mkdir`
+8. **Future: PubSub** — `pubsub pub`, `pubsub sub`, `pubsub peers`, `pubsub ls`
+9. **Future: Bootstrap** — `bootstrap list`, `bootstrap add`, `bootstrap rm`
+10. **Future: Repo GC** — `repo stat`, `repo gc`
+11. **Future: wasm-p2p enhancements** — add dial input UI, WebRTC signaling, gossipsub integration

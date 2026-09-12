@@ -94,6 +94,10 @@ final class HybridNodeStore: ObservableObject {
     @Published var inboxFilter: MessageCategory? = nil
     @Published var unreadCount: Int = 0
 
+    // Background Polling (Phase 20)
+    @Published var isPolling: Bool = false
+    private var pollingTask: Task<Void, Never>?
+
     // Network / DHT
     @Published var dhtPeerID: String = ""
     @Published var dhtPeerAddrs: [String] = []
@@ -779,6 +783,41 @@ final class HybridNodeStore: ObservableObject {
 
     func markInboxRead() {
         unreadCount = 0
+    }
+
+    // MARK: - Background Polling (Phase 20)
+
+    func startPolling() {
+        guard !isPolling else { return }
+        isPolling = true
+        appendActivity("Background polling started")
+        pollingTask = Task { [weak self] in
+            while let self = self, self.isPolling {
+                await Task.yield()
+                try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds
+                guard self.isPolling else { break }
+                await MainActor.run {
+                    self.drainRelay()
+                    self.drainGossip()
+                    self.refreshInbox()
+                }
+            }
+        }
+    }
+
+    func stopPolling() {
+        isPolling = false
+        pollingTask?.cancel()
+        pollingTask = nil
+        appendActivity("Background polling stopped")
+    }
+
+    func togglePolling() {
+        if isPolling {
+            stopPolling()
+        } else {
+            startPolling()
+        }
     }
 
     // MARK: - Network / DHT

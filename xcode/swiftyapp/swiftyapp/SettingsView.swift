@@ -71,6 +71,12 @@ struct SettingsView: View {
                         Spacer()
                     }
 
+                    Toggle("Background polling", isOn: Binding(
+                        get: { store.isPolling },
+                        set: { _ in store.togglePolling() }
+                    ))
+                    .font(.caption)
+
                     if !store.nodeError.isEmpty {
                         Text(store.nodeError)
                             .font(.caption)

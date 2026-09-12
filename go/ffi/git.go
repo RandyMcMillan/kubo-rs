@@ -7,6 +7,7 @@ package main
 import "C"
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -389,4 +390,57 @@ func kubo_git_fetch_all(path *C.char) int64 {
 	}
 	setError(nil)
 	return 0
+}
+
+//export kubo_git_blame
+func kubo_git_blame(path *C.char, file_path *C.char) *C.char {
+	repo, err := git.PlainOpen(C.GoString(path))
+	if err != nil {
+		setError(fmt.Errorf("git blame open: %w", err))
+		return nil
+	}
+	head, err := repo.Head()
+	if err != nil {
+		setError(fmt.Errorf("git blame head: %w", err))
+		return nil
+	}
+	commit, err := repo.CommitObject(head.Hash())
+	if err != nil {
+		setError(fmt.Errorf("git blame commit: %w", err))
+		return nil
+	}
+	blame, err := git.Blame(commit, C.GoString(file_path))
+	if err != nil {
+		setError(fmt.Errorf("git blame: %w", err))
+		return nil
+	}
+	type blameLine struct {
+		Author string `json:"author"`
+		Name   string `json:"name"`
+		Text   string `json:"text"`
+		Date   int64  `json:"date"`
+		Hash   string `json:"hash"`
+	}
+	var lines []blameLine
+	for _, l := range blame.Lines {
+		lines = append(lines, blameLine{
+			Author: l.Author,
+			Name:   l.AuthorName,
+			Text:   l.Text,
+			Date:   l.Date.Unix(),
+			Hash:   l.Hash.String(),
+		})
+	}
+	result := map[string]interface{}{
+		"path":  blame.Path,
+		"rev":   blame.Rev.String(),
+		"lines": lines,
+	}
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		setError(fmt.Errorf("git blame marshal: %w", err))
+		return nil
+	}
+	setError(nil)
+	return C.CString(string(jsonBytes))
 }

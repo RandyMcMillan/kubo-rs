@@ -786,6 +786,15 @@ pub fn git_fetch_all(path: &str) -> Result<(), Error> {
     ffi::git_fetch_all(path)
 }
 
+/// Get blame for a file at HEAD.
+///
+/// # Errors
+///
+/// Returns an error if blaming fails.
+pub fn git_blame(path: &str, file_path: &str) -> Result<String, Error> {
+    ffi::git_blame(path, file_path)
+}
+
 /// Initialize a new Git repository.
 ///
 /// # Errors

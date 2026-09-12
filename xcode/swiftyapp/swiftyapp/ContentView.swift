@@ -93,6 +93,8 @@ final class HybridNodeStore: ObservableObject {
     @Published var repoTree: [FileNode] = []
     @Published var selectedFilePath: String = ""
     @Published var selectedFileContent: String = ""
+    @Published var blameLines: [BlameLine] = []
+    @Published var blameError: String = ""
 
     // Nostr
     @Published var nostrSecretKey: String = ""
@@ -261,11 +263,33 @@ final class HybridNodeStore: ObservableObject {
 
     func viewFile(path: String) {
         selectedFilePath = path
+        blameLines = []
+        blameError = ""
         if let data = FileManager.default.contents(atPath: path),
            let text = String(data: data, encoding: .utf8) {
             selectedFileContent = text
         } else {
             selectedFileContent = "<binary or unreadable file>"
+        }
+    }
+
+    func viewBlame() {
+        let repo = gitPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        let file = selectedFilePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !repo.isEmpty, !file.isEmpty else { return }
+        let relPath = file.replacingOccurrences(of: repo + "/", with: "")
+        let json = gitBlame(path: repo, filePath: relPath)
+        guard !json.isEmpty else {
+            blameError = goLastError()
+            return
+        }
+        do {
+            let data = json.data(using: .utf8) ?? Data()
+            let decoded = try JSONDecoder().decode(BlameResult.self, from: data)
+            blameLines = decoded.lines
+            blameError = ""
+        } catch {
+            blameError = "Parse error: \(error)"
         }
     }
 
@@ -1185,6 +1209,20 @@ struct FileNode: Identifiable {
     var children: [FileNode]
 }
 
+struct BlameLine: Codable {
+    let author: String
+    let name: String
+    let text: String
+    let date: Int64
+    let hash: String
+}
+
+struct BlameResult: Codable {
+    let path: String
+    let rev: String
+    let lines: [BlameLine]
+}
+
 struct ContentView: View {
     @StateObject private var store = HybridNodeStore()
     @StateObject private var peers = PeerNetworkStore()
@@ -1624,20 +1662,57 @@ struct ContentView: View {
                                 .lineLimit(1)
                             Spacer()
                             Button {
+                                store.viewBlame()
+                            } label: {
+                                Label("Blame", systemImage: "person.text.rectangle")
+                            }
+                            .buttonStyle(.bordered)
+                            Button {
                                 store.selectedFilePath = ""
                                 store.selectedFileContent = ""
+                                store.blameLines = []
+                                store.blameError = ""
                             } label: {
                                 Label("Close", systemImage: "xmark")
                             }
                             .buttonStyle(.bordered)
                         }
-                        ScrollView {
-                            Text(store.selectedFileContent)
-                                .font(.system(.body, design: .monospaced))
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                        if !store.blameError.isEmpty {
+                            Text(store.blameError)
+                                .font(.caption)
+                                .foregroundStyle(.red)
                         }
-                        .frame(maxHeight: 400)
+                        if store.blameLines.isEmpty {
+                            ScrollView {
+                                Text(store.selectedFileContent)
+                                    .font(.system(.body, design: .monospaced))
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .frame(maxHeight: 400)
+                        } else {
+                            ScrollView {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    ForEach(Array(store.blameLines.enumerated()), id: \.offset) { _, line in
+                                        HStack(spacing: 8) {
+                                            Text(line.hash.prefix(7))
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                                .frame(width: 60, alignment: .leading)
+                                            Text(line.name)
+                                                .font(.caption)
+                                                .foregroundStyle(.accent)
+                                                .frame(width: 100, alignment: .leading)
+                                                .lineLimit(1)
+                                            Text(line.text)
+                                                .font(.system(.body, design: .monospaced))
+                                            Spacer()
+                                        }
+                                    }
+                                }
+                            }
+                            .frame(maxHeight: 400)
+                        }
                     }
                 }
             }

@@ -650,6 +650,11 @@ pub fn git_fetch_all(path: &str) -> bool {
 }
 
 #[uniffi::export]
+pub fn git_blame(path: &str, file_path: &str) -> String {
+    kubo_rs::git_blame(path, file_path).unwrap_or_default()
+}
+
+#[uniffi::export]
 pub fn git_init(path: &str, bare: bool) -> bool {
     kubo_rs::git_init(path, bare).is_ok()
 }

@@ -1,5 +1,5 @@
 use crate::error::Error;
-use std::ffi::{CStr, CString, c_char};
+use std::ffi::{CStr, CString, c_char, c_int};
 use std::slice;
 
 #[link(name = "kubo_ffi", kind = "static")]
@@ -102,6 +102,8 @@ unsafe extern "C" {
     fn kubo_git_clone(url: *const c_char, path: *const c_char, bare: u8) -> i64;
     fn kubo_git_fetch_all(path: *const c_char) -> i64;
     fn kubo_git_blame(path: *const c_char, file_path: *const c_char) -> *mut c_char;
+    fn kubo_git_log(path: *const c_char, max_count: c_int) -> *mut c_char;
+    fn kubo_git_tags(path: *const c_char) -> *mut c_char;
     fn kubo_git_init(path: *const c_char, bare: u8) -> i64;
     fn kubo_git_open(path: *const c_char) -> u64;
     fn kubo_git_repo_head(handle: u64) -> *mut c_char;
@@ -691,6 +693,30 @@ pub fn git_blame(path: &str, file_path: &str) -> Result<String, Error> {
     let c_path = CString::new(path)?;
     let c_file = CString::new(file_path)?;
     let ptr = unsafe { kubo_git_blame(c_path.as_ptr(), c_file.as_ptr()) };
+    if ptr.is_null() {
+        Err(Error::Go(last_error()))
+    } else {
+        let s = unsafe { CStr::from_ptr(ptr).to_string_lossy().into_owned() };
+        unsafe { kubo_ffi_free_string(ptr) };
+        Ok(s)
+    }
+}
+
+pub fn git_log(path: &str, max_count: i32) -> Result<String, Error> {
+    let c_path = CString::new(path)?;
+    let ptr = unsafe { kubo_git_log(c_path.as_ptr(), max_count) };
+    if ptr.is_null() {
+        Err(Error::Go(last_error()))
+    } else {
+        let s = unsafe { CStr::from_ptr(ptr).to_string_lossy().into_owned() };
+        unsafe { kubo_ffi_free_string(ptr) };
+        Ok(s)
+    }
+}
+
+pub fn git_tags(path: &str) -> Result<String, Error> {
+    let c_path = CString::new(path)?;
+    let ptr = unsafe { kubo_git_tags(c_path.as_ptr()) };
     if ptr.is_null() {
         Err(Error::Go(last_error()))
     } else {

@@ -95,6 +95,9 @@ final class HybridNodeStore: ObservableObject {
     @Published var selectedFileContent: String = ""
     @Published var blameLines: [BlameLine] = []
     @Published var blameError: String = ""
+    @Published var commitHistory: [CommitInfo] = []
+    @Published var tagList: [String] = []
+    @Published var readmeContent: String = ""
 
     // Nostr
     @Published var nostrSecretKey: String = ""
@@ -338,6 +341,52 @@ final class HybridNodeStore: ObservableObject {
         gitRemotesResult = gitRemotes(path: path)
         gitStatusResult = gitStatus(path: path)
         repoTree = buildFileTree(path: path)
+        loadCommitHistory()
+        loadTags()
+        loadReadme()
+    }
+
+    func loadCommitHistory() {
+        let path = gitPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty else { return }
+        let json = gitLog(path: path, maxCount: 50)
+        guard !json.isEmpty else { return }
+        do {
+            let data = json.data(using: .utf8) ?? Data()
+            commitHistory = try JSONDecoder().decode([CommitInfo].self, from: data)
+        } catch {
+            commitHistory = []
+        }
+    }
+
+    func loadTags() {
+        let path = gitPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty else { return }
+        let json = gitTags(path: path)
+        guard !json.isEmpty else { return }
+        do {
+            let data = json.data(using: .utf8) ?? Data()
+            tagList = try JSONDecoder().decode([String].self, from: data)
+        } catch {
+            tagList = []
+        }
+    }
+
+    func loadReadme() {
+        let path = gitPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty else { readmeContent = ""; return }
+        let fm = FileManager.default
+        let names = ["README.md", "README", "Readme.md", "readme.md"]
+        for name in names {
+            let readmePath = (path as NSString).appendingPathComponent(name)
+            if fm.fileExists(atPath: readmePath),
+               let data = fm.contents(atPath: readmePath),
+               let text = String(data: data, encoding: .utf8) {
+                readmeContent = text
+                return
+            }
+        }
+        readmeContent = ""
     }
 
     // Nostr
@@ -1223,6 +1272,15 @@ struct BlameResult: Codable {
     let lines: [BlameLine]
 }
 
+struct CommitInfo: Codable, Identifiable {
+    let hash: String
+    let message: String
+    let author: String
+    let email: String
+    let date: Int64
+    var id: String { hash }
+}
+
 struct ContentView: View {
     @StateObject private var store = HybridNodeStore()
     @StateObject private var peers = PeerNetworkStore()
@@ -1621,6 +1679,61 @@ struct ContentView: View {
                         .font(.system(.caption, design: .monospaced))
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
+            if !store.readmeContent.isEmpty {
+                DashboardCard(title: "README") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ScrollView {
+                            Text(store.readmeContent)
+                                .font(.system(.body, design: .monospaced))
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(maxHeight: 300)
+                    }
+                }
+            }
+
+            DashboardCard(title: "Commits") {
+                VStack(alignment: .leading, spacing: 8) {
+                    if store.commitHistory.isEmpty {
+                        Text("No commits found.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(store.commitHistory) { commit in
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 8) {
+                                    Text(commit.hash.prefix(7))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Text(commit.author)
+                                        .font(.caption)
+                                        .foregroundStyle(.accent)
+                                    Spacer()
+                                }
+                                Text(commit.message.trimmingCharacters(in: .whitespacesAndNewlines))
+                                    .font(.system(.body, design: .monospaced))
+                                    .lineLimit(2)
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    }
+                }
+            }
+
+            if !store.tagList.isEmpty {
+                DashboardCard(title: "Tags") {
+                    FlowLayout(spacing: 8) {
+                        ForEach(store.tagList, id: \.self) { tag in
+                            Text(tag)
+                                .font(.caption)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Capsule(style: .continuous).fill(Color.accentColor.opacity(0.15)))
+                        }
+                    }
                 }
             }
 

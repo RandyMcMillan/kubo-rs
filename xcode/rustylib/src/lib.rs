@@ -655,6 +655,16 @@ pub fn git_blame(path: &str, file_path: &str) -> String {
 }
 
 #[uniffi::export]
+pub fn git_log(path: &str, max_count: i32) -> String {
+    kubo_rs::git_log(path, max_count).unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn git_tags(path: &str) -> String {
+    kubo_rs::git_tags(path).unwrap_or_default()
+}
+
+#[uniffi::export]
 pub fn git_init(path: &str, bare: bool) -> bool {
     kubo_rs::git_init(path, bare).is_ok()
 }

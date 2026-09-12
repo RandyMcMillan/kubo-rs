@@ -795,6 +795,24 @@ pub fn git_blame(path: &str, file_path: &str) -> Result<String, Error> {
     ffi::git_blame(path, file_path)
 }
 
+/// Get commit log for a Git repository.
+///
+/// # Errors
+///
+/// Returns an error if log retrieval fails.
+pub fn git_log(path: &str, max_count: i32) -> Result<String, Error> {
+    ffi::git_log(path, max_count)
+}
+
+/// Get tags for a Git repository.
+///
+/// # Errors
+///
+/// Returns an error if tag retrieval fails.
+pub fn git_tags(path: &str) -> Result<String, Error> {
+    ffi::git_tags(path)
+}
+
 /// Initialize a new Git repository.
 ///
 /// # Errors

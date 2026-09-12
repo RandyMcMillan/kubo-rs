@@ -713,6 +713,71 @@ struct ContentView: View {
                     }
                 }
             }
+
+            DashboardCard(title: "Publish Repo (NIP-34)") {
+                VStack(alignment: .leading, spacing: 12) {
+                    if store.nostrSecretKey.isEmpty {
+                        Text("Generate a Nostr key in Settings first.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        TextField("Description", text: $store.nip34RepoDescription)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("Clone URLs (comma-separated)", text: $store.nip34RepoCloneURLs)
+                            .textFieldStyle(.roundedBorder)
+                        Button {
+                            store.publishRepo()
+                        } label: {
+                            Label("Publish repo", systemImage: "globe")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(store.gitPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+            }
+
+            DashboardCard(title: "Publish Patch (NIP-34)") {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        TextField("Old hash…", text: $store.nip34PatchOldHash)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("New hash…", text: $store.nip34PatchNewHash)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                    Button {
+                        store.publishPatch()
+                    } label: {
+                        Label("Publish patch", systemImage: "doc.text.below.ecg")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(store.nip34PatchOldHash.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.nip34PatchNewHash.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.gitPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.nostrSecretKey.isEmpty)
+                }
+            }
+
+            DashboardCard(title: "Publish Issue (NIP-34)") {
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField("Title", text: $store.nip34IssueTitle)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("Body", text: $store.nip34IssueBody, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .lineLimit(2...6)
+                    Button {
+                        store.publishIssue()
+                    } label: {
+                        Label("Publish issue", systemImage: "exclamationmark.bubble")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(store.nip34IssueTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.nostrSecretKey.isEmpty)
+                }
+            }
+
+            if !store.nip34PublishResult.isEmpty {
+                DashboardCard(title: "NIP-34 Result") {
+                    Text(store.nip34PublishResult)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
         }
     }
 

@@ -80,6 +80,15 @@ final class HybridNodeStore: ObservableObject {
     @Published var nip94ResolveInput: String = ""
     @Published var nip94ResolveResult: String = ""
 
+    // NIP-34 (Phase 17)
+    @Published var nip34RepoDescription: String = ""
+    @Published var nip34RepoCloneURLs: String = ""
+    @Published var nip34PatchOldHash: String = ""
+    @Published var nip34PatchNewHash: String = ""
+    @Published var nip34IssueTitle: String = ""
+    @Published var nip34IssueBody: String = ""
+    @Published var nip34PublishResult: String = ""
+
     // Network / DHT
     @Published var dhtPeerID: String = ""
     @Published var dhtPeerAddrs: [String] = []
@@ -478,6 +487,88 @@ final class HybridNodeStore: ObservableObject {
         let result = hybridResolveNip94(eventJson: eventJson)
         nip94ResolveResult = result
         appendActivity(result.isEmpty ? "NIP-94 resolve failed" : "NIP-94 resolved (\(result.count) chars)")
+    }
+
+    // MARK: - NIP-34 Git Flow (Phase 17)
+
+    func publishRepo() {
+        guard !nostrSecretKey.isEmpty else {
+            appendActivity("No Nostr key — generate one first")
+            return
+        }
+        let path = gitPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty else {
+            appendActivity("No repo loaded")
+            return
+        }
+        let repoName = URL(fileURLWithPath: path).lastPathComponent
+        let desc = nip34RepoDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        let urls = nip34RepoCloneURLs.trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        let result = hybridPublishRepo(
+            repoPath: path,
+            repoId: repoName,
+            name: repoName,
+            description: desc,
+            cloneUrls: urls,
+            secretKey: nostrSecretKey,
+            relayHandle: relayHandle == 0 ? nil : relayHandle,
+            gossipTopic: gossipTopic
+        )
+        nip34PublishResult = result
+        appendActivity(result.isEmpty ? "Repo publish failed" : "Published repo: \(repoName)")
+    }
+
+    func publishPatch() {
+        guard !nostrSecretKey.isEmpty else {
+            appendActivity("No Nostr key — generate one first")
+            return
+        }
+        let path = gitPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        let oldH = nip34PatchOldHash.trimmingCharacters(in: .whitespacesAndNewlines)
+        let newH = nip34PatchNewHash.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty, !oldH.isEmpty, !newH.isEmpty else {
+            appendActivity("Need repo path and both commit hashes")
+            return
+        }
+        let repoRef = gitHeadResult.isEmpty ? "repo" : gitHeadResult
+        let result = hybridPublishPatch(
+            repoPath: path,
+            repoRef: repoRef,
+            oldHash: oldH,
+            newHash: newH,
+            secretKey: nostrSecretKey,
+            relayHandle: relayHandle == 0 ? nil : relayHandle,
+            gossipTopic: gossipTopic
+        )
+        nip34PublishResult = result
+        appendActivity(result.isEmpty ? "Patch publish failed" : "Published patch")
+    }
+
+    func publishIssue() {
+        guard !nostrSecretKey.isEmpty else {
+            appendActivity("No Nostr key — generate one first")
+            return
+        }
+        let title = nip34IssueTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let body = nip34IssueBody.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else {
+            appendActivity("Need issue title")
+            return
+        }
+        let repoRef = gitHeadResult.isEmpty ? "repo" : gitHeadResult
+        let result = hybridPublishIssue(
+            repoRef: repoRef,
+            title: title,
+            body: body,
+            secretKey: nostrSecretKey,
+            relayHandle: relayHandle == 0 ? nil : relayHandle,
+            gossipTopic: gossipTopic
+        )
+        nip34PublishResult = result
+        appendActivity(result.isEmpty ? "Issue publish failed" : "Published issue: \(title)")
     }
 
     // MARK: - Typed Messages (Phase 15)

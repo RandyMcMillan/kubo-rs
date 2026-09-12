@@ -74,6 +74,12 @@ final class HybridNodeStore: ObservableObject {
     @Published var typedBody: String = ""
     @Published var typedDiff: String = ""
 
+    // NIP-94 (Phase 16)
+    @Published var showFileImporter: Bool = false
+    @Published var publishFileResult: String = ""
+    @Published var nip94ResolveInput: String = ""
+    @Published var nip94ResolveResult: String = ""
+
     // Network / DHT
     @Published var dhtPeerID: String = ""
     @Published var dhtPeerAddrs: [String] = []
@@ -441,6 +447,37 @@ final class HybridNodeStore: ObservableObject {
     func drainGossip() {
         let events = hybridDrainEvents(relaySubHandle: nil)
         appendActivity("Drained \(events.count) gossip events")
+    }
+
+    // MARK: - NIP-94 File Flow (Phase 16)
+
+    func publishPickedFile(url: URL) {
+        guard !nostrSecretKey.isEmpty else {
+            appendActivity("No Nostr key — generate one first")
+            return
+        }
+        let path = url.path
+        let result = hybridPublishFile(
+            filePath: path,
+            secretKey: nostrSecretKey,
+            relayHandle: relayHandle == 0 ? nil : relayHandle,
+            gossipTopic: gossipTopic
+        )
+        if result.isEmpty {
+            publishFileResult = "Publish failed"
+            appendActivity("NIP-94 publish failed")
+        } else {
+            publishFileResult = result
+            appendActivity("NIP-94 publish → CID: \(shortCID(result))")
+        }
+    }
+
+    func resolveNip94() {
+        let eventJson = nip94ResolveInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !eventJson.isEmpty else { return }
+        let result = hybridResolveNip94(eventJson: eventJson)
+        nip94ResolveResult = result
+        appendActivity(result.isEmpty ? "NIP-94 resolve failed" : "NIP-94 resolved (\(result.count) chars)")
     }
 
     // MARK: - Typed Messages (Phase 15)

@@ -110,6 +110,20 @@ struct ContentView: View {
             }
             .padding(24)
         }
+        .fileImporter(
+            isPresented: $store.showFileImporter,
+            allowedContentTypes: [.data],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                if let url = urls.first {
+                    store.publishPickedFile(url: url)
+                }
+            case .failure(let error):
+                store.appendActivity("File picker error: \(error.localizedDescription)")
+            }
+        }
     }
 
     private var heroCard: some View {
@@ -309,6 +323,51 @@ struct ContentView: View {
                         Text("Size: \(store.blockStatSize) bytes")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            DashboardCard(title: "Publish File (NIP-94)") {
+                VStack(alignment: .leading, spacing: 12) {
+                    if store.nostrSecretKey.isEmpty {
+                        Text("Generate a Nostr key in Settings or Network > Nostr first.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Button {
+                            store.showFileImporter = true
+                        } label: {
+                            Label("Pick file & publish", systemImage: "doc.badge.plus")
+                        }
+                        .buttonStyle(.borderedProminent)
+
+                        if !store.publishFileResult.isEmpty {
+                            Text("CID: \(store.publishFileResult)")
+                                .font(.system(.body, design: .monospaced))
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
+            }
+
+            DashboardCard(title: "Resolve NIP-94") {
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField("Paste NIP-94 event JSON…", text: $store.nip94ResolveInput, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .lineLimit(2...6)
+                    Button {
+                        store.resolveNip94()
+                    } label: {
+                        Label("Resolve", systemImage: "arrow.down.circle")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(store.nip94ResolveInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                    if !store.nip94ResolveResult.isEmpty {
+                        Text(store.nip94ResolveResult)
+                            .font(.system(.body, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
             }

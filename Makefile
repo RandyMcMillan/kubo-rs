@@ -129,15 +129,20 @@ build-wasm-p2p-release: fix-wasm-bindgen
 	cd examples/wasm-p2p && env -u NO_COLOR trunk build --public-url /kubo-rs/
 
 wasm-hybrid-wasi:
-	@echo "Building wasm-hybrid-wasi requires wasi-sdk."
-	@echo "Install from https://github.com/WebAssembly/wasi-sdk/releases"
-	@echo "Then: export WASI_SDK_PATH=/opt/wasi-sdk"
-	@echo ""
+	@WSI=$${WASI_SDK_PATH:-/opt/wasi-sdk}; \
+ if [ ! -d "$$WSI" ]; then \
+   echo "ERROR: wasi-sdk not found at $$WSI"; \
+   echo "Install from https://github.com/WebAssembly/wasi-sdk/releases"; \
+   echo "Then: export WASI_SDK_PATH=/path/to/wasi-sdk"; \
+   exit 1; \
+ fi
 	@rustup target list --installed | grep -q wasm32-wasip1 || rustup target add wasm32-wasip1
-	cd examples/wasm-hybrid-wasi && cargo build --target wasm32-wasip1 --release
+	cd examples/wasm-hybrid-wasi && \
+	  CC="$${WASI_SDK_PATH:-/opt/wasi-sdk}/bin/clang" \
+	  cargo build --target wasm32-wasip1 --release
 
 run-wasm-hybrid-wasi-cli: wasm-hybrid-wasi
-	@echo "Running with wasmtime (install from https://wasmtime.dev):"
+	@which wasmtime >/dev/null 2>&1 || { echo "ERROR: wasmtime not found. Install from https://wasmtime.dev"; exit 1; }
 	wasmtime examples/wasm-hybrid-wasi/target/wasm32-wasip1/release/wasm-hybrid-wasi.wasm
 
 # Cross-testing

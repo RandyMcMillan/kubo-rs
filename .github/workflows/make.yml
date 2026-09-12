@@ -44,8 +44,8 @@ concurrency:
 
 jobs:
   make-test:
-    name: 'make ${{ github.event.inputs.commands || "all" }}'
-    runs-on: ${{ github.event.inputs.os || 'ubuntu-latest' }}
+    name: "make ${{ github.event.inputs.commands || 'all' }}"
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4

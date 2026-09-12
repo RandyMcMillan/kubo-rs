@@ -65,7 +65,7 @@ struct KuboSnapshot {
 
 @MainActor
 final class HybridNodeStore: ObservableObject {
-    @Published var selection: DashboardSection = .overview
+    @Published var selection: DashboardSection = .repository
     @Published var snapshot: KuboSnapshot = .placeholder
     @Published var activity: [String] = []
     @Published var isRefreshing = false
@@ -1485,6 +1485,14 @@ struct ContentView: View {
                             .font(.system(.caption, design: .monospaced))
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    if !store.gitPath.isEmpty {
+                        Button {
+                            store.selection = .repository
+                        } label: {
+                            Label("View Repository", systemImage: "externaldrive.connected.to.line.below")
+                        }
+                        .buttonStyle(.bordered)
                     }
                 }
             }

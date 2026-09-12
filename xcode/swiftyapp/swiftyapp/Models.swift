@@ -91,3 +91,9 @@ enum RelayStatus: String {
     case disconnected = "Disconnected"
     case error = "Error"
 }
+
+struct TopicEntry: Identifiable {
+    let id = UUID()
+    var name: String
+    var joined: Bool = false
+}

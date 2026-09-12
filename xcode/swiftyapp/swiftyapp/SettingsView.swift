@@ -157,13 +157,65 @@ struct SettingsView: View {
                 }
             }
 
-            DashboardCard(title: "GossipSub Topic") {
+            DashboardCard(title: "GossipSub Topics") {
                 VStack(alignment: .leading, spacing: 12) {
-                    TextField("Topic name", text: $store.gossipTopic)
-                        .textFieldStyle(.roundedBorder)
-                    Text("Current topic: \(store.gossipTopic)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 12) {
+                        TextField("topic-name", text: $newTopic)
+                            .textFieldStyle(.roundedBorder)
+                        Button {
+                            store.addTopic(name: newTopic)
+                            newTopic = ""
+                        } label: {
+                            Label("Add", systemImage: "plus.circle")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(newTopic.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+
+                    if store.topics.isEmpty {
+                        Text("No topics configured. Add a topic to join GossipSub conversations.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(store.topics) { topic in
+                            HStack(spacing: 12) {
+                                Circle()
+                                    .fill(topic.joined ? Color.green : Color.secondary.opacity(0.3))
+                                    .frame(width: 8, height: 8)
+                                Text(topic.name)
+                                    .font(.system(.body, design: .monospaced))
+                                Spacer()
+                                if topic.joined {
+                                    Button {
+                                        store.leaveTopic(id: topic.id)
+                                    } label: {
+                                        Label("Leave", systemImage: "xmark.circle")
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                } else {
+                                    Button {
+                                        store.joinTopic(name: topic.name)
+                                    } label: {
+                                        Label("Join", systemImage: "checkmark.circle")
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .controlSize(.small)
+                                }
+                                Button {
+                                    store.removeTopic(id: topic.id)
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .foregroundStyle(.red)
+                                }
+                                .buttonStyle(.borderless)
+                            }
+                            .padding(.vertical, 4)
+                            if topic.id != store.topics.last?.id {
+                                Divider()
+                            }
+                        }
+                    }
                 }
             }
         }

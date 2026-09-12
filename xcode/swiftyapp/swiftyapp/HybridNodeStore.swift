@@ -62,6 +62,7 @@ final class HybridNodeStore: ObservableObject {
     @Published var nostrContent: String = ""
     @Published var gossipTopic: String = "kubo-hybrid"
     @Published var gossipMessage: String = ""
+    @Published var topics: [TopicEntry] = [TopicEntry(name: "kubo-hybrid", joined: false)]
 
     // Typed Messages (Phase 15)
     @Published var typedMessages: [HybridMessage] = []
@@ -520,6 +521,61 @@ final class HybridNodeStore: ObservableObject {
                 connectRelayEntry(id: relay.id)
             }
         }
+    }
+
+    // MARK: - GossipSub Multi-Topic (Phase 25)
+
+    func joinTopic(name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        if let idx = topics.firstIndex(where: { $0.name == trimmed }) {
+            var t = topics[idx]
+            if !t.joined {
+                let ok = p2pGossipJoin(topic: trimmed)
+                t.joined = ok
+                topics[idx] = t
+                appendActivity(ok ? "Joined topic: \(trimmed)" : "Failed to join topic: \(trimmed)")
+            }
+        } else {
+            let ok = p2pGossipJoin(topic: trimmed)
+            topics.append(TopicEntry(name: trimmed, joined: ok))
+            appendActivity(ok ? "Joined topic: \(trimmed)" : "Failed to join topic: \(trimmed)")
+        }
+    }
+
+    func leaveTopic(id: UUID) {
+        if let idx = topics.firstIndex(where: { $0.id == id }) {
+            var t = topics[idx]
+            if t.joined {
+                let ok = p2pGossipLeave(topic: t.name)
+                t.joined = !ok
+                topics[idx] = t
+                appendActivity(ok ? "Left topic: \(t.name)" : "Failed to leave topic: \(t.name)")
+            }
+        }
+    }
+
+    func addTopic(name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !topics.contains(where: { $0.name == trimmed }) else { return }
+        topics.append(TopicEntry(name: trimmed, joined: false))
+    }
+
+    func removeTopic(id: UUID) {
+        if let idx = topics.firstIndex(where: { $0.id == id }) {
+            let t = topics[idx]
+            if t.joined {
+                p2pGossipLeave(topic: t.name)
+            }
+            topics.remove(at: idx)
+        }
+    }
+
+    func publishToTopic(name: String, message: String) {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let ok = p2pGossipPublishTo(topic: name, message: trimmed)
+        appendActivity(ok ? "Published to \(name)" : "Publish to \(name) failed")
     }
 
     func publishGossip() {

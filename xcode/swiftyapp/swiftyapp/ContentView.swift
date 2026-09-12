@@ -88,6 +88,7 @@ final class HybridNodeStore: ObservableObject {
     @Published var cloneURL: String = "https://github.com/RandyMcMillan/kubo-rs.git"
     @Published var clonePath: String = ""
     @Published var cloneResult: String = ""
+    @Published var repoTree: [FileNode] = []
 
     // Nostr
     @Published var nostrSecretKey: String = ""
@@ -278,6 +279,7 @@ final class HybridNodeStore: ObservableObject {
         gitBranchesResult = gitBranches(path: path)
         gitRemotesResult = gitRemotes(path: path)
         gitStatusResult = gitStatus(path: path)
+        repoTree = buildFileTree(path: path)
     }
 
     // Nostr
@@ -655,6 +657,19 @@ final class HybridNodeStore: ObservableObject {
         case "go": return "text/x-go"
         case "swift": return "text/x-swift"
         default: return "application/octet-stream"
+        }
+    }
+
+    func buildFileTree(path: String) -> [FileNode] {
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(atPath: path) else { return [] }
+        return entries.sorted().compactMap { name in
+            if name.hasPrefix(".") { return nil }
+            let fullPath = (path as NSString).appendingPathComponent(name)
+            var isDir: ObjCBool = false
+            guard fm.fileExists(atPath: fullPath, isDirectory: &isDir) else { return nil }
+            let children = isDir.boolValue ? buildFileTree(path: fullPath) : []
+            return FileNode(name: name, path: fullPath, isDirectory: isDir.boolValue, children: children)
         }
     }
 }
@@ -1114,6 +1129,14 @@ extension PeerNetworkStore: MCSessionDelegate {
     func session(_ session: MCSession, didFinishReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, at localURL: URL?, withError error: Error?) {}
 }
 
+struct FileNode: Identifiable {
+    let id = UUID()
+    var name: String
+    var path: String
+    var isDirectory: Bool
+    var children: [FileNode]
+}
+
 struct ContentView: View {
     @StateObject private var store = HybridNodeStore()
     @StateObject private var peers = PeerNetworkStore()
@@ -1486,6 +1509,18 @@ struct ContentView: View {
                 }
                 .font(.system(.body, design: .monospaced))
                 .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            DashboardCard(title: "Repo tree") {
+                VStack(alignment: .leading, spacing: 8) {
+                    if store.repoTree.isEmpty {
+                        Text("No repo loaded. Init or clone a repository above.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        FileTreeView(nodes: store.repoTree)
+                    }
+                }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
 
@@ -2347,6 +2382,28 @@ private struct SidebarStatusCard: View {
                 .truncationMode(.middle)
                 .textSelection(.enabled)
             Spacer(minLength: 0)
+        }
+    }
+}
+
+private struct FileTreeView: View {
+    let nodes: [FileNode]
+
+    var body: some View {
+        ForEach(nodes) { node in
+            if node.isDirectory {
+                DisclosureGroup {
+                    FileTreeView(nodes: node.children)
+                        .padding(.leading, 12)
+                } label: {
+                    Label(node.name, systemImage: "folder")
+                        .font(.system(.body, design: .monospaced))
+                }
+            } else {
+                Label(node.name, systemImage: "doc.text")
+                    .font(.system(.body, design: .monospaced))
+                    .padding(.leading, 4)
+            }
         }
     }
 }

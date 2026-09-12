@@ -1,8 +1,13 @@
 name: Make Commands CI
 
 on:
-  push:
-    branches: [main]
+  workflow_run:
+    workflows: ["Cache Factory"]
+    types: [completed]
+    branches:
+      - main
+      - 'feat/**'
+      - 'fix/**'
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -45,6 +50,7 @@ concurrency:
 jobs:
   make-test:
     name: "make ${{ github.event.inputs.commands || 'all' }}"
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

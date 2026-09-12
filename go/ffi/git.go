@@ -374,11 +374,18 @@ func kubo_git_fetch_all(path *C.char) int64 {
 		setError(fmt.Errorf("git fetch remotes: %w", err))
 		return -1
 	}
+	if len(remotes) == 0 {
+		setError(fmt.Errorf("git fetch: no remotes configured"))
+		return -1
+	}
+	var fetched []string
 	for _, remote := range remotes {
-		if err := repo.Fetch(&git.FetchOptions{RemoteName: remote.Config().Name}); err != nil && err != git.NoErrAlreadyUpToDate {
-			setError(fmt.Errorf("git fetch %s: %w", remote.Config().Name, err))
+		name := remote.Config().Name
+		if err := repo.Fetch(&git.FetchOptions{RemoteName: name}); err != nil && err != git.NoErrAlreadyUpToDate {
+			setError(fmt.Errorf("git fetch %s: %w", name, err))
 			return -1
 		}
+		fetched = append(fetched, name)
 	}
 	setError(nil)
 	return 0

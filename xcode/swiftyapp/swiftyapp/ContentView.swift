@@ -89,6 +89,7 @@ final class HybridNodeStore: ObservableObject {
     @Published var clonePath: String = ""
     @Published var cloneResult: String = ""
     @Published var forceClone: Bool = false
+    @Published var fetchResult: String = ""
     @Published var repoTree: [FileNode] = []
 
     // Nostr
@@ -261,10 +262,12 @@ final class HybridNodeStore: ObservableObject {
         guard !path.isEmpty else { return }
         let ok = gitFetchAll(path: path)
         if ok {
+            fetchResult = "Fetched all remotes"
             appendActivity("Fetched all remotes")
             refreshGit()
         } else {
             let err = goLastError()
+            fetchResult = "Fetch failed: \(err)"
             appendActivity("Fetch failed: \(err)")
         }
     }
@@ -1562,6 +1565,12 @@ struct ContentView: View {
                     .buttonStyle(.bordered)
                     .disabled(!store.repoExists)
                     Spacer()
+                }
+                if !store.fetchResult.isEmpty {
+                    Text(store.fetchResult)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
 

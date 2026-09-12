@@ -679,6 +679,12 @@ final class HybridNodeStore: ObservableObject {
         }
     }
 
+    var repoExists: Bool {
+        let path = gitPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty else { return false }
+        return FileManager.default.fileExists(atPath: (path as NSString).appendingPathComponent(".git"))
+    }
+
     func buildFileTree(path: String) -> [FileNode] {
         let fm = FileManager.default
         guard fm.fileExists(atPath: path) else {
@@ -1554,7 +1560,7 @@ struct ContentView: View {
                         Label("Fetch all", systemImage: "arrow.down.circle")
                     }
                     .buttonStyle(.bordered)
-                    .disabled(store.gitPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(!store.repoExists)
                     Spacer()
                 }
             }

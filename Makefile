@@ -128,17 +128,38 @@ build-wasm-p2p-release: fix-wasm-bindgen
 	pkill -f "trunk serve" 2>/dev/null || true
 	cd examples/wasm-p2p && env -u NO_COLOR trunk build --public-url /kubo-rs/
 
-wasm-hybrid-wasi:
-	@WSI=$${WASI_SDK_PATH:-/opt/wasi-sdk}; \
- if [ ! -d "$$WSI" ]; then \
-   echo "ERROR: wasi-sdk not found at $$WSI"; \
-   echo "Install from https://github.com/WebAssembly/wasi-sdk/releases"; \
-   echo "Then: export WASI_SDK_PATH=/path/to/wasi-sdk"; \
-   exit 1; \
- fi
-	@rustup target list --installed | grep -q wasm32-wasip1 || rustup target add wasm32-wasip1
+install-wasi-sdk:
+	@WSI_HOME="$(HOME)/.wasi-sdk"; \
+	WSI="$${WASI_SDK_PATH:-$$WSI_HOME}"; \
+	if [ ! -f "$$WSI/bin/clang" ]; then \
+	  mkdir -p "$$WSI_HOME"; \
+	  ARCH="$$(uname -m)"; \
+	  case "$$(uname -s)" in \
+	    Darwin) OS=macos ;; \
+	    Linux)  OS=linux ;; \
+	    MINGW*|MSYS*|CYGWIN*) OS=windows ;; \
+	    *) OS=linux ;; \
+	  esac; \
+	  if [ "$$ARCH" = "arm64" ]; then ARCH=arm64; fi; \
+	  if [ "$$ARCH" = "x86_64" ]; then ARCH=x86_64; fi; \
+	  URL="https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-34/wasi-sdk-34.0-$$ARCH-$$OS.tar.gz"; \
+	  echo "Downloading wasi-sdk for $$ARCH-$$OS → $$WSI_HOME ..."; \
+	  curl -fsSL -o /tmp/wasi-sdk.tar.gz "$$URL" || { echo "Download failed. Install manually from https://github.com/WebAssembly/wasi-sdk/releases"; exit 1; }; \
+	  echo "Extracting wasi-sdk ..."; \
+	  tar -xzf /tmp/wasi-sdk.tar.gz -C "$$WSI_HOME" --strip-components=1; \
+	  rm -f /tmp/wasi-sdk.tar.gz; \
+	  echo "wasi-sdk installed to $$WSI_HOME"; \
+	  echo "Add to your shell profile: export WASI_SDK_PATH=$$WSI_HOME"; \
+	fi
+
+wasm-hybrid-wasi: install-wasi-sdk
+	@WSI="$${WASI_SDK_PATH:-$(HOME)/.wasi-sdk}"; \
+	if [ ! -f "$$WSI/bin/clang" ]; then \
+	  echo "ERROR: wasi-sdk not found at $$WSI"; exit 1; \
+	fi; \
+	rustup target list --installed | grep -q wasm32-wasip1 || rustup target add wasm32-wasip1; \
 	cd examples/wasm-hybrid-wasi && \
-	  CC="$${WASI_SDK_PATH:-/opt/wasi-sdk}/bin/clang" \
+	  CC="$$WSI/bin/clang" \
 	  cargo build --target wasm32-wasip1 --release
 
 run-wasm-hybrid-wasi-cli: wasm-hybrid-wasi

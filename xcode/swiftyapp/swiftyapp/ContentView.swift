@@ -2452,18 +2452,43 @@ private struct FileTreeView: View {
 
     var body: some View {
         ForEach(nodes) { node in
-            if node.isDirectory {
-                DisclosureGroup {
-                    FileTreeView(nodes: node.children)
-                        .padding(.leading, 12)
-                } label: {
-                    Label(node.name, systemImage: "folder")
-                        .font(.system(.body, design: .monospaced))
+            FileTreeRow(node: node)
+        }
+    }
+}
+
+private struct FileTreeRow: View {
+    let node: FileNode
+    @State private var isExpanded = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 4) {
+                if node.isDirectory {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 16)
+                        .onTapGesture { isExpanded.toggle() }
+                    Image(systemName: "folder")
+                        .foregroundStyle(.accent)
+                } else {
+                    Spacer().frame(width: 16)
+                    Image(systemName: "doc.text")
+                        .foregroundStyle(.secondary)
                 }
-            } else {
-                Label(node.name, systemImage: "doc.text")
+                Text(node.name)
                     .font(.system(.body, design: .monospaced))
-                    .padding(.leading, 4)
+                Spacer()
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if node.isDirectory { isExpanded.toggle() }
+            }
+
+            if node.isDirectory && isExpanded && !node.children.isEmpty {
+                FileTreeView(nodes: node.children)
+                    .padding(.leading, 20)
             }
         }
     }

@@ -657,13 +657,30 @@ struct ContentView: View {
 
     private var networkContent: some View {
         VStack(alignment: .leading, spacing: 20) {
+            Picker("Network", selection: $store.networkTab) {
+                ForEach(NetworkTab.allCases, id: \.self) { tab in
+                    Text(tab.rawValue).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            if store.networkTab == .ipfs {
+                ipfsNetworkContent
+            } else if store.networkTab == .nostr {
+                nostrNetworkContent
+            } else {
+                p2pNetworkContent
+            }
+        }
+    }
+
+    private var ipfsNetworkContent: some View {
+        VStack(alignment: .leading, spacing: 20) {
             LazyVGrid(columns: adaptiveColumns, spacing: 16) {
-                MetricCard(title: "Local peer", value: peers.localPeerName, symbol: "person.crop.circle", subtitle: "Unique instance name advertised on the LAN")
-                MetricCard(title: "Discovery", value: peers.connectionStatus, symbol: "antenna.radiowaves.left.and.right", subtitle: "Browsing and advertising via MultipeerConnectivity")
-                MetricCard(title: "libp2p peer", value: peers.libp2pPeerID, symbol: "network", subtitle: "Rust host with relay and hole-punch support enabled")
-                MetricCard(title: "Gossip topic", value: peers.gossipTopic, symbol: "bubble.left.and.bubble.right", subtitle: "Shared pubsub topic joined by the libp2p host")
-                MetricCard(title: "Connected peers", value: "\(peers.connectedPeers.count)", symbol: "person.2.circle", subtitle: "Peers with an active session")
-                MetricCard(title: "Last message", value: peers.lastMessage, symbol: "message", subtitle: "Latest p2p status or broadcast")
+                MetricCard(title: "IPFS Peer", value: store.snapshot.peerID, symbol: "network", subtitle: "HybridNode IPFS identity")
+                MetricCard(title: "P2P Peer", value: hybridP2pPeerId(), symbol: "point.3.connected.trianglepath.dotted", subtitle: "HybridNode libp2p identity")
+                MetricCard(title: "Pins", value: "\(store.pins.count)", symbol: "pin", subtitle: "Locally pinned CIDs")
+                MetricCard(title: "Status", value: store.snapshot.status, symbol: "power.circle", subtitle: "HybridNode online state")
             }
 
             DashboardCard(title: "libp2p transport") {
@@ -801,66 +818,251 @@ struct ContentView: View {
                     }
                 }
             }
+        }
+    }
 
-            DashboardCard(title: "Nostr Network") {
-                VStack(alignment: .leading, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Relay")
-                            .font(.headline)
-                        TextField("Relay URL", text: $store.relayURL)
-                            .textFieldStyle(.roundedBorder)
-                        HStack(spacing: 12) {
-                            Button {
-                                store.connectRelay()
-                            } label: {
-                                Label("Connect", systemImage: "network")
-                            }
-                            .buttonStyle(.borderedProminent)
+    private var nostrNetworkContent: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            LazyVGrid(columns: adaptiveColumns, spacing: 16) {
+                MetricCard(title: "Chat topic", value: peers.gossipTopic, symbol: "bubble.left.and.bubble.right", subtitle: "Messages published into the shared pubsub room")
+                MetricCard(title: "Participants", value: "\(peers.connectedPeers.count)", symbol: "person.2.circle", subtitle: "Connected peers that can receive chat broadcasts")
+                MetricCard(title: "Last message", value: peers.lastMessage, symbol: "message", subtitle: "Most recent chat or network event")
+            }
 
-                            Button {
-                                store.drainRelay()
-                            } label: {
-                                Label("Drain", systemImage: "arrow.down")
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(store.relayHandle == 0)
-
-                            Spacer()
+            DashboardCard(title: "Nostr Keys") {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        Button {
+                            store.generateNostrKey()
+                        } label: {
+                            Label("Generate key", systemImage: "key")
                         }
-                        Text("Handle: \(store.relayHandle)")
+                        .buttonStyle(.borderedProminent)
+
+                        Spacer()
+                    }
+
+                    if !store.nostrPublicKey.isEmpty {
+                        Text("Public: \(store.nostrPublicKey)")
+                            .font(.system(.body, design: .monospaced))
+                            .textSelection(.enabled)
+                        Text("Secret: \(store.shortKey(store.nostrSecretKey))")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            DashboardCard(title: "Nostr Event") {
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField("Event content…", text: $store.nostrContent, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .lineLimit(2...4)
+                    HStack(spacing: 12) {
+                        Button {
+                            store.signEvent()
+                        } label: {
+                            Label("Sign kind-1", systemImage: "signature")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(store.nostrContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.nostrSecretKey.isEmpty)
+
+                        Spacer()
+                    }
+                    if !store.nostrEventJson.isEmpty {
+                        Text(store.nostrEventJson)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+
+            DashboardCard(title: "Relay") {
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField("Relay URL", text: $store.relayURL)
+                        .textFieldStyle(.roundedBorder)
+                    HStack(spacing: 12) {
+                        Button {
+                            store.connectRelay()
+                        } label: {
+                            Label("Connect", systemImage: "network")
+                        }
+                        .buttonStyle(.borderedProminent)
+
+                        Button {
+                            store.publishToRelay()
+                        } label: {
+                            Label("Publish", systemImage: "paperplane")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(store.relayHandle == 0 || store.nostrEventJson.isEmpty)
+
+                        Button {
+                            store.drainRelay()
+                        } label: {
+                            Label("Drain", systemImage: "arrow.down")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(store.relayHandle == 0)
+
+                        Spacer()
+                    }
+                    if !store.drainResult.isEmpty {
+                        Text(store.drainResult)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+
+            DashboardCard(title: "Hybrid Gossip") {
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField("Topic", text: $store.gossipTopic)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("Message JSON…", text: $store.gossipMessage, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .lineLimit(2...4)
+                    HStack(spacing: 12) {
+                        Button {
+                            store.publishGossip()
+                        } label: {
+                            Label("Publish", systemImage: "dot.radiowaves.left.and.right")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(store.gossipMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        Button {
+                            store.drainGossip()
+                        } label: {
+                            Label("Drain", systemImage: "arrow.down")
+                        }
+                        .buttonStyle(.bordered)
+
+                        Spacer()
+                    }
+                }
+            }
+
+            DashboardCard(title: "Typed Messages") {
+                VStack(alignment: .leading, spacing: 12) {
+                    Picker("Category", selection: $store.typedBroadcastCategory) {
+                        Text("File").tag(MessageCategory.file)
+                        Text("Repo").tag(MessageCategory.repo)
+                        Text("Patch").tag(MessageCategory.patch)
+                        Text("Issue").tag(MessageCategory.issue)
+                    }
+                    .pickerStyle(.segmented)
+
+                    if store.typedBroadcastCategory == .file {
+                        TextField("CID", text: $store.typedCID)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("Filename", text: $store.typedFilename)
+                            .textFieldStyle(.roundedBorder)
+                    } else if store.typedBroadcastCategory == .repo {
+                        TextField("Repo ref", text: $store.typedRepoRef)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("Title", text: $store.typedTitle)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("Body", text: $store.typedBody, axis: .vertical)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(2...4)
+                    } else if store.typedBroadcastCategory == .patch {
+                        TextField("Repo ref", text: $store.typedRepoRef)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("Diff", text: $store.typedDiff, axis: .vertical)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(3...6)
+                    } else if store.typedBroadcastCategory == .issue {
+                        TextField("Repo ref", text: $store.typedRepoRef)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("Title", text: $store.typedTitle)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("Body", text: $store.typedBody, axis: .vertical)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(2...4)
+                    }
+
+                    HStack(spacing: 12) {
+                        Button {
+                            store.broadcastTyped()
+                        } label: {
+                            Label("Broadcast", systemImage: "dot.radiowaves.left.and.right")
+                        }
+                        .buttonStyle(.borderedProminent)
+
+                        Button {
+                            store.drainTyped()
+                        } label: {
+                            Label("Drain", systemImage: "arrow.down")
+                        }
+                        .buttonStyle(.bordered)
+
+                        Spacer()
                     }
 
                     Divider()
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("GossipSub")
-                            .font(.headline)
-                        TextField("Topic", text: $store.gossipTopic)
-                            .textFieldStyle(.roundedBorder)
-                        TextField("Message JSON…", text: $store.gossipMessage)
-                            .textFieldStyle(.roundedBorder)
-                        HStack(spacing: 12) {
-                            Button {
-                                store.publishGossip()
-                            } label: {
-                                Label("Publish", systemImage: "dot.radiowaves.left.and.right")
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(store.gossipMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    HStack(spacing: 12) {
+                        Text("Filter:")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Picker("Filter", selection: $store.typedCategoryFilter) {
+                            Text("All").tag(MessageCategory?.none)
+                            Text("File").tag(MessageCategory?.some(.file))
+                            Text("Repo").tag(MessageCategory?.some(.repo))
+                            Text("Patch").tag(MessageCategory?.some(.patch))
+                            Text("Issue").tag(MessageCategory?.some(.issue))
+                        }
+                        .pickerStyle(.segmented)
+                    }
 
-                            Button {
-                                store.drainGossip()
-                            } label: {
-                                Label("Drain", systemImage: "arrow.down")
+                    let filtered = store.filteredTypedMessages()
+                    if filtered.isEmpty {
+                        Text("No typed messages yet.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(Array(filtered.enumerated()), id: \.offset) { _, msg in
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(spacing: 8) {
+                                    Text(store.categoryName(msg))
+                                        .font(.caption.weight(.semibold))
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(Capsule(style: .continuous).fill(Color.accentColor.opacity(0.15)))
+                                    Text("kind:\(msg.kind)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                }
+                                Text(msg.content)
+                                    .font(.system(.body, design: .monospaced))
+                                    .lineLimit(3)
+                                if !msg.tags.isEmpty {
+                                    Text(msg.tags.map { $0.joined(separator: ":") }.joined(separator: ", "))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
                             }
-                            .buttonStyle(.bordered)
-
-                            Spacer()
+                            .padding(.vertical, 4)
                         }
                     }
                 }
+            }
+        }
+    }
+
+    private var p2pNetworkContent: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            LazyVGrid(columns: adaptiveColumns, spacing: 16) {
+                MetricCard(title: "Local peer", value: peers.localPeerName, symbol: "person.crop.circle", subtitle: "Unique instance name advertised on the LAN")
+                MetricCard(title: "Discovery", value: peers.connectionStatus, symbol: "antenna.radiowaves.left.and.right", subtitle: "Browsing and advertising via MultipeerConnectivity")
+                MetricCard(title: "libp2p peer", value: peers.libp2pPeerID, symbol: "network", subtitle: "Rust host with relay and hole-punch support enabled")
+                MetricCard(title: "Gossip topic", value: peers.gossipTopic, symbol: "bubble.left.and.bubble.right", subtitle: "Shared pubsub topic joined by the libp2p host")
+                MetricCard(title: "Connected peers", value: "\(peers.connectedPeers.count)", symbol: "person.2.circle", subtitle: "Peers with an active session")
+                MetricCard(title: "Last message", value: peers.lastMessage, symbol: "message", subtitle: "Latest p2p status or broadcast")
             }
 
             DashboardCard(title: "Nearby peers") {

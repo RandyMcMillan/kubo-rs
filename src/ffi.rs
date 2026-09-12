@@ -136,7 +136,7 @@ fn check_err(code: i64) -> Result<(), Error> {
     }
 }
 
-fn last_error() -> String {
+pub fn last_error() -> String {
     unsafe {
         let ptr = kubo_ffi_last_error();
         if ptr.is_null() {

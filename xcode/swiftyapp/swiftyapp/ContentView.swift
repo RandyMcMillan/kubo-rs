@@ -87,6 +87,7 @@ final class HybridNodeStore: ObservableObject {
     @Published var gitStatusResult: String = ""
     @Published var cloneURL: String = "https://github.com/RandyMcMillan/kubo-rs.git"
     @Published var clonePath: String = ""
+    @Published var cloneResult: String = ""
 
     // Nostr
     @Published var nostrSecretKey: String = ""
@@ -137,6 +138,9 @@ final class HybridNodeStore: ObservableObject {
     @Published var diffResult: String = ""
 
     init() {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("kubo-rs-clone").path ?? "/tmp/kubo-rs-clone"
+        clonePath = docs
         startNode()
     }
 
@@ -241,8 +245,13 @@ final class HybridNodeStore: ObservableObject {
         let path = gitPath.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !path.isEmpty else { return }
         let ok = gitInit(path: path, bare: false)
-        appendActivity(ok ? "Git init: \(path)" : "Git init failed")
-        if ok { refreshGit() }
+        if ok {
+            appendActivity("Git init: \(path)")
+            refreshGit()
+        } else {
+            let err = goLastError()
+            appendActivity("Git init failed: \(err)")
+        }
     }
 
     func gitCloneRepo() {
@@ -250,10 +259,15 @@ final class HybridNodeStore: ObservableObject {
         let path = clonePath.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !url.isEmpty, !path.isEmpty else { return }
         let ok = gitClone(url: url, path: path, bare: false)
-        appendActivity(ok ? "Git clone → \(path)" : "Git clone failed")
         if ok {
+            cloneResult = "Cloned to \(path)"
+            appendActivity("Git clone → \(path)")
             gitPath = path
             refreshGit()
+        } else {
+            let err = goLastError()
+            cloneResult = "Error: \(err)"
+            appendActivity("Git clone failed: \(err)")
         }
     }
 
@@ -1443,6 +1457,12 @@ struct ContentView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(store.cloneURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.clonePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    if !store.cloneResult.isEmpty {
+                        Text(store.cloneResult)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
             }
 

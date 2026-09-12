@@ -22,6 +22,7 @@ pub mod nostr_url;
 pub mod p2p_messages;
 
 pub use error::Error;
+pub use ffi::last_error;
 pub use ffi::version;
 pub use hybrid::HybridNode;
 pub use nostr_url::NostrUrl;

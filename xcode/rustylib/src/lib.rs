@@ -635,6 +635,11 @@ pub fn ipfs_name_resolve(name: &str) -> String {
 // ---------------------------------------------------------------------------
 
 #[uniffi::export]
+pub fn go_last_error() -> String {
+    kubo_rs::last_error()
+}
+
+#[uniffi::export]
 pub fn git_clone(url: &str, path: &str, bare: bool) -> bool {
     kubo_rs::git_clone(url, path, bare).is_ok()
 }

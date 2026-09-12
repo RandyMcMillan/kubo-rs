@@ -2256,6 +2256,7 @@ private struct MetricPill: View {
                 Text(value)
                     .font(.subheadline.weight(.medium))
                     .lineLimit(1)
+                    .textSelection(.enabled)
             }
         }
         .padding(.horizontal, 12)
@@ -2324,6 +2325,7 @@ private struct SidebarStatusCard: View {
             Text(value)
                 .lineLimit(2)
                 .truncationMode(.middle)
+                .textSelection(.enabled)
             Spacer(minLength: 0)
         }
     }

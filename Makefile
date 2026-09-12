@@ -162,9 +162,18 @@ wasm-hybrid-wasi: install-wasi-sdk
 	  CC="$$WSI/bin/clang" \
 	  cargo build --target wasm32-wasip1 --release
 
-run-wasm-hybrid-wasi-cli: wasm-hybrid-wasi
-	@which wasmtime >/dev/null 2>&1 || { echo "ERROR: wasmtime not found. Install from https://wasmtime.dev"; exit 1; }
-	wasmtime examples/wasm-hybrid-wasi/target/wasm32-wasip1/release/wasm-hybrid-wasi.wasm
+install-wasmtime:
+	@which wasmtime >/dev/null 2>&1 || { \
+	  echo "Installing wasmtime ..."; \
+	  curl https://wasmtime.dev/install.sh -sSf | bash; \
+	}
+	@export PATH="$(HOME)/.wasmtime/bin:$$PATH"; \
+	which wasmtime >/dev/null 2>&1 || { echo "ERROR: wasmtime install failed"; exit 1; }
+
+run-wasm-hybrid-wasi-cli: wasm-hybrid-wasi install-wasmtime
+	@export PATH="$(HOME)/.wasmtime/bin:$$PATH"; \
+	TGT="$$(cd examples/wasm-hybrid-wasi && cargo metadata --format-version 1 2>/dev/null | sed -n 's/.*"target_directory":"\([^"]*\)".*/\1/p')"; \
+	wasmtime "$${TGT}/wasm32-wasip1/release/wasm-hybrid-wasi.wasm"
 
 # Cross-testing
 scripts:

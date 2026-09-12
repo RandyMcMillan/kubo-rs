@@ -151,6 +151,10 @@ final class HybridNodeStore: ObservableObject {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
             .appendingPathComponent("kubo-rs-clone").path ?? "/tmp/kubo-rs-clone"
         clonePath = docs
+        if FileManager.default.fileExists(atPath: (docs as NSString).appendingPathComponent(".git")) {
+            gitPath = docs
+            refreshGit()
+        }
         startNode()
     }
 

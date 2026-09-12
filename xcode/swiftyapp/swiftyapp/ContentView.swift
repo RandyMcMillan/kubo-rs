@@ -102,6 +102,12 @@ struct ContentView: View {
                     networkContent
                 case .chat:
                     chatContent
+                case .codeReview:
+                    CodeReviewView(store: store)
+                case .issueTracker:
+                    IssueTrackerView(store: store)
+                case .repoDiscovery:
+                    RepoDiscoveryView(store: store)
                 case .activity:
                     activityContent
                 case .settings:

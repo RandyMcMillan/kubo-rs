@@ -7,9 +7,16 @@ import Foundation
 import SwiftUI
 import RustyLib
 
+enum NetworkTab: String, CaseIterable {
+    case ipfs = "IPFS"
+    case nostr = "NOSTR"
+    case p2p = "P2P"
+}
+
 @MainActor
 final class HybridNodeStore: ObservableObject {
     @Published var selection: DashboardSection = .repository
+    @Published var networkTab: NetworkTab = .ipfs
     @Published var snapshot: KuboSnapshot = .placeholder
     @Published var activity: [String] = []
     @Published var isRefreshing = false

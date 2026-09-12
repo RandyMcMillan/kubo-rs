@@ -1234,7 +1234,7 @@ struct ContentView: View {
                     FlowLayout(spacing: 12) {
                         MetricPill(title: "Version", value: store.snapshot.version, symbol: "tag")
                         MetricPill(title: "Peer ID", value: shortPeerID(store.snapshot.peerID), symbol: "person.crop.circle")
-                        MetricPill(title: "CID", value: shortCID(store.snapshot.cid), symbol: "link")
+                        MetricPill(title: "CID", value: store.snapshot.cid, symbol: "link")
                     }
                 }
 
@@ -1269,7 +1269,7 @@ struct ContentView: View {
                         .disabled(store.addDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.isRefreshing)
 
                         if !store.lastAddedCID.isEmpty {
-                            Text("CID: \(shortCID(store.lastAddedCID))")
+                            Text("CID: \(store.lastAddedCID)")
                                 .font(.system(.body, design: .monospaced))
                                 .textSelection(.enabled)
                         }
@@ -1382,7 +1382,7 @@ struct ContentView: View {
                         Spacer()
                     }
                     if !store.blockCID.isEmpty {
-                        Text("CID: \(shortCID(store.blockCID))")
+                        Text("CID: \(store.blockCID)")
                             .font(.system(.body, design: .monospaced))
                             .textSelection(.enabled)
                     }

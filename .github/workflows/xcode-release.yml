@@ -3,62 +3,50 @@ name: Xcode Release
 on:
   push:
     tags:
-      - '**[0-9]+.[0-9]+.[0-9]+*-xcode'
+      - 'v*'
   workflow_dispatch:
     inputs:
-      target:
-        description: 'Which target(s) to build'
-        required: true
-        default: 'all'
+      ref:
+        description: 'Git ref to build (tag, branch, or SHA)'
+        type: string
+        default: 'main'
+      configuration:
+        description: 'Build configuration'
         type: choice
         options:
-          - all
-          - kubo-macos
-          - swiftyapp
-      create_release:
-        description: 'Create a GitHub release and attach artifacts'
-        required: true
-        default: true
+          - Release
+          - Debug
+        default: 'Release'
+      upload-artifact:
+        description: 'Upload build artifacts'
         type: boolean
-      tag_name:
-        description: 'Release tag name (leave empty to auto-generate)'
-        required: false
-        default: ''
-        type: string
+        default: true
 
-permissions:
-  contents: write
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build-xcode-release:
-    runs-on: macos-latest
-    env:
-      HAS_CERT: ${{ secrets.BUILD_CERTIFICATE_BASE64 != '' }}
+  build-ios:
+    name: Build iOS
+    runs-on: macos-15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          submodules: recursive
+          ref: ${{ github.event.inputs.ref || github.ref }}
 
-      - name: Resolve release tag
-        id: resolve_tag
+      - name: Init submodules
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            TAG="${{ github.ref_name }}"
-          elif [ -n "${{ inputs.tag_name }}" ]; then
-            TAG="${{ inputs.tag_name }}"
-          else
-            TAG="manual-$(date +%Y%m%d-%H%M%S)"
-          fi
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "Release tag: $TAG"
+          git submodule sync
+          git submodule update --init --recursive
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
-          targets: aarch64-apple-ios,aarch64-apple-ios-sim,aarch64-apple-ios-macabi
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim
 
       - name: Install Go
         uses: actions/setup-go@v5
@@ -66,143 +54,172 @@ jobs:
           go-version: "1.26.5"
           cache: false
 
-      - name: Cache Go modules
-        uses: actions/cache@v4
+      - name: Populate Rust cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
         with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('go/kubo-sys/go.sum', 'go/ffi/go.sum') }}
-          restore-keys: ${{ runner.os }}-go-
+          shared-key: stable-cache
+
+      - name: Install Apple certificate
+        if: env.BUILD_CERTIFICATE_BASE64 != ''
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o "$CERTIFICATE_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+
+      - name: Build Rust library and XCFramework
+        run: cd xcode && make rust
+
+      - name: Build iOS app (generic)
+        run: |
+          cd xcode
+          xcodebuild \
+            -project swiftyapp/kubo-macos.xcodeproj \
+            -scheme kubo-macos \
+            -configuration ${{ github.event.inputs.configuration || 'Release' }} \
+            -derivedDataPath .build/xcode \
+            -destination generic/platform=iOS \
+            ARCHS=arm64 \
+            build
+
+      - name: Build iOS Simulator
+        run: |
+          cd xcode
+          xcodebuild \
+            -project swiftyapp/kubo-macos.xcodeproj \
+            -scheme kubo-macos \
+            -configuration ${{ github.event.inputs.configuration || 'Release' }} \
+            -derivedDataPath .build/xcode \
+            -destination 'platform=iOS Simulator,name=Any iOS Simulator Device' \
+            ARCHS='arm64 x86_64' \
+            build
+
+      - name: Upload iOS artifact
+        if: github.event.inputs.upload-artifact != 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kubo-macos-ios
+          path: xcode/.build/xcode/${{ github.event.inputs.configuration || 'Release' }}-iphoneos/kubo-macos.app
+          retention-days: 7
+
+  build-macos:
+    name: Build macOS (Designed for iPad)
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.ref || github.ref }}
+
+      - name: Init submodules
+        run: |
+          git submodule sync
+          git submodule update --init --recursive
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          targets: aarch64-apple-ios,aarch64-apple-ios-macabi
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.5"
+          cache: false
 
       - name: Populate Rust cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
         with:
           shared-key: stable-cache
 
-      - name: Build XCFramework
-        run: cd xcode && make rust
-
-      - name: Zip XCFramework
-        run: |
-          cd xcode/rustylib
-          zip -r rustylib_framework.xcframework.zip rustylib_framework.xcframework
-
-      - name: Install signing certificate and provisioning profile
+      - name: Install Apple certificate
+        if: env.BUILD_CERTIFICATE_BASE64 != ''
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
           P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
-          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-        if: env.HAS_CERT == 'true'
         run: |
           CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
-          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o "$CERTIFICATE_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
 
-          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
-          echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o $PP_PATH
+      - name: Build Rust library and XCFramework
+        run: cd xcode && make rust
 
-          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-
-          security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-          security list-keychain -d user -s $KEYCHAIN_PATH
-
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
-
-      - name: Build kubo-macos (Designed for iPad)
-        env:
-          PROVISIONING_PROFILE_SPECIFIER: ${{ secrets.PROVISIONING_PROFILE_SPECIFIER }}
-        if: github.event_name == 'push' || inputs.target == 'kubo-macos' || inputs.target == 'all'
+      - name: Build macOS (Designed for iPad)
         run: |
           cd xcode
-          if [ "$HAS_CERT" = "true" ]; then
-            SIGN_IDENTITY="Apple Development"
-            SIGN_STYLE="Manual"
-            PROFILE_SPECIFIER="${PROVISIONING_PROFILE_SPECIFIER}"
-          else
-            SIGN_IDENTITY=""
-            SIGN_STYLE="Automatic"
-            PROFILE_SPECIFIER=""
-          fi
           xcodebuild \
             -project swiftyapp/kubo-macos.xcodeproj \
             -scheme kubo-macos \
-            -configuration Release \
-            -derivedDataPath .build/kubo-macos \
-            -destination "platform=macOS,variant=Designed for iPad,name=My Mac" \
-            ARCHS="$(uname -m)" \
+            -configuration ${{ github.event.inputs.configuration || 'Release' }} \
+            -derivedDataPath .build/xcode \
+            -destination 'platform=macOS,variant=Designed for iPad,name=My Mac' \
+            ARCHS=arm64 \
             ONLY_ACTIVE_ARCH=YES \
-            CODE_SIGN_IDENTITY="$SIGN_IDENTITY" \
-            CODE_SIGN_STYLE="$SIGN_STYLE" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_SPECIFIER" \
-            ENABLE_HARDENED_RUNTIME=NO \
             build
 
-      - name: Ad-hoc sign kubo-macos
-        if: (github.event_name == 'push' || inputs.target == 'kubo-macos' || inputs.target == 'all') && env.HAS_CERT != 'true'
+      - name: Ad-hoc sign app
         run: |
-          cd xcode
-          APP_PATH=$(find .build/kubo-macos -name "kubo-macos.app" -type d | head -n1)
-          codesign --force --deep --sign - "$APP_PATH"
+          APP_PATH="xcode/.build/xcode/${{ github.event.inputs.configuration || 'Release' }}-iphoneos/kubo-macos.app"
+          if [ -d "$APP_PATH" ]; then
+            codesign --force --deep --sign - "$APP_PATH"
+          fi
 
-      - name: Package kubo-macos
-        if: github.event_name == 'push' || inputs.target == 'kubo-macos' || inputs.target == 'all'
-        run: |
-          cd xcode
-          APP_PATH=$(find .build/kubo-macos -name "kubo-macos.app" -type d | head -n1)
-          echo "Found app at: $APP_PATH"
-          (
-            cd "$(dirname "$APP_PATH")"
-            zip -r -y "$GITHUB_WORKSPACE/xcode/kubo-macos.zip" "$(basename "$APP_PATH")"
-          )
-
-      - name: Build swiftyapp (iOS Simulator)
-        if: github.event_name == 'push' || inputs.target == 'swiftyapp' || inputs.target == 'all'
-        run: |
-          cd xcode
-          xcodebuild \
-            -project swiftyapp/swiftyapp.xcodeproj \
-            -scheme swiftyapp \
-            -configuration Release \
-            -derivedDataPath .build/swiftyapp \
-            -destination "generic/platform=iOS Simulator" \
-            ARCHS="$(uname -m)" \
-            ONLY_ACTIVE_ARCH=YES \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            build
-
-      - name: Package swiftyapp
-        if: github.event_name == 'push' || inputs.target == 'swiftyapp' || inputs.target == 'all'
-        run: |
-          cd xcode
-          APP_PATH=$(find .build/swiftyapp -name "swiftyapp.app" -type d | head -n1)
-          echo "Found app at: $APP_PATH"
-          (
-            cd "$(dirname "$APP_PATH")"
-            zip -r -y "$GITHUB_WORKSPACE/xcode/swiftyapp.zip" "$(basename "$APP_PATH")"
-          )
-
-      - name: Upload artifacts
+      - name: Upload macOS artifact
+        if: github.event.inputs.upload-artifact != 'false'
         uses: actions/upload-artifact@v4
         with:
-          name: xcode-release-${{ steps.resolve_tag.outputs.tag }}
-          path: |
-            xcode/rustylib/rustylib_framework.xcframework.zip
-            xcode/kubo-macos.zip
-            xcode/swiftyapp.zip
-          if-no-files-found: ignore
+          name: kubo-macos-designed-for-ipad
+          path: xcode/.build/xcode/${{ github.event.inputs.configuration || 'Release' }}-iphoneos/kubo-macos.app
+          retention-days: 7
 
-      - name: Upload to Release
-        if: github.event_name == 'push' || inputs.create_release == true
+  create-release:
+    name: Create GitHub Release
+    needs: [build-ios, build-macos]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Download iOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: kubo-macos-ios
+          path: artifacts/ios
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: kubo-macos-designed-for-ipad
+          path: artifacts/macos
+
+      - name: Package artifacts
+        run: |
+          cd artifacts/ios
+          zip -r ../../kubo-macos-ios.zip .
+          cd ../macos
+          zip -r ../../kubo-macos-designed-for-ipad.zip .
+
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.resolve_tag.outputs.tag }}
-          name: ${{ steps.resolve_tag.outputs.tag }}
           files: |
-            xcode/rustylib/rustylib_framework.xcframework.zip
-            xcode/kubo-macos.zip
-            xcode/swiftyapp.zip
+            kubo-macos-ios.zip
+            kubo-macos-designed-for-ipad.zip
+          generate_release_notes: true

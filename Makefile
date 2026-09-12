@@ -87,43 +87,44 @@ p2p:
 dashboard:
 	cargo run --example dashboard
 
-wasm-dashboard:
+fix-wasm-bindgen:
+	@rustup target list --installed | grep -q wasm32-unknown-unknown || rustup target add wasm32-unknown-unknown
+	@which trunk >/dev/null 2>&1 || cargo install trunk
+	@# Ensure wasm-bindgen-cli matches the crate version (0.2.128)
+	@cargo install -f wasm-bindgen-cli --version 0.2.128 2>/dev/null || true
+	@# Clear stale trunk cache if binary version mismatches
+	@rm -rf ~/Library/Caches/dev.trunkrs.trunk/wasm-bindgen-* 2>/dev/null || true
+	@echo "wasm-bindgen-cli 0.2.128 ready"
+
+wasm-dashboard: fix-wasm-bindgen
 	./scripts/wasm-dashboard.sh --build-only 2>/dev/null || ./scripts/wasm-dashboard.sh
 
-run-wasm-dashboard:
+run-wasm-dashboard: fix-wasm-bindgen
 	pkill -f "trunk serve" 2>/dev/null || true
 	./scripts/wasm-dashboard.sh
 
-build-wasm-dashboard-release:
-	@rustup target list --installed | grep -q wasm32-unknown-unknown || rustup target add wasm32-unknown-unknown
-	@which trunk >/dev/null 2>&1 || cargo install trunk
+build-wasm-dashboard-release: fix-wasm-bindgen
 	pkill -f "trunk serve" 2>/dev/null || true
 	cd examples/wasm-dashboard && env -u NO_COLOR trunk build --public-url /kubo-rs/
 
-website:
+website: fix-wasm-bindgen
 	./scripts/website.sh --build-only 2>/dev/null || ./scripts/website.sh
 
-run-website:
+run-website: fix-wasm-bindgen
 	pkill -f "trunk serve" 2>/dev/null || true
 	./scripts/website.sh
 
-build-website-release:
-	@rustup target list --installed | grep -q wasm32-unknown-unknown || rustup target add wasm32-unknown-unknown
-	@which trunk >/dev/null 2>&1 || cargo install trunk
+build-website-release: fix-wasm-bindgen
 	pkill -f "trunk serve" 2>/dev/null || true
 	cd examples/website && env -u NO_COLOR trunk build --public-url /kubo-rs/
 
-wasm-p2p:
-	@rustup target list --installed | grep -q wasm32-unknown-unknown || rustup target add wasm32-unknown-unknown
-	@which trunk >/dev/null 2>&1 || cargo install trunk
+wasm-p2p: fix-wasm-bindgen
 	pkill -f "trunk serve" 2>/dev/null || true
 	cd examples/wasm-p2p && env -u NO_COLOR trunk serve --port 8084
 
 run-wasm-p2p: wasm-p2p
 
-build-wasm-p2p-release:
-	@rustup target list --installed | grep -q wasm32-unknown-unknown || rustup target add wasm32-unknown-unknown
-	@which trunk >/dev/null 2>&1 || cargo install trunk
+build-wasm-p2p-release: fix-wasm-bindgen
 	pkill -f "trunk serve" 2>/dev/null || true
 	cd examples/wasm-p2p && env -u NO_COLOR trunk build --public-url /kubo-rs/
 
@@ -172,6 +173,7 @@ help:
 	@echo "  example        - Run the basic example"
 	@echo "  p2p            - Run the p2p example"
 	@echo "  dashboard      - Run the ratatui TUI dashboard example"
+	@echo "  fix-wasm-bindgen          - Install matching wasm-bindgen-cli and clear stale trunk cache"
 	@echo "  wasm-dashboard            - Build the WASM dashboard example"
 	@echo "  run-wasm-dashboard        - Build and serve the WASM dashboard (auto-picks free port from 8080)"
 	@echo "  build-wasm-dashboard-release - Build WASM dashboard for GitHub Pages deployment"

@@ -9,7 +9,7 @@ var adaptiveColumns: [GridItem] {
     [GridItem(.adaptive(minimum: 220, maximum: 360), spacing: 16, alignment: .top)]
 }
 
-private struct FlowLayout: Layout {
+struct FlowLayout: Layout {
     var spacing: CGFloat = 8
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
@@ -52,7 +52,7 @@ private struct FlowLayout: Layout {
     }
 }
 
-private struct DashboardCard<Content: View>: View {
+struct DashboardCard<Content: View>: View {
     var title: String?
     @ViewBuilder var content: Content
 
@@ -83,7 +83,7 @@ private struct DashboardCard<Content: View>: View {
     }
 }
 
-private struct MetricCard: View {
+struct MetricCard: View {
     let title: String
     let value: String
     let symbol: String
@@ -113,7 +113,7 @@ private struct MetricCard: View {
     }
 }
 
-private struct MetricPill: View {
+struct MetricPill: View {
     let title: String
     let value: String
     let symbol: String
@@ -141,7 +141,7 @@ private struct MetricPill: View {
     }
 }
 
-private struct StatusBadge: View {
+struct StatusBadge: View {
     let text: String
     let isRefreshing: Bool
 
@@ -163,7 +163,7 @@ private struct StatusBadge: View {
     }
 }
 
-private struct SidebarStatusCard: View {
+struct SidebarStatusCard: View {
     let snapshot: KuboSnapshot
     let isRefreshing: Bool
 
@@ -204,7 +204,7 @@ private struct SidebarStatusCard: View {
     }
 }
 
-private struct FileTreeView: View {
+struct FileTreeView: View {
     let nodes: [FileNode]
     var onSelect: (String) -> Void
 
@@ -215,7 +215,7 @@ private struct FileTreeView: View {
     }
 }
 
-private struct FileTreeRow: View {
+struct FileTreeRow: View {
     let node: FileNode
     var onSelect: (String) -> Void
     @State private var isExpanded = true

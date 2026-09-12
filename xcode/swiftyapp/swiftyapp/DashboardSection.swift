@@ -12,6 +12,7 @@ enum DashboardSection: String, CaseIterable, Identifiable {
     case network
     case chat
     case activity
+    case settings
 
     var id: String { rawValue }
 
@@ -23,6 +24,7 @@ enum DashboardSection: String, CaseIterable, Identifiable {
         case .network: return "Network"
         case .chat: return "Chat"
         case .activity: return "Activity"
+        case .settings: return "Settings"
         }
     }
 
@@ -34,6 +36,7 @@ enum DashboardSection: String, CaseIterable, Identifiable {
         case .network: return "Peer and CID details"
         case .chat: return "Gossip pubsub messages"
         case .activity: return "Recent actions"
+        case .settings: return "Relays, topics, identity"
         }
     }
 
@@ -45,6 +48,7 @@ enum DashboardSection: String, CaseIterable, Identifiable {
         case .network: return "point.3.connected.trianglepath.dotted"
         case .chat: return "bubble.left.and.bubble.right"
         case .activity: return "clock.arrow.circlepath"
+        case .settings: return "gear"
         }
     }
 }

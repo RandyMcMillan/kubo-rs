@@ -700,7 +700,7 @@ final class HybridNodeStore: ObservableObject {
         appendActivity(diffResult.isEmpty ? "Diff failed" : "Diff generated (\(diffResult.count) chars)")
     }
 
-    private func appendActivity(_ message: String) {
+    func appendActivity(_ message: String) {
         let timestamp = Self.timestampFormatter.string(from: Date())
         activity.insert("[\(timestamp)] \(message)", at: 0)
         if activity.count > 50 {

@@ -17,6 +17,7 @@
 		AABBCCDDEEFF001122334462 /* HybridNodeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABBCCDDEEFF001122334457 /* HybridNodeStore.swift */; };
 		AABBCCDDEEFF001122334463 /* PeerNetworkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABBCCDDEEFF001122334458 /* PeerNetworkStore.swift */; };
 		AABBCCDDEEFF001122334464 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABBCCDDEEFF001122334459 /* Components.swift */; };
+		AABBCCDDEEFF001122334465 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABBCCDDEEFF00112233446A /* SettingsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -43,6 +44,7 @@
 		AABBCCDDEEFF001122334457 /* HybridNodeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HybridNodeStore.swift; sourceTree = "<group>"; };
 		AABBCCDDEEFF001122334458 /* PeerNetworkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerNetworkStore.swift; sourceTree = "<group>"; };
 		AABBCCDDEEFF001122334459 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
+		AABBCCDDEEFF00112233446A /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -85,6 +87,7 @@
 				AABBCCDDEEFF001122334457 /* HybridNodeStore.swift */,
 				AABBCCDDEEFF001122334456 /* Models.swift */,
 				AABBCCDDEEFF001122334458 /* PeerNetworkStore.swift */,
+				AABBCCDDEEFF00112233446A /* SettingsView.swift */,
 				291DE5372C3DE74F007F9706 /* Assets.xcassets */,
 				291DE5392C3DE74F007F9706 /* Preview Content */,
 			);
@@ -215,6 +218,7 @@
 				AABBCCDDEEFF001122334462 /* HybridNodeStore.swift in Sources */,
 				AABBCCDDEEFF001122334461 /* Models.swift in Sources */,
 				AABBCCDDEEFF001122334463 /* PeerNetworkStore.swift in Sources */,
+				AABBCCDDEEFF001122334465 /* SettingsView.swift in Sources */,
 				291DE5342C3DE74F007F9706 /* swiftyappApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

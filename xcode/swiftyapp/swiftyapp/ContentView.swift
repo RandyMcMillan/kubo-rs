@@ -104,6 +104,8 @@ struct ContentView: View {
                     chatContent
                 case .activity:
                     activityContent
+                case .settings:
+                    SettingsView(store: store)
                 }
             }
             .padding(24)

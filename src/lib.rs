@@ -777,6 +777,15 @@ pub fn git_clone(url: &str, path: &str, bare: bool) -> Result<(), Error> {
     ffi::git_clone_repo(url, path, bare)
 }
 
+/// Fetch all remotes in a Git repository.
+///
+/// # Errors
+///
+/// Returns an error if fetching fails.
+pub fn git_fetch_all(path: &str) -> Result<(), Error> {
+    ffi::git_fetch_all(path)
+}
+
 /// Initialize a new Git repository.
 ///
 /// # Errors

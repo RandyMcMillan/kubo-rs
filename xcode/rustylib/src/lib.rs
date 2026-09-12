@@ -645,6 +645,11 @@ pub fn git_clone(url: &str, path: &str, bare: bool) -> bool {
 }
 
 #[uniffi::export]
+pub fn git_fetch_all(path: &str) -> bool {
+    kubo_rs::git_fetch_all(path).is_ok()
+}
+
+#[uniffi::export]
 pub fn git_init(path: &str, bare: bool) -> bool {
     kubo_rs::git_init(path, bare).is_ok()
 }

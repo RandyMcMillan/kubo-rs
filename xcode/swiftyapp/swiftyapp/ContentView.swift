@@ -88,6 +88,7 @@ final class HybridNodeStore: ObservableObject {
     @Published var cloneURL: String = "https://github.com/RandyMcMillan/kubo-rs.git"
     @Published var clonePath: String = ""
     @Published var cloneResult: String = ""
+    @Published var forceClone: Bool = false
     @Published var repoTree: [FileNode] = []
 
     // Nostr
@@ -255,10 +256,28 @@ final class HybridNodeStore: ObservableObject {
         }
     }
 
+    func fetchAll() {
+        let path = gitPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty else { return }
+        let ok = gitFetchAll(path: path)
+        if ok {
+            appendActivity("Fetched all remotes")
+            refreshGit()
+        } else {
+            let err = goLastError()
+            appendActivity("Fetch failed: \(err)")
+        }
+    }
+
     func gitCloneRepo() {
         let url = cloneURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let path = clonePath.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !url.isEmpty, !path.isEmpty else { return }
+        let fm = FileManager.default
+        if forceClone && fm.fileExists(atPath: path) {
+            try? fm.removeItem(atPath: path)
+            appendActivity("Removed existing dir: \(path)")
+        }
         let ok = gitClone(url: url, path: path, bare: false)
         if ok {
             cloneResult = "Cloned to \(path)"
@@ -1481,6 +1500,8 @@ struct ContentView: View {
                         .textFieldStyle(.roundedBorder)
                     TextField("Local path…", text: $store.clonePath)
                         .textFieldStyle(.roundedBorder)
+                    Toggle("Force (delete existing)", isOn: $store.forceClone)
+                        .font(.caption)
                     Button {
                         store.gitCloneRepo()
                     } label: {
@@ -1526,6 +1547,16 @@ struct ContentView: View {
                 .font(.system(.body, design: .monospaced))
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: 12) {
+                    Button {
+                        store.fetchAll()
+                    } label: {
+                        Label("Fetch all", systemImage: "arrow.down.circle")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(store.gitPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Spacer()
+                }
             }
 
             DashboardCard(title: "Repo tree") {

@@ -100,6 +100,7 @@ unsafe extern "C" {
 
     // git
     fn kubo_git_clone(url: *const c_char, path: *const c_char, bare: u8) -> i64;
+    fn kubo_git_fetch_all(path: *const c_char) -> i64;
     fn kubo_git_init(path: *const c_char, bare: u8) -> i64;
     fn kubo_git_open(path: *const c_char) -> u64;
     fn kubo_git_repo_head(handle: u64) -> *mut c_char;
@@ -678,6 +679,11 @@ pub fn git_clone_repo(url: &str, path: &str, bare: bool) -> Result<(), Error> {
     let c_url = CString::new(url)?;
     let c_path = CString::new(path)?;
     unsafe { check_err(kubo_git_clone(c_url.as_ptr(), c_path.as_ptr(), bare as u8)) }
+}
+
+pub fn git_fetch_all(path: &str) -> Result<(), Error> {
+    let c_path = CString::new(path)?;
+    unsafe { check_err(kubo_git_fetch_all(c_path.as_ptr())) }
 }
 
 pub fn git_init_repo(path: &str, bare: bool) -> Result<(), Error> {

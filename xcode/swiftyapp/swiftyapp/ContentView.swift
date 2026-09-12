@@ -12,6 +12,7 @@ import SwiftUI
 
 enum DashboardSection: String, CaseIterable, Identifiable {
     case overview
+    case repos
     case repository
     case network
     case chat
@@ -22,6 +23,7 @@ enum DashboardSection: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .overview: return "Overview"
+        case .repos: return "Repos"
         case .repository: return "Repository"
         case .network: return "Network"
         case .chat: return "Chat"
@@ -32,6 +34,7 @@ enum DashboardSection: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .overview: return "Status at a glance"
+        case .repos: return "All hosted repositories"
         case .repository: return "Local repo snapshot"
         case .network: return "Peer and CID details"
         case .chat: return "Gossip pubsub messages"
@@ -42,6 +45,7 @@ enum DashboardSection: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .overview: return "square.grid.2x2"
+        case .repos: return "folder.circle"
         case .repository: return "externaldrive.connected.to.line.below"
         case .network: return "point.3.connected.trianglepath.dotted"
         case .chat: return "bubble.left.and.bubble.right"
@@ -98,6 +102,7 @@ final class HybridNodeStore: ObservableObject {
     @Published var commitHistory: [CommitInfo] = []
     @Published var tagList: [String] = []
     @Published var readmeContent: String = ""
+    @Published var repos: [RepoEntry] = []
 
     // Nostr
     @Published var nostrSecretKey: String = ""
@@ -151,8 +156,12 @@ final class HybridNodeStore: ObservableObject {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
             .appendingPathComponent("kubo-rs-clone").path ?? "/tmp/kubo-rs-clone"
         clonePath = docs
+        scanForRepos()
         if FileManager.default.fileExists(atPath: (docs as NSString).appendingPathComponent(".git")) {
             gitPath = docs
+            refreshGit()
+        } else if let first = repos.first {
+            gitPath = first.path
             refreshGit()
         }
         startNode()
@@ -374,6 +383,30 @@ final class HybridNodeStore: ObservableObject {
         } catch {
             tagList = []
         }
+    }
+
+    func scanForRepos() {
+        let fm = FileManager.default
+        guard let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+        let root = docs.path
+        guard let entries = try? fm.contentsOfDirectory(atPath: root) else { return }
+        var found: [RepoEntry] = []
+        for name in entries {
+            let path = (root as NSString).appendingPathComponent(name)
+            let gitPath = (path as NSString).appendingPathComponent(".git")
+            guard fm.fileExists(atPath: gitPath) else { continue }
+            let head = gitHead(path: path)
+            let branches = gitBranches(path: path)
+            let branch = branches.first ?? "main"
+            found.append(RepoEntry(path: path, name: name, head: head, branch: branch))
+        }
+        repos = found
+    }
+
+    func selectRepo(_ entry: RepoEntry) {
+        gitPath = entry.path
+        refreshGit()
+        selection = .repository
     }
 
     func loadReadme() {
@@ -1285,6 +1318,14 @@ struct CommitInfo: Codable, Identifiable {
     var id: String { hash }
 }
 
+struct RepoEntry: Identifiable {
+    let id = UUID()
+    var path: String
+    var name: String
+    var head: String
+    var branch: String
+}
+
 struct ContentView: View {
     @StateObject private var store = HybridNodeStore()
     @StateObject private var peers = PeerNetworkStore()
@@ -1370,6 +1411,8 @@ struct ContentView: View {
                 switch store.selection {
                 case .overview:
                     overviewContent
+                case .repos:
+                    reposContent
                 case .repository:
                     repositoryContent
                 case .network:
@@ -1581,6 +1624,56 @@ struct ContentView: View {
                         Text("Size: \(store.blockStatSize) bytes")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+    }
+
+    private var reposContent: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            DashboardCard(title: "Hosted Repositories") {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        Button {
+                            store.scanForRepos()
+                        } label: {
+                            Label("Scan", systemImage: "arrow.clockwise")
+                        }
+                        .buttonStyle(.bordered)
+                        Spacer()
+                    }
+                    if store.repos.isEmpty {
+                        Text("No repositories found. Clone or init a repo to get started.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(store.repos) { repo in
+                            Button {
+                                store.selectRepo(repo)
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "folder.fill")
+                                        .foregroundStyle(.accent)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(repo.name)
+                                            .font(.headline)
+                                        Text(repo.branch)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Text(repo.head.prefix(7))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            if repo.id != store.repos.last?.id {
+                                Divider()
+                            }
+                        }
                     }
                 }
             }

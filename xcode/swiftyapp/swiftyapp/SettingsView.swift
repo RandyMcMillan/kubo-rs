@@ -32,20 +32,32 @@ struct SettingsView: View {
                         }
                         .buttonStyle(.borderedProminent)
                     } else {
-                        Text("Public Key")
-                            .font(.headline)
-                        Text(store.nostrPublicKey)
-                            .font(.system(.body, design: .monospaced))
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        HStack(alignment: .top, spacing: 20) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Public Key")
+                                    .font(.headline)
+                                Text(store.nostrPublicKey)
+                                    .font(.system(.body, design: .monospaced))
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                        Text("Secret Key")
-                            .font(.headline)
-                            .padding(.top, 4)
-                        Text(store.nostrSecretKey)
-                            .font(.system(.caption, design: .monospaced))
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                                Text("Secret Key")
+                                    .font(.headline)
+                                    .padding(.top, 4)
+                                Text(store.nostrSecretKey)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+
+                            if let qrImage = generateQRCode(from: store.nostrPublicKey) {
+                                Image(uiImage: qrImage)
+                                    .resizable()
+                                    .interpolation(.none)
+                                    .frame(width: 120, height: 120)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            }
+                        }
                     }
                 }
             }
@@ -220,4 +232,16 @@ struct SettingsView: View {
             }
         }
     }
+}
+
+private func generateQRCode(from string: String) -> UIImage? {
+    guard !string.isEmpty,
+          let data = string.data(using: .utf8),
+          let filter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
+    filter.setValue(data, forKey: "inputMessage")
+    filter.setValue("H", forKey: "inputCorrectionLevel")
+    guard let ciImage = filter.outputImage else { return nil }
+    let transform = CGAffineTransform(scaleX: 10, y: 10)
+    let scaled = ciImage.transformed(by: transform)
+    return UIImage(ciImage: scaled)
 }

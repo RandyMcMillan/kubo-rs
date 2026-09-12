@@ -1233,7 +1233,7 @@ struct ContentView: View {
 
                     FlowLayout(spacing: 12) {
                         MetricPill(title: "Version", value: store.snapshot.version, symbol: "tag")
-                        MetricPill(title: "Peer ID", value: shortPeerID(store.snapshot.peerID), symbol: "person.crop.circle")
+                        MetricPill(title: "Peer ID", value: store.snapshot.peerID, symbol: "person.crop.circle")
                         MetricPill(title: "CID", value: store.snapshot.cid, symbol: "link")
                     }
                 }
@@ -1248,8 +1248,8 @@ struct ContentView: View {
     private var overviewContent: some View {
         VStack(alignment: .leading, spacing: 20) {
             LazyVGrid(columns: adaptiveColumns, spacing: 16) {
-                MetricCard(title: "IPFS Peer", value: shortPeerID(store.snapshot.peerID), symbol: "person.2.circle", subtitle: "HybridNode IPFS identity")
-                MetricCard(title: "P2P Peer", value: shortPeerID(hybridP2pPeerId()), symbol: "network", subtitle: "HybridNode libp2p identity")
+                MetricCard(title: "IPFS Peer", value: store.snapshot.peerID, symbol: "person.2.circle", subtitle: "HybridNode IPFS identity")
+                MetricCard(title: "P2P Peer", value: hybridP2pPeerId(), symbol: "network", subtitle: "HybridNode libp2p identity")
                 MetricCard(title: "Pins", value: "\(store.pins.count)", symbol: "pin", subtitle: "Locally pinned CIDs")
                 MetricCard(title: "Status", value: store.snapshot.status, symbol: "power.circle", subtitle: "HybridNode online state")
             }

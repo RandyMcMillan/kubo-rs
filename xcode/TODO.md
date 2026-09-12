@@ -55,39 +55,39 @@
 
 ## Next Phases
 
-### Phase 21: Code Review View
-- [ ] Dedicated view for incoming `kind:1617` (Patch) messages
-- [ ] Diff display with syntax highlighting
-- [ ] Approve / reject actions
+### Phase 21: Code Review View ✅
+- [x] Dedicated view for incoming `kind:1617` (Patch) messages
+- [x] Diff display with syntax highlighting
+- [x] Approve / reject actions
 
-### Phase 22: Issue Tracker View
-- [ ] Dedicated view for incoming `kind:1621` (Issue) messages
-- [ ] Status tracking (open/closed)
-- [ ] Comment thread support
+### Phase 22: Issue Tracker View ✅
+- [x] Dedicated view for incoming `kind:1621` (Issue) messages
+- [x] Status tracking (open/closed)
+- [x] Comment thread support
 
-### Phase 23: Repo Discovery View
-- [ ] Dedicated view for incoming `kind:30617` (Repo) announcements
-- [ ] Clone / subscribe actions
-- [ ] Repo metadata display
+### Phase 23: Repo Discovery View ✅
+- [x] Dedicated view for incoming `kind:30617` (Repo) announcements
+- [x] Clone / subscribe actions
+- [x] Repo metadata display
 
-### Phase 24: Multiple Relay Management
-- [ ] Add/remove multiple Nostr relays in Settings
-- [ ] Relay connection status indicators
-- [ ] Auto-failover between relays
+### Phase 24: Multiple Relay Management ✅
+- [x] Add/remove multiple Nostr relays in Settings
+- [x] Relay connection status indicators
+- [x] Auto-failover between relays
 
-### Phase 25: GossipSub Multi-Topic UI
-- [ ] Active topic list display
-- [ ] Topic message filtering
-- [ ] Topic discovery / recommendation
+### Phase 25: GossipSub Multi-Topic UI ✅
+- [x] Active topic list display
+- [x] Topic message filtering
+- [x] Topic discovery / recommendation
 
-### Phase 26: Nostr QR Code
-- [ ] Display public key as QR code in Settings
-- [ ] Scan QR code to add relay or follow pubkey
+### Phase 26: Nostr QR Code ✅
+- [x] Display public key as QR code in Settings
+- [x] Scan QR code to add relay or follow pubkey
 
-### Phase 27: Real-time Sidebar Badges
-- [ ] Unread counts on Network/Chat nav items
-- [ ] Mention indicators
-- [ ] Badge clearing on view
+### Phase 27: Real-time Sidebar Badges ✅
+- [x] Unread counts on Network/Chat nav items
+- [x] Mention indicators
+- [x] Badge clearing on view
 
 ## Swift Tests
 

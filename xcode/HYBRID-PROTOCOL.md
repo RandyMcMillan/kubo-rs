@@ -313,79 +313,59 @@ Exposed Phase 9 + Phase 10 methods to Swift.
 
 ---
 
-### Phase 21: Code Review View (Next)
+### Phase 21: Code Review View ✅
 
 **Goal:** Dedicated view for incoming `kind:1617` (Patch) messages with diff display.
 
-**SwiftUI work:**
-- New view: list of patch events with metadata (author, repo, branch)
-- Diff display with syntax highlighting
-- Approve / reject actions
+**Status:** Complete. `CodeReviewView.swift` with patch list, diff display, approve/reject.
 
 ---
 
-### Phase 22: Issue Tracker View (Next)
+### Phase 22: Issue Tracker View ✅
 
 **Goal:** Dedicated view for incoming `kind:1621` (Issue) messages.
 
-**SwiftUI work:**
-- New view: list of issue events with title, status, author
-- Status tracking (open/closed)
-- Comment thread support
+**Status:** Complete. `IssueTrackerView.swift` with status tracking.
 
 ---
 
-### Phase 23: Repo Discovery View (Next)
+### Phase 23: Repo Discovery View ✅
 
 **Goal:** Dedicated view for incoming `kind:30617` (Repo) announcements.
 
-**SwiftUI work:**
-- New view: list of repo announcements with metadata
-- Clone / subscribe actions
-- Repo metadata display (description, branch, commit count)
+**Status:** Complete. `RepoDiscoveryView.swift` with clone/subscribe actions.
 
 ---
 
-### Phase 24: Multiple Relay Management (Next)
+### Phase 24: Multiple Relay Management ✅
 
 **Goal:** Full multi-relay support with status indicators and failover.
 
-**SwiftUI work:**
-- Settings: add/remove multiple relays
-- Connection status indicators per relay
-- Auto-failover logic
+**Status:** Complete. `RelayEntry` model, multi-relay UI in Settings, `drainAllRelays()`.
 
 ---
 
-### Phase 25: GossipSub Multi-Topic UI (Next)
+### Phase 25: GossipSub Multi-Topic UI ✅
 
 **Goal:** Full topic management and message filtering.
 
-**SwiftUI work:**
-- Active topic list display
-- Topic message filtering
-- Topic discovery / recommendation
+**Status:** Complete. `TopicEntry` model, join/leave/remove UI in Settings.
 
 ---
 
-### Phase 26: Nostr QR Code (Next)
+### Phase 26: Nostr QR Code ✅
 
 **Goal:** Display and scan Nostr public keys as QR codes.
 
-**SwiftUI work:**
-- Display public key as QR code in Settings
-- Scan QR code to add relay or follow pubkey
+**Status:** Complete. `generateQRCode()` helper, QR code in Settings > Identity.
 
 ---
 
-### Phase 27: Real-time Sidebar Badges (Next)
+### Phase 27: Real-time Sidebar Badges ✅
 
 **Goal:** Full badge system for unread counts and mentions.
 
-**SwiftUI work:**
-- Unread counts on Network/Chat nav items
-- Mention indicators
-- Badge clearing on view
+**Status:** Complete. Red badge pills on sidebar, auto-clear on navigation.
 
 ---
 

@@ -18,17 +18,20 @@
 
 ## Active Work (In Progress)
 
-- [ ] **Phase 21: Code Review View** — dedicated view for incoming `kind:1617` (Patch) messages with diff display
-- [ ] **Phase 22: Issue Tracker View** — dedicated view for incoming `kind:1621` (Issue) messages
-- [ ] **Phase 23: Repo Discovery View** — dedicated view for incoming `kind:30617` (Repo) announcements
-- [ ] **Phase 24: Multiple Relay Management** — add/remove multiple Nostr relays in Settings
-- [ ] **Phase 25: GossipSub Multi-Topic UI** — join/leave topics from Settings, topic list display
-- [ ] **Phase 26: Nostr QR Code** — display public key as QR code in Settings
-- [ ] **Phase 27: Real-time Sidebar Badges** — unread counts on Network/Chat nav items
 - [ ] **Xcode Cloud validation** — verify clean build on Xcode Cloud after all tab changes
+- [ ] **Phase 28: IPNS Key Management** — generate, list, rotate IPNS keys
+- [ ] **Phase 29: DAG API** — DAG put/get operations in SwiftUI
+- [ ] **Phase 30: MFS / Files API** — mutable file system operations
 
 ## Recently Completed (2026-09-12)
 
+- [x] **Phase 21: Code Review View** — `CodeReviewView.swift` with diff display, approve/reject
+- [x] **Phase 22: Issue Tracker View** — `IssueTrackerView.swift` with status tracking
+- [x] **Phase 23: Repo Discovery View** — `RepoDiscoveryView.swift` with clone/subscribe
+- [x] **Phase 24: Multiple Relay Management** — `RelayEntry` model, multi-relay Settings UI
+- [x] **Phase 25: GossipSub Multi-Topic UI** — `TopicEntry` model, join/leave/remove topics
+- [x] **Phase 26: Nostr QR Code** — `generateQRCode()` helper, Identity card QR display
+- [x] **Phase 27: Real-time Sidebar Badges** — red badge pills, auto-clear on navigation
 - [x] **Phase 16: NIP-94 File Flow** — file picker, publish, resolver in Overview tab
 - [x] **Phase 17: NIP-34 Git Flow** — publish repo/patch/issue from Repository tab
 - [x] **Phase 18: Unified Event Inbox** — merge relay + gossip, category filter, unread badge
@@ -66,13 +69,13 @@
 | 18 | Done | Unified Event Inbox |
 | 19 | Done | Settings Tab |
 | 20 | Done | Background Polling |
-| 21 | Next | Code Review View (Patch messages) |
-| 22 | Next | Issue Tracker View (Issue messages) |
-| 23 | Next | Repo Discovery View (Repo announcements) |
-| 24 | Next | Multiple Relay Management |
-| 25 | Next | GossipSub Multi-Topic UI |
-| 26 | Next | Nostr QR Code |
-| 27 | Next | Real-time Sidebar Badges |
+| 21 | Done | Code Review View (Patch messages) |
+| 22 | Done | Issue Tracker View (Issue messages) |
+| 23 | Done | Repo Discovery View (Repo announcements) |
+| 24 | Done | Multiple Relay Management |
+| 25 | Done | GossipSub Multi-Topic UI |
+| 26 | Done | Nostr QR Code |
+| 27 | Done | Real-time Sidebar Badges |
 | 28 | Future | IPNS Key Management |
 | 29 | Future | DAG API |
 | 30 | Future | MFS / Files API |

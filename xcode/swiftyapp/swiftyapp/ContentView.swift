@@ -85,7 +85,7 @@ final class HybridNodeStore: ObservableObject {
     @Published var gitBranchesResult: [String] = []
     @Published var gitRemotesResult: [String] = []
     @Published var gitStatusResult: String = ""
-    @Published var cloneURL: String = ""
+    @Published var cloneURL: String = "https://github.com/RandyMcMillan/kubo-rs.git"
     @Published var clonePath: String = ""
 
     // Nostr

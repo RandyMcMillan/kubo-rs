@@ -89,6 +89,11 @@ final class HybridNodeStore: ObservableObject {
     @Published var nip34IssueBody: String = ""
     @Published var nip34PublishResult: String = ""
 
+    // Inbox (Phase 18)
+    @Published var inboxMessages: [HybridMessage] = []
+    @Published var inboxFilter: MessageCategory? = nil
+    @Published var unreadCount: Int = 0
+
     // Network / DHT
     @Published var dhtPeerID: String = ""
     @Published var dhtPeerAddrs: [String] = []
@@ -740,6 +745,40 @@ final class HybridNodeStore: ObservableObject {
     func filteredTypedMessages() -> [HybridMessage] {
         guard let filter = typedCategoryFilter else { return typedMessages }
         return typedMessages.filter { categoryFor($0) == filter }
+    }
+
+    // MARK: - Inbox (Phase 18)
+
+    func refreshInbox() {
+        do {
+            let messages = try hybridDrainTyped(relaySubHandle: relayHandle == 0 ? nil : relayHandle)
+            // Deduplicate by content (simple approach since we don't have event ID in HybridMessage)
+            var seen = Set<String>()
+            var unique: [HybridMessage] = []
+            for msg in messages {
+                let key = "\(msg.kind):\(msg.content)"
+                if seen.insert(key).inserted {
+                    unique.append(msg)
+                }
+            }
+            let newCount = max(0, unique.count - inboxMessages.count)
+            inboxMessages = unique
+            unreadCount += newCount
+            appendActivity("Inbox: \(unique.count) messages (\(newCount) new)")
+        } catch let error as RustyError {
+            appendActivity("Inbox refresh failed: \(error.localizedDescription)")
+        } catch {
+            appendActivity("Inbox refresh failed: \(error)")
+        }
+    }
+
+    func filteredInbox() -> [HybridMessage] {
+        guard let filter = inboxFilter else { return inboxMessages }
+        return inboxMessages.filter { categoryFor($0) == filter }
+    }
+
+    func markInboxRead() {
+        unreadCount = 0
     }
 
     // MARK: - Network / DHT

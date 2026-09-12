@@ -1177,6 +1177,71 @@ struct ContentView: View {
                     }
                 }
             }
+
+            DashboardCard(title: "Inbox") {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        Button {
+                            store.refreshInbox()
+                            store.markInboxRead()
+                        } label: {
+                            Label("Refresh", systemImage: "arrow.clockwise")
+                        }
+                        .buttonStyle(.borderedProminent)
+
+                        if store.unreadCount > 0 {
+                            Text("\(store.unreadCount) new")
+                                .font(.caption.weight(.semibold))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Capsule(style: .continuous).fill(Color.red.opacity(0.2)))
+                        }
+
+                        Spacer()
+
+                        Picker("Filter", selection: $store.inboxFilter) {
+                            Text("All").tag(MessageCategory?.none)
+                            Text("File").tag(MessageCategory?.some(.file))
+                            Text("Repo").tag(MessageCategory?.some(.repo))
+                            Text("Patch").tag(MessageCategory?.some(.patch))
+                            Text("Issue").tag(MessageCategory?.some(.issue))
+                        }
+                        .pickerStyle(.segmented)
+                    }
+
+                    let filtered = store.filteredInbox()
+                    if filtered.isEmpty {
+                        Text("No messages in inbox.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(Array(filtered.enumerated()), id: \.offset) { _, msg in
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(spacing: 8) {
+                                    Text(store.categoryName(msg))
+                                        .font(.caption.weight(.semibold))
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(Capsule(style: .continuous).fill(Color.accentColor.opacity(0.15)))
+                                    Text("kind:\(msg.kind)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                }
+                                Text(msg.content)
+                                    .font(.system(.body, design: .monospaced))
+                                    .lineLimit(3)
+                                if !msg.tags.isEmpty {
+                                    Text(msg.tags.map { $0.joined(separator: ":") }.joined(separator: ", "))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+            }
         }
     }
 

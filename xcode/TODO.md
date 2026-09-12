@@ -18,6 +18,43 @@
   - [x] SwiftUI: filter event feed by `MessageCategory` (File, Repo, Patch, Issue)
   - [ ] SwiftUI: route patches to "Code Review" view, issues to "Issue Tracker"
 
+- [x] **Network Tab Restructure (2026-09-12)**
+  - [x] Add `NetworkTab` enum (ipfs / nostr / p2p) to `HybridNodeStore`
+  - [x] Split `networkContent` into `ipfsNetworkContent`, `nostrNetworkContent`, `p2pNetworkContent`
+  - [x] Move Nostr Keys, Event, Relay, Hybrid Gossip, Typed Messages from Chat to Network > Nostr
+  - [x] Simplify `chatContent` to Chat transcript + Gossip feed only
+  - [x] Build passes, 14 Swift tests pass, 15 Rust tests pass
+
+## Next Phases
+
+### Phase 16: NIP-94 File Flow in SwiftUI
+- [ ] Overview tab: `.fileImporter` → `publishFile()` → display CID + NIP-94 event JSON
+- [ ] Overview tab: NIP-94 resolver card (paste event JSON → `hybridResolveNip94` → display content)
+- [ ] Gallery/grid view for pinned files with CID and preview
+
+### Phase 17: NIP-34 Git Flow in SwiftUI
+- [ ] Repository tab: "Publish Repo" button → fills repo state → `hybridPublishRepo`
+- [ ] Repository tab: "Publish Patch" button → select two commits → diff → `hybridPublishPatch`
+- [ ] Repository tab: "Publish Issue" button → title/body form → `hybridPublishIssue`
+
+### Phase 18: Unified Event Inbox
+- [ ] New "Inbox" view or Network > Nostr enhancement: merge relay + gossip events
+- [ ] Route incoming patches to "Code Review" view
+- [ ] Route incoming issues to "Issue Tracker" view
+- [ ] Event deduplication by Nostr event `id`
+
+### Phase 19: Settings Tab
+- [ ] New `DashboardSection.settings` in sidebar
+- [ ] Relay URL management (multiple relays, add/remove)
+- [ ] GossipSub topic subscriptions (join/leave)
+- [ ] Node online/offline toggle
+- [ ] Display Nostr public key + QR code
+
+### Phase 20: Background Polling
+- [ ] `Task` loop in `HybridNodeStore` for periodic `drainRelay`/`drainGossip`
+- [ ] Debounced UI updates (don't refresh on every drain)
+- [ ] Real-time badge counts on Network/Chat nav items
+
 ## Swift Tests
 
 - [x] `RustyLibTests` target added to Swift Package

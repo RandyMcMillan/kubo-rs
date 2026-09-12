@@ -243,6 +243,69 @@ Exposed Phase 9 + Phase 10 methods to Swift.
 
 ---
 
+### Phase 16: NIP-94 File Flow in SwiftUI (Next)
+
+**Goal:** End-to-end NIP-94 workflow: pick a file → add to IPFS → construct NIP-94 event → sign → broadcast to relay + gossip.
+
+**Status:** Rust APIs exist (`HybridNode::publish_file`, `HybridNode::resolve_nip94`). SwiftUI needs `.fileImporter` integration.
+
+**SwiftUI work:**
+- Overview tab: add "Publish File" card with `.fileImporter`
+- Display returned CID + signed NIP-94 event JSON
+- Add "Resolve NIP-94" card: paste event JSON → call `hybridResolveNip94` → display fetched content
+
+---
+
+### Phase 17: NIP-34 Git Flow in SwiftUI (Next)
+
+**Goal:** Publish repo announcements, patches, and issues directly from the Repository tab.
+
+**Status:** Rust APIs exist (`HybridNode::publish_repo`, `publish_patch`, `publish_issue`).
+
+**SwiftUI work:**
+- Repository tab: "Publish Repo" button → uses current `gitPath` → `hybridPublishRepo`
+- Repository tab: "Publish Patch" button → select two commits from `commitHistory` → `hybridPublishPatch`
+- Repository tab: "Publish Issue" button → title/body form → `hybridPublishIssue`
+
+---
+
+### Phase 18: Unified Event Inbox (Next)
+
+**Goal:** Merge relay + gossip events into a single unified feed with routing.
+
+**SwiftUI work:**
+- Network > Nostr or new Inbox section: periodic `drainTyped` poll
+- Route `kind:1617` (Patch) messages to a "Code Review" view
+- Route `kind:1621` (Issue) messages to an "Issue Tracker" view
+- Route `kind:30617` (Repo) messages to a "Repo Discovery" view
+- Deduplicate by Nostr event `id`
+
+---
+
+### Phase 19: Settings Tab (Next)
+
+**Goal:** Configuration surface for relays, topics, node state, and identity.
+
+**SwiftUI work:**
+- New `DashboardSection.settings` in sidebar
+- Relay URL list (add/remove multiple relays)
+- GossipSub topic subscriptions (join/leave)
+- Node online/offline toggle
+- Nostr public key display + QR code generation
+
+---
+
+### Phase 20: Background Polling & Real-Time Updates (Next)
+
+**Goal:** Automatic event draining without manual button presses.
+
+**SwiftUI work:**
+- `Task` loop in `HybridNodeStore` that periodically calls `drainRelay`/`drainGossip`
+- Debounce UI updates (e.g., every 2-5 seconds)
+- Badge counts on Network/Chat sidebar items showing unread events
+
+---
+
 ### Phase 4: HybridNode Wrapper ✅ (Rust Done)
 
 **Rust implementation:** `src/hybrid.rs` + `pub use hybrid::HybridNode` in `src/lib.rs`

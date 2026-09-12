@@ -177,14 +177,16 @@ kubo-rs/
 
 ## Next Steps (Priority)
 
-1. **Xcode Cloud validation** — push all changes and verify a clean build on Xcode Cloud
-2. **NIP-94 in SwiftUI** — file picker → IPFS add → NIP-94 event → broadcast to relay + gossip
-3. **NIP-34 in SwiftUI** — publish repo/patch/issue from the Repository tab using generated Nostr keys
-4. **Protocol phase continuation** — NIP-34 hybrid integration, p2p nostr message types, WASM examples
-5. **Future: DAG API** — `dag get`, `dag put`, `dag resolve` (complex due to ipld-prime)
-6. **Future: Key API** — `key gen`, `key list`, `key rm` (needed for advanced IPNS)
-7. **Future: MFS / Files API** — `files ls`, `files read`, `files write`, `files mkdir`
-8. **Future: PubSub** — `pubsub pub`, `pubsub sub`, `pubsub peers`, `pubsub ls`
-9. **Future: Bootstrap** — `bootstrap list`, `bootstrap add`, `bootstrap rm`
-10. **Future: Repo GC** — `repo stat`, `repo gc`
-11. **Future: wasm-p2p enhancements** — add dial input UI, WebRTC signaling, gossipsub integration
+1. **Phase 16: NIP-94 File Flow in SwiftUI** — `.fileImporter` → `publishFile()` → display CID + NIP-94 event; `resolveNip94` event JSON → fetch content
+2. **Phase 17: NIP-34 Git Flow in SwiftUI** — Repository tab buttons: Publish Repo (kind 30617), Publish Patch (kind 1617), Publish Issue (kind 1621)
+3. **Phase 18: Unified Event Inbox** — Merge relay + gossip events into a single feed; route patches to Code Review view, issues to Issue Tracker view
+4. **Phase 19: Settings Tab** — Relay URL management, GossipSub topic subscriptions, node online/offline toggle, Nostr public key + QR code
+5. **Phase 20: Background Polling** — `Task` loops for `drainRelay`/`drainGossip` with debouncing; real-time event feed updates
+6. **Xcode Cloud validation** — verify clean build after Network tab restructuring
+7. **Future: DAG API** — `dag get`, `dag put`, `dag resolve` (complex due to ipld-prime)
+8. **Future: Key API** — `key gen`, `key list`, `key rm` (needed for advanced IPNS)
+9. **Future: MFS / Files API** — `files ls`, `files read`, `files write`, `files mkdir`
+10. **Future: PubSub** — `pubsub pub`, `pubsub sub`, `pubsub peers`, `pubsub ls`
+11. **Future: Bootstrap** — `bootstrap list`, `bootstrap add`, `bootstrap rm`
+12. **Future: Repo GC** — `repo stat`, `repo gc`
+13. **Future: wasm-p2p enhancements** — dial input UI, WebRTC signaling, gossipsub integration

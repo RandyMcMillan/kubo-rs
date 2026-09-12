@@ -91,6 +91,8 @@ final class HybridNodeStore: ObservableObject {
     @Published var forceClone: Bool = false
     @Published var fetchResult: String = ""
     @Published var repoTree: [FileNode] = []
+    @Published var selectedFilePath: String = ""
+    @Published var selectedFileContent: String = ""
 
     // Nostr
     @Published var nostrSecretKey: String = ""
@@ -254,6 +256,16 @@ final class HybridNodeStore: ObservableObject {
         } else {
             let err = goLastError()
             appendActivity("Git init failed: \(err)")
+        }
+    }
+
+    func viewFile(path: String) {
+        selectedFilePath = path
+        if let data = FileManager.default.contents(atPath: path),
+           let text = String(data: data, encoding: .utf8) {
+            selectedFileContent = text
+        } else {
+            selectedFileContent = "<binary or unreadable file>"
         }
     }
 
@@ -1594,10 +1606,40 @@ struct ContentView: View {
                         Text("No files found. Init or clone a repository, then refresh.")
                             .foregroundStyle(.secondary)
                     } else {
-                        FileTreeView(nodes: store.repoTree)
+                        FileTreeView(nodes: store.repoTree) { path in
+                            store.viewFile(path: path)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if !store.selectedFilePath.isEmpty {
+                DashboardCard(title: "File: \(URL(fileURLWithPath: store.selectedFilePath).lastPathComponent)") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 12) {
+                            Text(store.selectedFilePath)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                            Spacer()
+                            Button {
+                                store.selectedFilePath = ""
+                                store.selectedFileContent = ""
+                            } label: {
+                                Label("Close", systemImage: "xmark")
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        ScrollView {
+                            Text(store.selectedFileContent)
+                                .font(.system(.body, design: .monospaced))
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(maxHeight: 400)
+                    }
+                }
             }
 
             DashboardCard(title: "Commit lookup") {
@@ -2464,16 +2506,18 @@ private struct SidebarStatusCard: View {
 
 private struct FileTreeView: View {
     let nodes: [FileNode]
+    var onSelect: (String) -> Void
 
     var body: some View {
         ForEach(nodes) { node in
-            FileTreeRow(node: node)
+            FileTreeRow(node: node, onSelect: onSelect)
         }
     }
 }
 
 private struct FileTreeRow: View {
     let node: FileNode
+    var onSelect: (String) -> Void
     @State private var isExpanded = true
 
     var body: some View {
@@ -2498,11 +2542,15 @@ private struct FileTreeRow: View {
             }
             .contentShape(Rectangle())
             .onTapGesture {
-                if node.isDirectory { isExpanded.toggle() }
+                if node.isDirectory {
+                    isExpanded.toggle()
+                } else {
+                    onSelect(node.path)
+                }
             }
 
             if node.isDirectory && isExpanded && !node.children.isEmpty {
-                FileTreeView(nodes: node.children)
+                FileTreeView(nodes: node.children, onSelect: onSelect)
                     .padding(.leading, 20)
             }
         }

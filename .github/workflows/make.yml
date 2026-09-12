@@ -28,7 +28,6 @@ on:
         options:
           - ubuntu-latest
           - macos-latest
-          - macos-15
         default: 'ubuntu-latest'
       rust_toolchain:
         description: 'Rust toolchain'

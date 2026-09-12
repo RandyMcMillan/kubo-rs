@@ -456,6 +456,10 @@ func kubo_git_log(path *C.char, max_count C.int) *C.char {
 	logOptions := &git.LogOptions{}
 	commits, err := repo.Log(logOptions)
 	if err != nil {
+		if err == plumbing.ErrReferenceNotFound {
+			setError(nil)
+			return C.CString("[]")
+		}
 		setError(fmt.Errorf("git log: %w", err))
 		return nil
 	}

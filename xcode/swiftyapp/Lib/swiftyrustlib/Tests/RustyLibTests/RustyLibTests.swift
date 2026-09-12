@@ -115,6 +115,89 @@ final class RustyLibTests: XCTestCase {
         XCTAssertTrue(remotes.isEmpty, "Fresh repo should have no remotes")
     }
 
+    // MARK: - Git Advanced
+
+    func testGitLogAndTags() {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kubo-rs-swift-test-\(UUID().uuidString)")
+            .path
+        defer { try? FileManager.default.removeItem(atPath: tmpDir) }
+
+        XCTAssertTrue(gitInit(path: tmpDir, bare: false), "Git init should succeed")
+
+        let logBefore = gitLog(path: tmpDir, maxCount: 10)
+        XCTAssertFalse(logBefore.isEmpty, "gitLog should return valid JSON even for empty repo")
+
+        let tagsBefore = gitTags(path: tmpDir)
+        XCTAssertFalse(tagsBefore.isEmpty, "gitTags should return valid JSON even for empty repo")
+    }
+
+    func testGitCloneAndFetch() {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kubo-rs-swift-test-\(UUID().uuidString)")
+            .path
+        defer { try? FileManager.default.removeItem(atPath: tmpDir) }
+
+        let ok = gitClone(url: "https://github.com/RandyMcMillan/kubo-rs.git", path: tmpDir, bare: false)
+        if ok {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: (tmpDir as NSString).appendingPathComponent(".git")), ".git should exist after clone")
+
+            let log = gitLog(path: tmpDir, maxCount: 5)
+            XCTAssertFalse(log.isEmpty, "gitLog should return commits after clone")
+
+            let tags = gitTags(path: tmpDir)
+            XCTAssertFalse(tags.isEmpty, "gitTags should return valid JSON after clone")
+
+            let fetchOk = gitFetchAll(path: tmpDir)
+            XCTAssertTrue(fetchOk, "gitFetchAll should succeed for cloned repo")
+        } else {
+            XCTSkip("Clone skipped (network may be unavailable)")
+        }
+    }
+
+    func testGitBlameOnReadme() {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kubo-rs-swift-test-\(UUID().uuidString)")
+            .path
+        defer { try? FileManager.default.removeItem(atPath: tmpDir) }
+
+        let ok = gitClone(url: "https://github.com/RandyMcMillan/kubo-rs.git", path: tmpDir, bare: false)
+        if ok {
+            let blame = gitBlame(path: tmpDir, filePath: "README.md")
+            XCTAssertFalse(blame.isEmpty, "gitBlame should return blame for README.md")
+        } else {
+            XCTSkip("Clone skipped (network may be unavailable)")
+        }
+    }
+
+    // MARK: - Module Interaction (full workflow)
+
+    func testFullGitWorkflow() {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kubo-rs-swift-test-\(UUID().uuidString)")
+            .path
+        defer { try? FileManager.default.removeItem(atPath: tmpDir) }
+
+        // 1. Init
+        XCTAssertTrue(gitInit(path: tmpDir, bare: false), "Init should succeed")
+
+        // 2. Verify empty state
+        let head = gitHead(path: tmpDir)
+        _ = head
+        let branches = gitBranches(path: tmpDir)
+        XCTAssertTrue(branches.isEmpty || branches.contains("main") || branches.contains("master"), "Default branch expected")
+
+        // 3. Verify log/tags on empty repo don't crash
+        let log = gitLog(path: tmpDir, maxCount: 10)
+        XCTAssertFalse(log.isEmpty, "Log should return JSON")
+        let tags = gitTags(path: tmpDir)
+        XCTAssertFalse(tags.isEmpty, "Tags should return JSON")
+
+        // 4. Fetch on repo with no remotes should fail gracefully
+        let fetchOk = gitFetchAll(path: tmpDir)
+        XCTAssertFalse(fetchOk, "Fetch should fail when no remotes exist")
+    }
+
     // MARK: - P2P Host (best-effort; may be empty in simulator)
 
     func testP2pHostSmoke() {

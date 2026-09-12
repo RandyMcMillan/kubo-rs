@@ -2,9 +2,9 @@
 
 This document tracks what needs to happen in the Xcode/Swift layer as the Nostr+IPFS+P2P hybrid protocol evolves in the parent Rust crate.
 
-## Current State (2026-09-10)
+## Current State (2026-09-12)
 
-The `xcode/rustylib/` crate wraps `kubo-rs` and exposes a **small subset** of the API to Swift via UniFFI. The SwiftUI app (`swiftyapp/`) consumes these through the `RustyLib` local package.
+The `xcode/rustylib/` crate wraps `kubo-rs` and exposes a **small subset** of the API to Swift via UniFFI. The SwiftUI app (`swiftyapp/`) consumes these through the `RustyLib` local package. Phases 1-20 are complete.
 
 ### Already Exposed to Swift (via `#[uniffi::export]`)
 
@@ -243,66 +243,149 @@ Exposed Phase 9 + Phase 10 methods to Swift.
 
 ---
 
-### Phase 16: NIP-94 File Flow in SwiftUI (Next)
+### Phase 16: NIP-94 File Flow in SwiftUI ✅
 
 **Goal:** End-to-end NIP-94 workflow: pick a file → add to IPFS → construct NIP-94 event → sign → broadcast to relay + gossip.
 
-**Status:** Rust APIs exist (`HybridNode::publish_file`, `HybridNode::resolve_nip94`). SwiftUI needs `.fileImporter` integration.
+**Status:** Complete. Overview tab has "Publish File" card with `.fileImporter`, CID display, and "Resolve NIP-94" resolver card.
 
-**SwiftUI work:**
-- Overview tab: add "Publish File" card with `.fileImporter`
+**SwiftUI:**
+- Overview tab: "Publish File" card with `.fileImporter`
 - Display returned CID + signed NIP-94 event JSON
-- Add "Resolve NIP-94" card: paste event JSON → call `hybridResolveNip94` → display fetched content
+- "Resolve NIP-94" card: paste event JSON → call `hybridResolveNip94` → display fetched content
 
 ---
 
-### Phase 17: NIP-34 Git Flow in SwiftUI (Next)
+### Phase 17: NIP-34 Git Flow in SwiftUI ✅
 
 **Goal:** Publish repo announcements, patches, and issues directly from the Repository tab.
 
-**Status:** Rust APIs exist (`HybridNode::publish_repo`, `publish_patch`, `publish_issue`).
+**Status:** Complete. Repository tab has Publish Repo/Patch/Issue cards wired to UniFFI.
 
-**SwiftUI work:**
+**SwiftUI:**
 - Repository tab: "Publish Repo" button → uses current `gitPath` → `hybridPublishRepo`
 - Repository tab: "Publish Patch" button → select two commits from `commitHistory` → `hybridPublishPatch`
 - Repository tab: "Publish Issue" button → title/body form → `hybridPublishIssue`
 
 ---
 
-### Phase 18: Unified Event Inbox (Next)
+### Phase 18: Unified Event Inbox ✅
 
 **Goal:** Merge relay + gossip events into a single unified feed with routing.
 
-**SwiftUI work:**
-- Network > Nostr or new Inbox section: periodic `drainTyped` poll
-- Route `kind:1617` (Patch) messages to a "Code Review" view
-- Route `kind:1621` (Issue) messages to an "Issue Tracker" view
-- Route `kind:30617` (Repo) messages to a "Repo Discovery" view
+**Status:** Complete. Inbox card in Network > Nostr with category filter, unread badge, and deduplication.
+
+**SwiftUI:**
+- Network > Nostr: Inbox section with periodic `drainTyped` poll
+- Route `kind:1617` (Patch) messages to "Code Review" view
+- Route `kind:1621` (Issue) messages to "Issue Tracker" view
+- Route `kind:30617` (Repo) messages to "Repo Discovery" view
 - Deduplicate by Nostr event `id`
 
 ---
 
-### Phase 19: Settings Tab (Next)
+### Phase 19: Settings Tab ✅
 
 **Goal:** Configuration surface for relays, topics, node state, and identity.
 
-**SwiftUI work:**
-- New `DashboardSection.settings` in sidebar
-- Relay URL list (add/remove multiple relays)
+**Status:** Complete. Gear icon nav item with Identity, Node Control, Relay, and GossipSub Topic cards.
+
+**SwiftUI:**
+- `DashboardSection.settings` in sidebar with gear icon
+- Relay URL list (add/remove)
 - GossipSub topic subscriptions (join/leave)
 - Node online/offline toggle
-- Nostr public key display + QR code generation
+- Nostr public key display
 
 ---
 
-### Phase 20: Background Polling & Real-Time Updates (Next)
+### Phase 20: Background Polling & Real-Time Updates ✅
 
 **Goal:** Automatic event draining without manual button presses.
 
-**SwiftUI work:**
-- `Task` loop in `HybridNodeStore` that periodically calls `drainRelay`/`drainGossip`
-- Debounce UI updates (e.g., every 2-5 seconds)
+**Status:** Complete. 5-second auto-drain loop with Settings toggle and real-time badge counts.
+
+**SwiftUI:**
+- `Task` loop in `HybridNodeStore` periodically calls `drainRelay`/`drainGossip`
+- Debounced UI updates (every 5 seconds)
 - Badge counts on Network/Chat sidebar items showing unread events
+- Toggle in Settings
+
+---
+
+### Phase 21: Code Review View (Next)
+
+**Goal:** Dedicated view for incoming `kind:1617` (Patch) messages with diff display.
+
+**SwiftUI work:**
+- New view: list of patch events with metadata (author, repo, branch)
+- Diff display with syntax highlighting
+- Approve / reject actions
+
+---
+
+### Phase 22: Issue Tracker View (Next)
+
+**Goal:** Dedicated view for incoming `kind:1621` (Issue) messages.
+
+**SwiftUI work:**
+- New view: list of issue events with title, status, author
+- Status tracking (open/closed)
+- Comment thread support
+
+---
+
+### Phase 23: Repo Discovery View (Next)
+
+**Goal:** Dedicated view for incoming `kind:30617` (Repo) announcements.
+
+**SwiftUI work:**
+- New view: list of repo announcements with metadata
+- Clone / subscribe actions
+- Repo metadata display (description, branch, commit count)
+
+---
+
+### Phase 24: Multiple Relay Management (Next)
+
+**Goal:** Full multi-relay support with status indicators and failover.
+
+**SwiftUI work:**
+- Settings: add/remove multiple relays
+- Connection status indicators per relay
+- Auto-failover logic
+
+---
+
+### Phase 25: GossipSub Multi-Topic UI (Next)
+
+**Goal:** Full topic management and message filtering.
+
+**SwiftUI work:**
+- Active topic list display
+- Topic message filtering
+- Topic discovery / recommendation
+
+---
+
+### Phase 26: Nostr QR Code (Next)
+
+**Goal:** Display and scan Nostr public keys as QR codes.
+
+**SwiftUI work:**
+- Display public key as QR code in Settings
+- Scan QR code to add relay or follow pubkey
+
+---
+
+### Phase 27: Real-time Sidebar Badges (Next)
+
+**Goal:** Full badge system for unread counts and mentions.
+
+**SwiftUI work:**
+- Unread counts on Network/Chat nav items
+- Mention indicators
+- Badge clearing on view
 
 ---
 

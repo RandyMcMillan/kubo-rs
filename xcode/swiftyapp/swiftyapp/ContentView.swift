@@ -662,9 +662,17 @@ final class HybridNodeStore: ObservableObject {
 
     func buildFileTree(path: String) -> [FileNode] {
         let fm = FileManager.default
-        guard let entries = try? fm.contentsOfDirectory(atPath: path) else { return [] }
-        return entries.sorted().compactMap { name in
-            if name.hasPrefix(".") { return nil }
+        guard fm.fileExists(atPath: path) else {
+            appendActivity("Tree: path does not exist: \(path)")
+            return []
+        }
+        guard let entries = try? fm.contentsOfDirectory(atPath: path) else {
+            appendActivity("Tree: cannot read directory: \(path)")
+            return []
+        }
+        let visible = entries.filter { !$0.hasPrefix(".") }
+        appendActivity("Tree: \(visible.count) items in \(path)")
+        return visible.sorted().compactMap { name in
             let fullPath = (path as NSString).appendingPathComponent(name)
             var isDir: ObjCBool = false
             guard fm.fileExists(atPath: fullPath, isDirectory: &isDir) else { return nil }
@@ -1522,8 +1530,22 @@ struct ContentView: View {
 
             DashboardCard(title: "Repo tree") {
                 VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 12) {
+                        Text(store.gitPath.isEmpty ? "No path" : store.gitPath)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        Spacer()
+                        Button {
+                            store.refreshGit()
+                        } label: {
+                            Label("Refresh", systemImage: "arrow.clockwise")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(store.gitPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
                     if store.repoTree.isEmpty {
-                        Text("No repo loaded. Init or clone a repository above.")
+                        Text("No files found. Init or clone a repository, then refresh.")
                             .foregroundStyle(.secondary)
                     } else {
                         FileTreeView(nodes: store.repoTree)

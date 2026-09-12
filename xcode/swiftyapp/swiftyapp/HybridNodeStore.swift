@@ -57,6 +57,7 @@ final class HybridNodeStore: ObservableObject {
     @Published var nostrEventJson: String = ""
     @Published var relayURL: String = "wss://relay.damus.io"
     @Published var relayHandle: UInt64 = 0
+    @Published var relays: [RelayEntry] = []
     @Published var drainResult: String = ""
     @Published var nostrContent: String = ""
     @Published var gossipTopic: String = "kubo-hybrid"
@@ -454,6 +455,73 @@ final class HybridNodeStore: ObservableObject {
         appendActivity("Drained \(events.count) relay events")
     }
 
+    // MARK: - Multiple Relay Management (Phase 24)
+
+    func addRelay(url: String) {
+        let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !relays.contains(where: { $0.url == trimmed }) else { return }
+        var entry = RelayEntry(url: trimmed)
+        entry.status = .connecting
+        relays.append(entry)
+        connectRelayEntry(id: entry.id)
+    }
+
+    func removeRelay(id: UUID) {
+        if let idx = relays.firstIndex(where: { $0.id == id }) {
+            let relay = relays[idx]
+            if relay.handle != 0 {
+                nostrRelayClose(handle: relay.handle)
+            }
+            if relay.subHandle != 0 {
+                nostrRelayUnsubscribe(subHandle: relay.subHandle)
+            }
+            relays.remove(at: idx)
+            appendActivity("Removed relay: \(relay.url)")
+        }
+    }
+
+    func connectRelayEntry(id: UUID) {
+        guard let idx = relays.firstIndex(where: { $0.id == id }) else { return }
+        var relay = relays[idx]
+        let handle = nostrRelayConnect(url: relay.url)
+        if handle != 0 {
+            relay.handle = handle
+            relay.status = .connected
+            appendActivity("Relay connected: \(relay.url) (#\(handle))")
+        } else {
+            relay.status = .error
+            appendActivity("Relay connect failed: \(relay.url)")
+        }
+        relays[idx] = relay
+    }
+
+    func disconnectRelayEntry(id: UUID) {
+        guard let idx = relays.firstIndex(where: { $0.id == id }) else { return }
+        var relay = relays[idx]
+        if relay.handle != 0 {
+            nostrRelayClose(handle: relay.handle)
+            relay.handle = 0
+        }
+        if relay.subHandle != 0 {
+            nostrRelayUnsubscribe(subHandle: relay.subHandle)
+            relay.subHandle = 0
+        }
+        relay.status = .disconnected
+        relays[idx] = relay
+        appendActivity("Relay disconnected: \(relay.url)")
+    }
+
+    func reconnectAllRelays() {
+        for relay in relays where relay.status != .connected {
+            if let idx = relays.firstIndex(where: { $0.id == relay.id }) {
+                var r = relays[idx]
+                r.status = .connecting
+                relays[idx] = r
+                connectRelayEntry(id: relay.id)
+            }
+        }
+    }
+
     func publishGossip() {
         let msg = gossipMessage.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !msg.isEmpty else { return }
@@ -785,7 +853,23 @@ final class HybridNodeStore: ObservableObject {
         unreadCount = 0
     }
 
-    // MARK: - Background Polling (Phase 20)
+    // MARK: - Background Polling (Phase 20 + 24)
+
+    func drainAllRelays() {
+        var totalEvents = 0
+        for relay in relays where relay.handle != 0 {
+            let subHandle = nostrRelaySubscribe(handle: relay.handle, filterJson: "{\"kinds\":[1,1063,1617,1621,30617],\"limit\":20}")
+            var events: [String] = []
+            while let msg = nostrRelayDrain(subHandle: subHandle) {
+                events.append(msg)
+            }
+            nostrRelayUnsubscribe(subHandle: subHandle)
+            totalEvents += events.count
+        }
+        if totalEvents > 0 {
+            appendActivity("Drained \(totalEvents) events from all relays")
+        }
+    }
 
     func startPolling() {
         guard !isPolling else { return }
@@ -797,7 +881,7 @@ final class HybridNodeStore: ObservableObject {
                 try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds
                 guard self.isPolling else { break }
                 await MainActor.run {
-                    self.drainRelay()
+                    self.drainAllRelays()
                     self.drainGossip()
                     self.refreshInbox()
                 }

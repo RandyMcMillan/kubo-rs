@@ -76,3 +76,18 @@ struct RepoEntry: Identifiable {
     var head: String
     var branch: String
 }
+
+struct RelayEntry: Identifiable {
+    let id = UUID()
+    var url: String
+    var handle: UInt64 = 0
+    var status: RelayStatus = .disconnected
+    var subHandle: UInt64 = 0
+}
+
+enum RelayStatus: String {
+    case connected = "Connected"
+    case connecting = "Connecting"
+    case disconnected = "Disconnected"
+    case error = "Error"
+}

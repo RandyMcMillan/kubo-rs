@@ -1,0 +1,154 @@
+name: Make Commands CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      commands:
+        description: 'Commands to test'
+        type: choice
+        options:
+          - all
+          - rust
+          - wasm
+          - xcode
+          - ffi
+          - custom
+        default: 'all'
+      custom_commands:
+        description: 'Custom make commands (comma-separated, used when commands=custom)'
+        type: string
+        default: 'build,test'
+      os:
+        description: 'Runner OS'
+        type: choice
+        options:
+          - ubuntu-latest
+          - macos-latest
+          - macos-15
+        default: 'ubuntu-latest'
+      rust_toolchain:
+        description: 'Rust toolchain'
+        type: string
+        default: 'stable'
+      go_version:
+        description: 'Go version'
+        type: string
+        default: '1.26.5'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.inputs.commands || 'all' }}
+  cancel-in-progress: true
+
+jobs:
+  make-test:
+    name: 'make ${{ github.event.inputs.commands || "all" }}'
+    runs-on: ${{ github.event.inputs.os || 'ubuntu-latest' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Init submodules
+        run: |
+          git submodule sync
+          git submodule update --init --recursive
+
+      - name: Install Rust
+        if: runner.os != 'Windows'
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ github.event.inputs.rust_toolchain || 'stable' }}
+          components: rustfmt, clippy
+
+      - name: Install Rust targets
+        run: |
+          rustup target add wasm32-unknown-unknown || true
+          rustup target add wasm32-wasip1 || true
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ github.event.inputs.go_version || '1.26.5' }}
+          cache: false
+
+      - name: Install trunk
+        run: |
+          which trunk >/dev/null 2>&1 || cargo install trunk
+
+      - name: Install wasm-bindgen-cli
+        run: cargo install -f wasm-bindgen-cli --version 0.2.128 || true
+
+      - name: Populate Rust cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+        with:
+          shared-key: stable-cache
+
+      - name: Determine commands
+        id: commands
+        run: |
+          INPUT="${{ github.event.inputs.commands || 'all' }}"
+          case "$INPUT" in
+            all)
+              if [ "${{ runner.os }}" = "macOS" ]; then
+                echo 'list=build,test,clippy,fmt,build-bin,build-ffi,build-go,wasm-dashboard,website,wasm-p2p,wasm-hybrid-wasi' >> "$GITHUB_OUTPUT"
+              else
+                echo 'list=build,test,clippy,fmt,build-bin,build-ffi,build-go,wasm-dashboard,website,wasm-p2p,wasm-hybrid-wasi' >> "$GITHUB_OUTPUT"
+              fi
+              ;;
+            rust)
+              echo 'list=build,test,clippy,fmt,build-bin' >> "$GITHUB_OUTPUT"
+              ;;
+            wasm)
+              echo 'list=wasm-dashboard,website,wasm-p2p,wasm-hybrid-wasi' >> "$GITHUB_OUTPUT"
+              ;;
+            xcode)
+              if [ "${{ runner.os }}" != "macOS" ]; then
+                echo "ERROR: xcode commands require macOS runner"; exit 1
+              fi
+              echo 'list=xcode-rust,xcode-mac,xcode-swift-test' >> "$GITHUB_OUTPUT"
+              ;;
+            ffi)
+              echo 'list=build-ffi,test-ffi-c,test-ffi-rust' >> "$GITHUB_OUTPUT"
+              ;;
+            custom)
+              echo "list=${{ github.event.inputs.custom_commands || 'build,test' }}" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+      - name: Run make commands
+        run: |
+          IFS=',' read -ra CMDS <<< "${{ steps.commands.outputs.list }}"
+          FAILED=0
+          for cmd in "${CMDS[@]}"; do
+            cmd=$(echo "$cmd" | xargs)
+            echo ""
+            echo "=== make $cmd ==="
+            echo ""
+            # Handle xcode sub-commands
+            if [[ "$cmd" == xcode-* ]]; then
+              xcmd="${cmd#xcode-}"
+              if ! (cd xcode && make "$xcmd"); then
+                echo "FAILED: cd xcode && make $xcmd"
+                FAILED=1
+              else
+                echo "PASSED: cd xcode && make $xcmd"
+              fi
+            else
+              if ! make "$cmd"; then
+                echo "FAILED: make $cmd"
+                FAILED=1
+              else
+                echo "PASSED: make $cmd"
+              fi
+            fi
+          done
+          if [ "$FAILED" -ne 0 ]; then
+            echo ""
+            echo "One or more make commands failed."
+            exit 1
+          fi

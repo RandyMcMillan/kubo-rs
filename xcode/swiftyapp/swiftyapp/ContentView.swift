@@ -16,6 +16,17 @@ struct ContentView: View {
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
 
+    private func badgeFor(_ section: DashboardSection) -> Int? {
+        switch section {
+        case .network: return store.networkBadge
+        case .chat: return store.chatBadge
+        case .codeReview: return store.codeReviewBadge
+        case .issueTracker: return store.issueTrackerBadge
+        case .repoDiscovery: return store.repoDiscoveryBadge
+        default: return nil
+        }
+    }
+
     var body: some View {
         NavigationSplitView {
             sidebar
@@ -42,17 +53,29 @@ struct ContentView: View {
                 ForEach(DashboardSection.allCases) { section in
                     Button {
                         store.selection = section
+                        store.clearBadge(for: section)
                     } label: {
-                        Label {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(section.title)
-                                Text(section.subtitle)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                        HStack(spacing: 12) {
+                            Label {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(section.title)
+                                    Text(section.subtitle)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            } icon: {
+                                Image(systemName: section.icon)
+                                    .symbolRenderingMode(.hierarchical)
                             }
-                        } icon: {
-                            Image(systemName: section.icon)
-                                .symbolRenderingMode(.hierarchical)
+                            Spacer()
+                            if let badge = badgeFor(section), badge > 0 {
+                                Text("\(badge)")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Capsule(style: .continuous).fill(Color.red))
+                            }
                         }
                     }
                     .buttonStyle(.plain)

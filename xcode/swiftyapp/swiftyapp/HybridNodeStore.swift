@@ -96,6 +96,13 @@ final class HybridNodeStore: ObservableObject {
     @Published var inboxFilter: MessageCategory? = nil
     @Published var unreadCount: Int = 0
 
+    // Sidebar Badges (Phase 27)
+    @Published var networkBadge: Int = 0
+    @Published var chatBadge: Int = 0
+    @Published var codeReviewBadge: Int = 0
+    @Published var issueTrackerBadge: Int = 0
+    @Published var repoDiscoveryBadge: Int = 0
+
     // Background Polling (Phase 20)
     @Published var isPolling: Bool = false
     private var pollingTask: Task<Void, Never>?
@@ -890,6 +897,10 @@ final class HybridNodeStore: ObservableObject {
                 }
             }
             let newCount = max(0, unique.count - inboxMessages.count)
+            if newCount > 0 {
+                let newMessages = Array(unique.suffix(newCount))
+                updateBadges(from: newMessages)
+            }
             inboxMessages = unique
             unreadCount += newCount
             appendActivity("Inbox: \(unique.count) messages (\(newCount) new)")
@@ -907,6 +918,31 @@ final class HybridNodeStore: ObservableObject {
 
     func markInboxRead() {
         unreadCount = 0
+    }
+
+    // MARK: - Sidebar Badges (Phase 27)
+
+    func clearBadge(for section: DashboardSection) {
+        switch section {
+        case .network: networkBadge = 0
+        case .chat: chatBadge = 0
+        case .codeReview: codeReviewBadge = 0
+        case .issueTracker: issueTrackerBadge = 0
+        case .repoDiscovery: repoDiscoveryBadge = 0
+        default: break
+        }
+    }
+
+    func updateBadges(from messages: [HybridMessage]) {
+        for msg in messages {
+            switch categoryFor(msg) {
+            case .patch: codeReviewBadge += 1
+            case .issue: issueTrackerBadge += 1
+            case .repo: repoDiscoveryBadge += 1
+            case .file: networkBadge += 1
+            default: chatBadge += 1
+            }
+        }
     }
 
     // MARK: - Background Polling (Phase 20 + 24)

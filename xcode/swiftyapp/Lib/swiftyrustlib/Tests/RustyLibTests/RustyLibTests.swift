@@ -198,6 +198,31 @@ final class RustyLibTests: XCTestCase {
         XCTAssertFalse(fetchOk, "Fetch should fail when no remotes exist")
     }
 
+    // MARK: - IPNS Key Management (Phase 28)
+
+    func testIpnsKeyLifecycle() throws {
+        try hybridStartTry(online: false)
+        defer { _ = hybridStop() }
+
+        let keyName = "swift-test-key-\(UUID().uuidString.prefix(8))"
+
+        // Generate key
+        let peerID = ipnsKeyGen(name: keyName)
+        XCTAssertFalse(peerID.isEmpty, "IPNS key gen should return a peer ID")
+
+        // List keys — should include the new key
+        let listResult = ipnsKeyList()
+        XCTAssertTrue(listResult.contains(keyName), "Key list should contain generated key")
+
+        // Remove key
+        let removedPeerID = ipnsKeyRm(name: keyName)
+        XCTAssertFalse(removedPeerID.isEmpty, "IPNS key rm should return the removed peer ID")
+
+        // Verify removed
+        let listAfter = ipnsKeyList()
+        XCTAssertFalse(listAfter.contains(keyName), "Key list should not contain removed key")
+    }
+
     // MARK: - P2P Host (best-effort; may be empty in simulator)
 
     func testP2pHostSmoke() {

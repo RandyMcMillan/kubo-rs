@@ -14,12 +14,14 @@ import (
 	"io"
 	"net"
 	"net/http"
+	gopath "path"
 	"strings"
 	"sync"
 	"time"
 	"unsafe"
 
 	"github.com/ipfs/boxo/files"
+	"github.com/ipfs/boxo/mfs"
 	"github.com/ipfs/boxo/path"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
@@ -1181,4 +1183,263 @@ func kubo_dag_get(handle uint64, cidStr *C.char, outputCodecStr *C.char,
 	*outLen = C.size_t(len(b))
 	setError(nil)
 	return 0
+}
+
+//export kubo_mfs_ls
+func kubo_mfs_ls(handle uint64, pathStr *C.char) *C.char {
+	nodesMu.RLock()
+	h, ok := nodes[handle]
+	nodesMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid handle %d", handle))
+		return nil
+	}
+
+	p := C.GoString(pathStr)
+	node, err := mfs.Lookup(h.node.FilesRoot, p)
+	if err != nil {
+		setError(fmt.Errorf("mfs lookup: %w", err))
+		return nil
+	}
+
+	dir, ok := node.(*mfs.Directory)
+	if !ok {
+		setError(fmt.Errorf("%s is not a directory", p))
+		return nil
+	}
+
+	names, err := dir.ListNames(h.ctx)
+	if err != nil {
+		setError(fmt.Errorf("mfs ls: %w", err))
+		return nil
+	}
+
+	setError(nil)
+	return C.CString(strings.Join(names, "\n"))
+}
+
+//export kubo_mfs_read
+func kubo_mfs_read(handle uint64, pathStr *C.char, out **C.uint8_t, outLen *C.size_t) int64 {
+	nodesMu.RLock()
+	h, ok := nodes[handle]
+	nodesMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid handle %d", handle))
+		return -1
+	}
+
+	p := C.GoString(pathStr)
+	node, err := mfs.Lookup(h.node.FilesRoot, p)
+	if err != nil {
+		setError(fmt.Errorf("mfs lookup: %w", err))
+		return -1
+	}
+
+	fi, ok := node.(*mfs.File)
+	if !ok {
+		setError(fmt.Errorf("%s is not a file", p))
+		return -1
+	}
+
+	fd, err := fi.Open(h.ctx, mfs.Flags{Read: true})
+	if err != nil {
+		setError(fmt.Errorf("mfs open: %w", err))
+		return -1
+	}
+	defer fd.Close()
+
+	size, _ := fd.Size()
+	buf := make([]byte, size)
+	_, err = fd.Read(buf)
+	if err != nil && err.Error() != "EOF" {
+		setError(fmt.Errorf("mfs read: %w", err))
+		return -1
+	}
+
+	if len(buf) == 0 {
+		setError(nil)
+		*out = nil
+		*outLen = 0
+		return 0
+	}
+	cb := C.CBytes(buf)
+	*out = (*C.uint8_t)(cb)
+	*outLen = C.size_t(len(buf))
+	setError(nil)
+	return 0
+}
+
+//export kubo_mfs_write
+func kubo_mfs_write(handle uint64, pathStr *C.char, data *C.uint8_t, length C.size_t) int64 {
+	nodesMu.RLock()
+	h, ok := nodes[handle]
+	nodesMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid handle %d", handle))
+		return -1
+	}
+
+	p := C.GoString(pathStr)
+	buf := C.GoBytes(unsafe.Pointer(data), C.int(length))
+
+	node, err := mfs.Lookup(h.node.FilesRoot, p)
+	if err != nil {
+		setError(fmt.Errorf("mfs lookup: %w", err))
+		return -1
+	}
+
+	fi, ok := node.(*mfs.File)
+	if !ok {
+		setError(fmt.Errorf("%s is not a file", p))
+		return -1
+	}
+
+	fd, err := fi.Open(h.ctx, mfs.Flags{Write: true, Sync: true})
+	if err != nil {
+		setError(fmt.Errorf("mfs open: %w", err))
+		return -1
+	}
+	defer fd.Close()
+
+	if err := fd.Truncate(0); err != nil {
+		setError(fmt.Errorf("mfs truncate: %w", err))
+		return -1
+	}
+
+	if _, err := fd.Write(buf); err != nil {
+		setError(fmt.Errorf("mfs write: %w", err))
+		return -1
+	}
+
+	if err := fd.Flush(); err != nil {
+		setError(fmt.Errorf("mfs flush: %w", err))
+		return -1
+	}
+
+	setError(nil)
+	return 0
+}
+
+//export kubo_mfs_mkdir
+func kubo_mfs_mkdir(handle uint64, pathStr *C.char) int64 {
+	nodesMu.RLock()
+	h, ok := nodes[handle]
+	nodesMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid handle %d", handle))
+		return -1
+	}
+
+	p := C.GoString(pathStr)
+	if err := mfs.Mkdir(h.node.FilesRoot, p, mfs.MkdirOpts{Mkparents: true}); err != nil {
+		setError(fmt.Errorf("mfs mkdir: %w", err))
+		return -1
+	}
+
+	setError(nil)
+	return 0
+}
+
+//export kubo_mfs_rm
+func kubo_mfs_rm(handle uint64, pathStr *C.char) int64 {
+	nodesMu.RLock()
+	h, ok := nodes[handle]
+	nodesMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid handle %d", handle))
+		return -1
+	}
+
+	p := C.GoString(pathStr)
+	if p == "/" {
+		setError(fmt.Errorf("cannot delete root"))
+		return -1
+	}
+	if len(p) > 0 && p[len(p)-1] == '/' {
+		p = p[:len(p)-1]
+	}
+
+	dir, name := gopath.Split(p)
+	parent, err := mfs.Lookup(h.node.FilesRoot, dir)
+	if err != nil {
+		setError(fmt.Errorf("mfs lookup parent: %w", err))
+		return -1
+	}
+	pdir, ok := parent.(*mfs.Directory)
+	if !ok {
+		setError(fmt.Errorf("mfs rm: parent is not a directory"))
+		return -1
+	}
+
+	if err := pdir.Unlink(name); err != nil {
+		setError(fmt.Errorf("mfs rm: %w", err))
+		return -1
+	}
+	if err := pdir.Flush(); err != nil {
+		setError(fmt.Errorf("mfs rm flush: %w", err))
+		return -1
+	}
+
+	setError(nil)
+	return 0
+}
+
+//export kubo_mfs_flush
+func kubo_mfs_flush(handle uint64, pathStr *C.char) *C.char {
+	nodesMu.RLock()
+	h, ok := nodes[handle]
+	nodesMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid handle %d", handle))
+		return nil
+	}
+
+	p := C.GoString(pathStr)
+	nd, err := mfs.FlushPath(h.ctx, h.node.FilesRoot, p)
+	if err != nil {
+		setError(fmt.Errorf("mfs flush: %w", err))
+		return nil
+	}
+
+	setError(nil)
+	return C.CString(nd.Cid().String())
+}
+
+//export kubo_mfs_stat
+func kubo_mfs_stat(handle uint64, pathStr *C.char) *C.char {
+	nodesMu.RLock()
+	h, ok := nodes[handle]
+	nodesMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid handle %d", handle))
+		return nil
+	}
+
+	p := C.GoString(pathStr)
+	node, err := mfs.Lookup(h.node.FilesRoot, p)
+	if err != nil {
+		setError(fmt.Errorf("mfs lookup: %w", err))
+		return nil
+	}
+
+	var result string
+	switch n := node.(type) {
+	case *mfs.File:
+		size, _ := n.Size()
+		result = fmt.Sprintf("file\t%d", size)
+	case *mfs.Directory:
+		result = "directory\t0"
+	default:
+		result = "unknown\t0"
+	}
+
+	setError(nil)
+	return C.CString(result)
 }

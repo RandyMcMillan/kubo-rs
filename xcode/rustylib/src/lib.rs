@@ -863,6 +863,59 @@ pub fn dag_get(cid: String, output_codec: String) -> Vec<u8> {
         .unwrap_or_default()
 }
 
+// ---------------------------------------------------------------------------
+// MFS API (Phase 30)
+// ---------------------------------------------------------------------------
+
+#[uniffi::export]
+pub fn mfs_ls(path: String) -> String {
+    hybrid_with(|node| node.ipfs.mfs_ls(&path).ok())
+        .unwrap_or_default()
+        .unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn mfs_read(path: String) -> Vec<u8> {
+    hybrid_with(|node| node.ipfs.mfs_read(&path).ok())
+        .unwrap_or_default()
+        .unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn mfs_write(path: String, data: Vec<u8>) -> bool {
+    hybrid_with(|node| node.ipfs.mfs_write(&path, &data).ok())
+        .unwrap_or_default()
+        .is_some()
+}
+
+#[uniffi::export]
+pub fn mfs_mkdir(path: String) -> bool {
+    hybrid_with(|node| node.ipfs.mfs_mkdir(&path).ok())
+        .unwrap_or_default()
+        .is_some()
+}
+
+#[uniffi::export]
+pub fn mfs_rm(path: String) -> bool {
+    hybrid_with(|node| node.ipfs.mfs_rm(&path).ok())
+        .unwrap_or_default()
+        .is_some()
+}
+
+#[uniffi::export]
+pub fn mfs_flush(path: String) -> String {
+    hybrid_with(|node| node.ipfs.mfs_flush(&path).ok())
+        .unwrap_or_default()
+        .unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn mfs_stat(path: String) -> String {
+    hybrid_with(|node| node.ipfs.mfs_stat(&path).ok())
+        .unwrap_or_default()
+        .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::rust_hello;

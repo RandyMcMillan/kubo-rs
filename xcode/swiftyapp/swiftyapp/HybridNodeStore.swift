@@ -122,6 +122,15 @@ final class HybridNodeStore: ObservableObject {
     @Published var dagGetOutputCodec: String = "dag-json"
     @Published var dagGetResult: String = ""
 
+    // MFS (Phase 30)
+    @Published var mfsPath: String = "/"
+    @Published var mfsEntries: [String] = []
+    @Published var mfsFileContent: String = ""
+    @Published var mfsWriteContent: String = ""
+    @Published var mfsMkdirName: String = ""
+    @Published var mfsStatResult: String = ""
+    @Published var mfsFlushResult: String = ""
+
     // Network / DHT
     @Published var dhtPeerID: String = ""
     @Published var dhtPeerAddrs: [String] = []
@@ -591,6 +600,51 @@ final class HybridNodeStore: ObservableObject {
         let data = RustyLib.dagGet(cid: cid, outputCodec: dagGetOutputCodec)
         dagGetResult = String(data: data, encoding: .utf8) ?? data.base64EncodedString()
         appendActivity("DAG get: \(data.count) bytes")
+    }
+
+    // MARK: - MFS API (Phase 30)
+
+    func mfsList() {
+        let result = RustyLib.mfsLs(path: mfsPath)
+        mfsEntries = result.split(separator: "\n").map(String.init)
+        appendActivity("MFS ls: \(mfsPath) has \(mfsEntries.count) entries")
+    }
+
+    func mfsReadFile() {
+        let data = RustyLib.mfsRead(path: mfsPath)
+        mfsFileContent = String(data: data, encoding: .utf8) ?? data.base64EncodedString()
+        appendActivity("MFS read: \(mfsPath) \(data.count) bytes")
+    }
+
+    func mfsWriteFile() {
+        let data = Data(mfsWriteContent.utf8)
+        let ok = RustyLib.mfsWrite(path: mfsPath, data: data)
+        appendActivity(ok ? "MFS write: \(mfsPath)" : "MFS write failed: \(mfsPath)")
+    }
+
+    func mfsMkdir() {
+        let name = mfsMkdirName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        let fullPath = mfsPath.hasSuffix("/") ? "\(mfsPath)\(name)" : "\(mfsPath)/\(name)"
+        let ok = RustyLib.mfsMkdir(path: fullPath)
+        appendActivity(ok ? "MFS mkdir: \(fullPath)" : "MFS mkdir failed: \(fullPath)")
+        mfsMkdirName = ""
+    }
+
+    func mfsRm() {
+        let ok = RustyLib.mfsRm(path: mfsPath)
+        appendActivity(ok ? "MFS rm: \(mfsPath)" : "MFS rm failed: \(mfsPath)")
+    }
+
+    func mfsFlush() {
+        let cid = RustyLib.mfsFlush(path: mfsPath)
+        mfsFlushResult = cid
+        appendActivity("MFS flush: \(mfsPath) → \(cid)")
+    }
+
+    func mfsStat() {
+        mfsStatResult = RustyLib.mfsStat(path: mfsPath)
+        appendActivity("MFS stat: \(mfsPath) → \(mfsStatResult)")
     }
 
     // MARK: - GossipSub Multi-Topic (Phase 25)

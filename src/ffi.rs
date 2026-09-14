@@ -61,6 +61,23 @@ unsafe extern "C" {
         out: *mut *mut u8,
         out_len: *mut usize,
     ) -> i64;
+    fn kubo_mfs_ls(handle: u64, path_str: *const c_char) -> *mut c_char;
+    fn kubo_mfs_read(
+        handle: u64,
+        path_str: *const c_char,
+        out: *mut *mut u8,
+        out_len: *mut usize,
+    ) -> i64;
+    fn kubo_mfs_write(
+        handle: u64,
+        path_str: *const c_char,
+        data: *const u8,
+        length: usize,
+    ) -> i64;
+    fn kubo_mfs_mkdir(handle: u64, path_str: *const c_char) -> i64;
+    fn kubo_mfs_rm(handle: u64, path_str: *const c_char) -> i64;
+    fn kubo_mfs_flush(handle: u64, path_str: *const c_char) -> *mut c_char;
+    fn kubo_mfs_stat(handle: u64, path_str: *const c_char) -> *mut c_char;
 
     // libp2p
     fn kubo_libp2p_host_new() -> u64;
@@ -912,5 +929,67 @@ pub fn dag_get(handle: u64, cid: &str, output_codec: &str) -> Result<Vec<u8>, Er
             kubo_ffi_free_buffer(out);
             Ok(buf)
         }
+    }
+}
+
+pub fn mfs_ls(handle: u64, path: &str) -> Result<String, Error> {
+    let c_path = CString::new(path)?;
+    unsafe {
+        ptr_to_string(kubo_mfs_ls(handle, c_path.as_ptr()))
+            .ok_or_else(|| Error::Go(last_error()))
+    }
+}
+
+pub fn mfs_read(handle: u64, path: &str) -> Result<Vec<u8>, Error> {
+    let c_path = CString::new(path)?;
+    unsafe {
+        let mut out: *mut u8 = std::ptr::null_mut();
+        let mut out_len: usize = 0;
+        let code = kubo_mfs_read(handle, c_path.as_ptr(), &mut out, &mut out_len);
+        check_err(code)?;
+        if out.is_null() || out_len == 0 {
+            Ok(Vec::new())
+        } else {
+            let buf = slice::from_raw_parts(out, out_len).to_vec();
+            kubo_ffi_free_buffer(out);
+            Ok(buf)
+        }
+    }
+}
+
+pub fn mfs_write(handle: u64, path: &str, data: &[u8]) -> Result<(), Error> {
+    let c_path = CString::new(path)?;
+    unsafe {
+        check_err(kubo_mfs_write(handle, c_path.as_ptr(), data.as_ptr(), data.len()))
+    }
+}
+
+pub fn mfs_mkdir(handle: u64, path: &str) -> Result<(), Error> {
+    let c_path = CString::new(path)?;
+    unsafe {
+        check_err(kubo_mfs_mkdir(handle, c_path.as_ptr()))
+    }
+}
+
+pub fn mfs_rm(handle: u64, path: &str) -> Result<(), Error> {
+    let c_path = CString::new(path)?;
+    unsafe {
+        check_err(kubo_mfs_rm(handle, c_path.as_ptr()))
+    }
+}
+
+pub fn mfs_flush(handle: u64, path: &str) -> Result<String, Error> {
+    let c_path = CString::new(path)?;
+    unsafe {
+        ptr_to_string(kubo_mfs_flush(handle, c_path.as_ptr()))
+            .ok_or_else(|| Error::Go(last_error()))
+    }
+}
+
+pub fn mfs_stat(handle: u64, path: &str) -> Result<String, Error> {
+    let c_path = CString::new(path)?;
+    unsafe {
+        ptr_to_string(kubo_mfs_stat(handle, c_path.as_ptr()))
+            .ok_or_else(|| Error::Go(last_error()))
     }
 }

@@ -1089,6 +1089,106 @@ struct ContentView: View {
                     }
                 }
             }
+
+            DashboardCard(title: "MFS") {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        TextField("MFS path…", text: $store.mfsPath)
+                            .textFieldStyle(.roundedBorder)
+                        Button {
+                            store.mfsList()
+                        } label: {
+                            Label("Ls", systemImage: "list.bullet")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        Button {
+                            store.mfsStat()
+                        } label: {
+                            Label("Stat", systemImage: "info.circle")
+                        }
+                        .buttonStyle(.bordered)
+                        Button {
+                            store.mfsReadFile()
+                        } label: {
+                            Label("Read", systemImage: "doc.text")
+                        }
+                        .buttonStyle(.bordered)
+                        Button {
+                            store.mfsFlush()
+                        } label: {
+                            Label("Flush", systemImage: "arrow.clockwise")
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
+                    HStack(spacing: 12) {
+                        Button {
+                            store.mfsWriteFile()
+                        } label: {
+                            Label("Write", systemImage: "square.and.pencil")
+                        }
+                        .buttonStyle(.bordered)
+                        Button {
+                            store.mfsMkdir()
+                        } label: {
+                            Label("Mkdir", systemImage: "folder.badge.plus")
+                        }
+                        .buttonStyle(.bordered)
+                        Button {
+                            store.mfsRm()
+                        } label: {
+                            Label("Rm", systemImage: "trash")
+                        }
+                        .buttonStyle(.bordered)
+                        Spacer()
+                    }
+
+                    if !store.mfsStatResult.isEmpty {
+                        Text(store.mfsStatResult)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                    }
+
+                    if !store.mfsFlushResult.isEmpty {
+                        Text("Flush: \(store.mfsFlushResult)")
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                    }
+
+                    if !store.mfsEntries.isEmpty {
+                        Text("Entries")
+                            .font(.headline)
+                        ForEach(store.mfsEntries, id: \.self) { entry in
+                            Text(entry)
+                                .font(.system(.body, design: .monospaced))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+
+                    if !store.mfsFileContent.isEmpty {
+                        Text("File content")
+                            .font(.headline)
+                        ScrollView {
+                            Text(store.mfsFileContent)
+                                .font(.system(.body, design: .monospaced))
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(maxHeight: 200)
+                    }
+
+                    TextEditor(text: $store.mfsWriteContent)
+                        .font(.system(.caption, design: .monospaced))
+                        .frame(minHeight: 60)
+                        .border(Color.secondary.opacity(0.2), width: 1)
+
+                    HStack(spacing: 12) {
+                        TextField("New dir name…", text: $store.mfsMkdirName)
+                            .textFieldStyle(.roundedBorder)
+                        Spacer()
+                    }
+                }
+            }
         }
     }
 

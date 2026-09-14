@@ -321,6 +321,41 @@ impl Node {
         ffi::dag_get(self.handle, cid, output_codec)
     }
 
+    /// List MFS directory entries.
+    pub fn mfs_ls(&self, path: &str) -> Result<String, Error> {
+        ffi::mfs_ls(self.handle, path)
+    }
+
+    /// Read an MFS file.
+    pub fn mfs_read(&self, path: &str) -> Result<Vec<u8>, Error> {
+        ffi::mfs_read(self.handle, path)
+    }
+
+    /// Write to an MFS file.
+    pub fn mfs_write(&self, path: &str, data: &[u8]) -> Result<(), Error> {
+        ffi::mfs_write(self.handle, path, data)
+    }
+
+    /// Create an MFS directory.
+    pub fn mfs_mkdir(&self, path: &str) -> Result<(), Error> {
+        ffi::mfs_mkdir(self.handle, path)
+    }
+
+    /// Remove an MFS file or directory.
+    pub fn mfs_rm(&self, path: &str) -> Result<(), Error> {
+        ffi::mfs_rm(self.handle, path)
+    }
+
+    /// Flush an MFS path to the DAG.
+    pub fn mfs_flush(&self, path: &str) -> Result<String, Error> {
+        ffi::mfs_flush(self.handle, path)
+    }
+
+    /// Stat an MFS path.
+    pub fn mfs_stat(&self, path: &str) -> Result<String, Error> {
+        ffi::mfs_stat(self.handle, path)
+    }
+
     /// Shut the node down and consume the handle.
     ///
     /// # Errors

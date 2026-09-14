@@ -552,6 +552,54 @@ struct ContentView: View {
                 }
             }
 
+            DashboardCard(title: "MFS Pin") {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        TextField("MFS path…", text: $store.mfsRepoPath)
+                            .textFieldStyle(.roundedBorder)
+                        Button {
+                            store.pinRepoToMfs()
+                        } label: {
+                            Label("Pin to MFS", systemImage: "pin")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(store.gitPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        Spacer()
+                    }
+                    if !store.pinRepoResult.isEmpty {
+                        Text(store.pinRepoResult)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                    }
+                }
+            }
+
+            DashboardCard(title: "Publish Head") {
+                VStack(alignment: .leading, spacing: 12) {
+                    if store.nostrSecretKey.isEmpty {
+                        Text("Generate a Nostr key in Settings first.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        TextField("Description", text: $store.nip34RepoDescription)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("Clone URLs (comma-separated)", text: $store.nip34RepoCloneURLs)
+                            .textFieldStyle(.roundedBorder)
+                        Button {
+                            store.publishRepoHead()
+                        } label: {
+                            Label("Publish repo head", systemImage: "globe")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(store.gitPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        if !store.publishRepoHeadResult.isEmpty {
+                            Text(store.publishRepoHeadResult)
+                                .font(.system(.caption, design: .monospaced))
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
+            }
+
             if !store.readmeContent.isEmpty {
                 DashboardCard(title: "README") {
                     VStack(alignment: .leading, spacing: 8) {

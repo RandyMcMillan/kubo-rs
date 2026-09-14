@@ -327,6 +327,68 @@ impl HybridNode {
         self.broadcast_event(&event, relay_handle, gossip_topic)?;
         Ok(event)
     }
+
+    /// Copy a local Git repository into MFS, preserving directory structure.
+    ///
+    /// The `.git` directory is skipped. Directories are created with `mfs_mkdir`
+    /// and files are written with `mfs_write`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if filesystem traversal fails or any MFS operation fails.
+    pub fn pin_repo_to_mfs(&self, repo_path: &str, mfs_path: &str) -> Result<(), Error> {
+        let base = std::path::Path::new(repo_path);
+        let mfs_base = if mfs_path.ends_with('/') {
+            mfs_path.to_string()
+        } else {
+            format!("{}/", mfs_path)
+        };
+
+        for entry in walkdir::WalkDir::new(base).into_iter().filter_map(|e| e.ok()) {
+            let path = entry.path();
+            let rel = path.strip_prefix(base).map_err(|e| Error::Go(format!("strip prefix: {e}")))?;
+            let rel_str = rel.to_str().unwrap_or("");
+            if rel_str.is_empty() {
+                continue;
+            }
+            if rel_str.starts_with(".git") || rel_str.contains("/.git/") {
+                continue;
+            }
+            let mfs_target = format!("{}{}", mfs_base, rel_str);
+            if entry.file_type().is_dir() {
+                self.ipfs.mfs_mkdir(&mfs_target)?;
+            } else if entry.file_type().is_file() {
+                let data = std::fs::read(path).map_err(|e| Error::Go(format!("read file: {e}")))?;
+                self.ipfs.mfs_write(&mfs_target, &data)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Publish a NIP-34 repo announcement for the current HEAD of a Git repo.
+    ///
+    /// Returns the signed event JSON.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if repo reading, event signing, or broadcast fails.
+    pub fn publish_repo_head(
+        &self,
+        repo_path: &str,
+        description: &str,
+        clone_urls: &[String],
+        secret_key: &str,
+        relay_handle: Option<u64>,
+        gossip_topic: Option<&str>,
+    ) -> Result<String, Error> {
+        let repo = Repository::open(repo_path)?;
+        let head = repo.head()?;
+        let name = std::path::Path::new(repo_path)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("repo");
+        self.publish_repo(repo_path, &head, name, description, clone_urls, secret_key, relay_handle, gossip_topic)
+    }
 }
 
 /// Extract the `id` field from a Nostr event JSON string.

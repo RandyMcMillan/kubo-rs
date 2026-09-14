@@ -131,6 +131,11 @@ final class HybridNodeStore: ObservableObject {
     @Published var mfsStatResult: String = ""
     @Published var mfsFlushResult: String = ""
 
+    // NIP-34 + IPFS Hybrid (Phase 31)
+    @Published var mfsRepoPath: String = "/repo"
+    @Published var pinRepoResult: String = ""
+    @Published var publishRepoHeadResult: String = ""
+
     // Network / DHT
     @Published var dhtPeerID: String = ""
     @Published var dhtPeerAddrs: [String] = []
@@ -645,6 +650,47 @@ final class HybridNodeStore: ObservableObject {
     func mfsStat() {
         mfsStatResult = RustyLib.mfsStat(path: mfsPath)
         appendActivity("MFS stat: \(mfsPath) → \(mfsStatResult)")
+    }
+
+    // MARK: - NIP-34 + IPFS Hybrid (Phase 31)
+
+    func pinRepoToMfs() {
+        let path = gitPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        let mfs = mfsRepoPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty else {
+            pinRepoResult = "No repo loaded"
+            return
+        }
+        let ok = RustyLib.hybridPinRepoToMfs(repoPath: path, mfsPath: mfs.isEmpty ? "/repo" : mfs)
+        pinRepoResult = ok ? "Pinned to MFS: \(mfs.isEmpty ? "/repo" : mfs)" : "Pin to MFS failed"
+        appendActivity(pinRepoResult)
+    }
+
+    func publishRepoHead() {
+        let path = gitPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty else {
+            publishRepoHeadResult = "No repo loaded"
+            return
+        }
+        guard !nostrSecretKey.isEmpty else {
+            publishRepoHeadResult = "Generate a Nostr key first"
+            return
+        }
+        let desc = nip34RepoDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        let urls = nip34RepoCloneURLs.trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        let result = RustyLib.hybridPublishRepoHead(
+            repoPath: path,
+            description: desc,
+            cloneUrls: urls,
+            secretKey: nostrSecretKey,
+            relayHandle: relayHandle == 0 ? nil : relayHandle,
+            gossipTopic: gossipTopic.isEmpty ? nil : gossipTopic
+        )
+        publishRepoHeadResult = result
+        appendActivity(result.isEmpty ? "Publish repo head failed" : "Published repo head")
     }
 
     // MARK: - GossipSub Multi-Topic (Phase 25)

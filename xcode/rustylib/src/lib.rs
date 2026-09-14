@@ -916,6 +916,41 @@ pub fn mfs_stat(path: String) -> String {
         .unwrap_or_default()
 }
 
+// ---------------------------------------------------------------------------
+// NIP-34 + IPFS Hybrid Integration (Phase 31)
+// ---------------------------------------------------------------------------
+
+#[uniffi::export]
+pub fn hybrid_pin_repo_to_mfs(repo_path: String, mfs_path: String) -> bool {
+    hybrid_with(|node| node.pin_repo_to_mfs(&repo_path, &mfs_path).ok())
+        .unwrap_or_default()
+        .is_some()
+}
+
+#[uniffi::export]
+pub fn hybrid_publish_repo_head(
+    repo_path: String,
+    description: String,
+    clone_urls: Vec<String>,
+    secret_key: String,
+    relay_handle: Option<u64>,
+    gossip_topic: Option<String>,
+) -> String {
+    hybrid_with(|node| {
+        node.publish_repo_head(
+            &repo_path,
+            &description,
+            &clone_urls,
+            &secret_key,
+            relay_handle,
+            gossip_topic.as_deref(),
+        )
+        .ok()
+    })
+    .flatten()
+    .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::rust_hello;

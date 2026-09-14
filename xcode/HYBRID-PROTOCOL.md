@@ -369,6 +369,74 @@ Exposed Phase 9 + Phase 10 methods to Swift.
 
 ---
 
+### Phase 28: IPNS Key Management ✅
+
+**Goal:** Generate, list, and remove IPNS keys for mutable pointers.
+
+**Status:** Complete. Go FFI `kubo_key_gen`/`list`/`rm`, Rust safe API, UniFFI exposure, SwiftUI in Network > IPFS.
+
+---
+
+### Phase 29: DAG API ✅
+
+**Goal:** Put and get IPLD DAG nodes with codec control.
+
+**Status:** Complete. Go FFI `kubo_dag_put`/`get`, Rust safe API, UniFFI exposure, SwiftUI in Network > IPFS.
+
+---
+
+### Phase 30: MFS API ✅
+
+**Goal:** Mutable File System operations via Kubo commands.
+
+**Status:** Complete. Go FFI `kubo_mfs_ls`/`read`/`write`/`mkdir`/`rm`/`flush`/`stat`, Rust safe API, UniFFI exposure, SwiftUI MFS card in Network > IPFS.
+
+---
+
+### Phase 31: NIP-34 + IPFS Hybrid Integration (Planned)
+
+**Goal:** Link NIP-34 repo events to MFS so repositories are content-addressed and pinned.
+
+**Rust work:**
+- `HybridNode::pin_repo_to_mfs(repo_path, mfs_path)` — copy repo files into MFS
+- `HybridNode::publish_repo_head(repo_path)` — get HEAD, pin CID, publish NIP-34 event
+
+**SwiftUI work:**
+- Repository tab: "Pin to MFS" button
+- Repository tab: "Publish Head" button — reads git HEAD, calls `publish_repo_head`, displays NIP-34 event
+
+---
+
+### Phase 32: P2P Nostr Message Types (Planned)
+
+**Goal:** Structured GossipSub messages for Nostr events so peers can route by kind over libp2p.
+
+**Rust work:**
+- Define `P2pNostrEnvelope` record (kind, event_json, signature, topic)
+- `hybrid_publish_nostr_to_p2p(event_json, topic)` — wraps Nostr event in P2P envelope
+- `hybrid_drain_nostr_from_p2p(topic)` — unwraps envelope, returns event JSON
+
+**SwiftUI work:**
+- Network > P2P: "P2P Nostr" card with topic picker and event feed
+- Filter by kind, display sender pubkey
+
+---
+
+### Phase 33: Repository Auto-Sync (Planned)
+
+**Goal:** Background fetch + publish repo heads to Nostr on interval.
+
+**Rust work:**
+- Background task that `git fetch --all` on all repos every N minutes
+- If HEAD changes, auto-publish NIP-34 repo event to configured relays + gossip topic
+
+**SwiftUI work:**
+- Settings toggle for "Auto-sync repos"
+- Settings field for sync interval (default 300s)
+- Activity log entry when auto-sync triggers
+
+---
+
 ### Phase 4: HybridNode Wrapper ✅ (Rust Done)
 
 **Rust implementation:** `src/hybrid.rs` + `pub use hybrid::HybridNode` in `src/lib.rs`

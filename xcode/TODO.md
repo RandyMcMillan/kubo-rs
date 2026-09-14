@@ -92,10 +92,31 @@
 ## Swift Tests
 
 - [x] `RustyLibTests` target added to Swift Package
-- [x] 14 tests passing (smoke, lifecycle, IPFS, Nostr, Git, P2P, Error Handling)
+- [x] 16 tests passing (smoke, lifecycle, IPFS, Nostr, Git, P2P, IPNS, Error Handling)
 - [x] `make swift-test` target in `xcode/Makefile`
 - [ ] Add UI tests for SwiftUI navigation
 - [ ] Add integration test for full NIP-94 file publish → resolve round-trip
+- [ ] Add MFS round-trip test (write → read → stat → rm)
+
+## Next Phases (2026-09-14)
+
+### Phase 31: NIP-34 + IPFS Hybrid Integration
+- [ ] Rust: `HybridNode::pin_repo_to_mfs(repo_path, mfs_path)` — copy repo files into MFS
+- [ ] Rust: `HybridNode::publish_repo_head(repo_path)` — get HEAD, pin CID, publish NIP-34 event
+- [ ] SwiftUI: "Pin to MFS" button in Repository tab
+- [ ] SwiftUI: "Publish Head" button — reads git HEAD, calls `publish_repo_head`, displays NIP-34 event
+
+### Phase 32: P2P Nostr Message Types
+- [ ] Rust: Define `P2pNostrEnvelope` record (kind, event_json, signature, topic) for structured GossipSub
+- [ ] Rust: `hybrid_publish_nostr_to_p2p(event_json, topic)` — wraps Nostr event in P2P envelope
+- [ ] Rust: `hybrid_drain_nostr_from_p2p(topic)` — unwraps envelope, returns event JSON
+- [ ] SwiftUI: "P2P Nostr" card in Network > P2P with topic picker and event feed
+
+### Phase 33: Repository Auto-Sync
+- [ ] Rust: Background task that `git fetch --all` on all repos every N minutes
+- [ ] Rust: If HEAD changes, auto-publish NIP-34 repo event to configured relays + gossip topic
+- [ ] SwiftUI: Settings toggle for "Auto-sync repos"
+- [ ] SwiftUI: Settings field for sync interval (default 300s)
 
 ## Xcode Cloud
 
@@ -126,6 +147,8 @@
 - [ ] Peer connection graph/visualization
 - [ ] DHT routing table explorer
 - [x] IPNS key management
+- [x] DAG put/get with codec handling
+- [x] MFS ls/read/write/mkdir/rm/flush/stat
 
 ### Settings tab ✅
 - [x] Relay URL management (add/remove)

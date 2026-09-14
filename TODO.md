@@ -18,12 +18,15 @@
 
 ## Active Work (In Progress)
 
+- [ ] **Phase 31: NIP-34 + IPFS Hybrid Protocol Integration** — link NIP-34 repo events to MFS pinning, auto-pin cloned repos
+- [ ] **Phase 32: P2P Nostr Message Types** — structured GossipSub messages for Nostr events (kind routing over libp2p)
+- [ ] **Phase 33: Repository Auto-Sync** — background fetch + publish repo heads to Nostr on interval
 - [ ] **Xcode Cloud validation** — verify clean build on Xcode Cloud after all tab changes
-- [ ] **Phase 30: MFS / Files API** — assess feasibility via Kubo commands layer
 
 ## Recently Completed (2026-09-14)
 
-- [x] **Phase 29: DAG API** — `kubo_dag_put`/`kubo_dag_get` with codec handling, 16 tests passing
+- [x] **Phase 30: MFS API** — `mfs_ls/read/write/mkdir/rm/flush/stat` Go FFI + Rust + UniFFI + SwiftUI, 16 tests passing
+- [x] **Phase 29: DAG API** — `kubo_dag_put`/`kubo_dag_get` with codec handling
 - [x] **Phase 28: IPNS Key Management** — Go FFI + Rust + SwiftUI for generate/list/remove keys
 
 ## Blocked / Future
@@ -85,7 +88,10 @@
 | 27 | Done | Real-time Sidebar Badges |
 | 28 | Done | IPNS Key Management |
 | 29 | Done | DAG API — dag_put/dag_get with codec handling |
-| 30 | Blocked | MFS / Files API — not in CoreAPI |
+| 30 | Done | MFS API — mfs_ls/read/write/mkdir/rm/flush/stat |
+| 31 | Planned | NIP-34 + IPFS Hybrid Integration — auto-pin repos to MFS |
+| 32 | Planned | P2P Nostr Message Types — kind routing over GossipSub |
+| 33 | Planned | Repository Auto-Sync — background fetch + head publish |
 
 ---
 

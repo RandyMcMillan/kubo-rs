@@ -207,6 +207,38 @@ impl HybridNode {
         Ok(typed)
     }
 
+    /// Publish a signed Nostr event to a GossipSub topic wrapped in a
+    /// `P2pNostrEnvelope` so peers can route by kind.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the event JSON is invalid or GossipSub publish fails.
+    pub fn publish_nostr_to_p2p(&self, event_json: &str, topic: &str) -> Result<(), Error> {
+        let envelope = crate::p2p_messages::P2pNostrEnvelope::wrap(event_json, topic)
+            .map_err(|e| Error::Go(format!("wrap envelope: {e}")))?;
+        let payload = envelope.to_json()
+            .map_err(|e| Error::Go(format!("serialize envelope: {e}")))?;
+        self.p2p.gossip_publish_to(topic, &payload)?;
+        Ok(())
+    }
+
+    /// Drain GossipSub messages from a topic and unwrap `P2pNostrEnvelope`s.
+    ///
+    /// Returns only envelopes whose `topic` matches the requested topic.
+    /// Malformed envelopes are silently skipped.
+    pub fn drain_nostr_from_p2p(&self, topic: &str) -> Result<Vec<crate::p2p_messages::P2pNostrEnvelope>, Error> {
+        let raw = self.p2p.gossip_drain()?;
+        let mut envelopes = Vec::new();
+        for msg in raw {
+            if let Ok(env) = crate::p2p_messages::P2pNostrEnvelope::from_json(&msg) {
+                if env.topic == topic {
+                    envelopes.push(env);
+                }
+            }
+        }
+        Ok(envelopes)
+    }
+
     /// Shut down both subsystems.
     ///
     /// # Errors

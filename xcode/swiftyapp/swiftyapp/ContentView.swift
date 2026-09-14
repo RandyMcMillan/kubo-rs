@@ -1629,6 +1629,59 @@ struct ContentView: View {
                     }
                 }
             }
+
+            DashboardCard(title: "P2P Nostr") {
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField("Topic", text: $store.p2pNostrTopic)
+                        .textFieldStyle(.roundedBorder)
+                    TextEditor(text: $store.p2pNostrEventJson)
+                        .font(.system(.caption, design: .monospaced))
+                        .frame(minHeight: 60)
+                        .border(Color.secondary.opacity(0.2), width: 1)
+                    HStack(spacing: 12) {
+                        Button {
+                            store.publishNostrToP2p()
+                        } label: {
+                            Label("Publish", systemImage: "dot.radiowaves.left.and.right")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(store.p2pNostrEventJson.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        Button {
+                            store.drainNostrFromP2p()
+                        } label: {
+                            Label("Drain", systemImage: "arrow.down")
+                        }
+                        .buttonStyle(.bordered)
+
+                        Spacer()
+                    }
+                    if !store.p2pNostrEnvelopes.isEmpty {
+                        Text("Envelopes")
+                            .font(.headline)
+                        ForEach(Array(store.p2pNostrEnvelopes.enumerated()), id: \.offset) { _, env in
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(spacing: 8) {
+                                    Text("kind:\(env.kind)")
+                                        .font(.caption.weight(.semibold))
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(Capsule(style: .continuous).fill(Color.accentColor.opacity(0.15)))
+                                    Text(env.topic)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                }
+                                Text(env.eventJson)
+                                    .font(.system(.body, design: .monospaced))
+                                    .lineLimit(3)
+                                    .textSelection(.enabled)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+            }
         }
     }
 

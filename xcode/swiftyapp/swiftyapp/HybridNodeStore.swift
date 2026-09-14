@@ -136,6 +136,11 @@ final class HybridNodeStore: ObservableObject {
     @Published var pinRepoResult: String = ""
     @Published var publishRepoHeadResult: String = ""
 
+    // P2P Nostr (Phase 32)
+    @Published var p2pNostrTopic: String = "nostr-p2p"
+    @Published var p2pNostrEventJson: String = ""
+    @Published var p2pNostrEnvelopes: [P2pNostrEnvelope] = []
+
     // Network / DHT
     @Published var dhtPeerID: String = ""
     @Published var dhtPeerAddrs: [String] = []
@@ -691,6 +696,30 @@ final class HybridNodeStore: ObservableObject {
         )
         publishRepoHeadResult = result
         appendActivity(result.isEmpty ? "Publish repo head failed" : "Published repo head")
+    }
+
+    // MARK: - P2P Nostr Message Types (Phase 32)
+
+    func publishNostrToP2p() {
+        let event = p2pNostrEventJson.trimmingCharacters(in: .whitespacesAndNewlines)
+        let topic = p2pNostrTopic.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !event.isEmpty, !topic.isEmpty else {
+            appendActivity("Need event JSON and topic")
+            return
+        }
+        let ok = RustyLib.hybridPublishNostrToP2p(eventJson: event, topic: topic)
+        appendActivity(ok ? "Published Nostr event to P2P topic \(topic)" : "P2P Nostr publish failed")
+    }
+
+    func drainNostrFromP2p() {
+        let topic = p2pNostrTopic.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !topic.isEmpty else {
+            appendActivity("Need topic to drain")
+            return
+        }
+        let envelopes = RustyLib.hybridDrainNostrFromP2p(topic: topic)
+        p2pNostrEnvelopes = envelopes
+        appendActivity("Drained \(envelopes.count) P2P Nostr envelopes from \(topic)")
     }
 
     // MARK: - GossipSub Multi-Topic (Phase 25)

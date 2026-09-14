@@ -57,6 +57,26 @@ impl From<kubo_rs::p2p_messages::MessageCategory> for MessageCategory {
     }
 }
 
+/// UniFFI-compatible wrapper for `kubo_rs::p2p_messages::P2pNostrEnvelope`.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct P2pNostrEnvelope {
+    pub kind: u16,
+    pub event_json: String,
+    pub topic: String,
+    pub timestamp: u64,
+}
+
+impl From<kubo_rs::p2p_messages::P2pNostrEnvelope> for P2pNostrEnvelope {
+    fn from(env: kubo_rs::p2p_messages::P2pNostrEnvelope) -> Self {
+        P2pNostrEnvelope {
+            kind: env.kind,
+            event_json: env.event_json,
+            topic: env.topic,
+            timestamp: env.timestamp,
+        }
+    }
+}
+
 /// Error type exposed to Swift via UniFFI `throws`.
 #[derive(Debug, uniffi::Error)]
 pub enum RustyError {
@@ -861,6 +881,27 @@ pub fn dag_get(cid: String, output_codec: String) -> Vec<u8> {
     hybrid_with(|node| node.ipfs.dag_get(&cid, &output_codec).ok())
         .unwrap_or_default()
         .unwrap_or_default()
+}
+
+// ---------------------------------------------------------------------------
+// P2P Nostr Message Types (Phase 32)
+// ---------------------------------------------------------------------------
+
+#[uniffi::export]
+pub fn hybrid_publish_nostr_to_p2p(event_json: String, topic: String) -> bool {
+    hybrid_with(|node| node.publish_nostr_to_p2p(&event_json, &topic).ok())
+        .unwrap_or_default()
+        .is_some()
+}
+
+#[uniffi::export]
+pub fn hybrid_drain_nostr_from_p2p(topic: String) -> Vec<P2pNostrEnvelope> {
+    hybrid_with(|node| node.drain_nostr_from_p2p(&topic).ok())
+        .unwrap_or_default()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|e| e.into())
+        .collect()
 }
 
 // ---------------------------------------------------------------------------

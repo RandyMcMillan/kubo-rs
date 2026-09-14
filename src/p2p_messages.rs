@@ -168,6 +168,46 @@ pub fn filter_by_kind(event_jsons: Vec<String>, kind: u16) -> Vec<String> {
         .collect()
 }
 
+/// A structured envelope for transporting Nostr events over GossipSub.
+///
+/// Instead of publishing raw Nostr event JSON to a GossipSub topic,
+/// peers wrap events in this envelope so recipients can route by kind
+/// and verify the originating topic.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct P2pNostrEnvelope {
+    pub kind: u16,
+    pub event_json: String,
+    pub topic: String,
+    pub timestamp: u64,
+}
+
+impl P2pNostrEnvelope {
+    /// Wrap a signed Nostr event JSON into an envelope for a given topic.
+    pub fn wrap(event_json: &str, topic: &str) -> Result<Self, String> {
+        let kind = extract_event_kind(event_json).ok_or("missing kind")?;
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        Ok(P2pNostrEnvelope {
+            kind,
+            event_json: event_json.to_string(),
+            topic: topic.to_string(),
+            timestamp,
+        })
+    }
+
+    /// Serialize the envelope to a JSON string for GossipSub transport.
+    pub fn to_json(&self) -> Result<String, serde_json::Error> {
+        serde_json::to_string(self)
+    }
+
+    /// Parse an envelope from a GossipSub message payload.
+    pub fn from_json(json: &str) -> Result<Self, String> {
+        serde_json::from_str(json).map_err(|e| e.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -19,9 +19,15 @@
 ## Active Work (In Progress)
 
 - [ ] **Xcode Cloud validation** — verify clean build on Xcode Cloud after all tab changes
-- [ ] **Phase 28: IPNS Key Management** — generate, list, rotate IPNS keys
-- [ ] **Phase 29: DAG API** — DAG put/get operations in SwiftUI
-- [ ] **Phase 30: MFS / Files API** — mutable file system operations
+
+## Recently Completed (2026-09-14)
+
+- [x] **Phase 28: IPNS Key Management** — Go FFI + Rust + SwiftUI for generate/list/remove keys
+
+## Blocked / Future
+
+- [ ] **Phase 29: DAG API** — requires Go FFI for `ipld.DAGService` serialization (complex)
+- [ ] **Phase 30: MFS / Files API** — MFS not exposed through Kubo CoreAPI (requires Go commands layer)
 
 ## Recently Completed (2026-09-12)
 
@@ -76,9 +82,9 @@
 | 25 | Done | GossipSub Multi-Topic UI |
 | 26 | Done | Nostr QR Code |
 | 27 | Done | Real-time Sidebar Badges |
-| 28 | Future | IPNS Key Management |
-| 29 | Future | DAG API |
-| 30 | Future | MFS / Files API |
+| 28 | Done | IPNS Key Management |
+| 29 | Blocked | DAG API — needs Go FFI for IPLD serialization |
+| 30 | Blocked | MFS / Files API — not in CoreAPI |
 
 ---
 

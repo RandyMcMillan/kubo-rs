@@ -117,23 +117,23 @@
 - [x] Publish issue button: title/body form → `hybridPublishIssue`
 - [x] Incoming events: display repo/patch/issue events in a feed
 
-### Code Review / Issue Tracker / Repo Discovery (Next)
-- [ ] Dedicated Code Review view for `kind:1617` patches with diff display
-- [ ] Dedicated Issue Tracker view for `kind:1621` issues with status tracking
-- [ ] Dedicated Repo Discovery view for `kind:30617` announcements
+### Code Review / Issue Tracker / Repo Discovery ✅
+- [x] Dedicated Code Review view for `kind:1617` patches with diff display
+- [x] Dedicated Issue Tracker view for `kind:1621` issues with status tracking
+- [x] Dedicated Repo Discovery view for `kind:30617` announcements
 
 ### Network tab enhancements
 - [ ] Peer connection graph/visualization
 - [ ] DHT routing table explorer
-- [ ] IPNS key management
+- [x] IPNS key management
 
 ### Settings tab ✅
 - [x] Relay URL management (add/remove)
 - [x] GossipSub topic subscriptions (join/leave)
 - [x] Node online/offline toggle
 - [x] Display Nostr public key
-- [ ] QR code generation for public key
-- [ ] Multiple relay connection status indicators
+- [x] QR code generation for public key
+- [x] Multiple relay connection status indicators
 
 ## Performance & Polish
 

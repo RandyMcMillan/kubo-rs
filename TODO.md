@@ -89,9 +89,11 @@
 | 28 | Done | IPNS Key Management |
 | 29 | Done | DAG API — dag_put/dag_get with codec handling |
 | 30 | Done | MFS API — mfs_ls/read/write/mkdir/rm/flush/stat |
-| 31 | Planned | NIP-34 + IPFS Hybrid Integration — auto-pin repos to MFS |
-| 32 | Planned | P2P Nostr Message Types — kind routing over GossipSub |
-| 33 | Planned | Repository Auto-Sync — background fetch + head publish |
+| 31 | Done | NIP-34 + IPFS Hybrid Integration — auto-pin repos to MFS |
+| 32 | Done | P2P Nostr Message Types — kind routing over GossipSub |
+| 33 | Done | Repository Auto-Sync — background fetch + head publish |
+| 34 | Planned | WebRTC/libp2p in WASM — explore alternatives to CGO dependency |
+| 35 | Planned | Xcode Cloud — verify clean CI build, add swift test step |
 
 ---
 

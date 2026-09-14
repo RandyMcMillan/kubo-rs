@@ -422,18 +422,41 @@ Exposed Phase 9 + Phase 10 methods to Swift.
 
 ---
 
-### Phase 33: Repository Auto-Sync (Planned)
+### Phase 33: Repository Auto-Sync ✅
 
 **Goal:** Background fetch + publish repo heads to Nostr on interval.
 
 **Rust work:**
-- Background task that `git fetch --all` on all repos every N minutes
-- If HEAD changes, auto-publish NIP-34 repo event to configured relays + gossip topic
+- `HybridNode::check_repo_sync` — opens repo, gets HEAD, runs `git fetch --all`, compares HEAD, publishes NIP-34 event if changed
+- Static `HEAD_CACHE` to avoid duplicate publishes
 
 **SwiftUI work:**
 - Settings toggle for "Auto-sync repos"
 - Settings field for sync interval (default 300s)
-- Activity log entry when auto-sync triggers
+- Background polling loop calls `checkRepoSyncIfNeeded()` every sync interval
+
+---
+
+### Phase 34: WebRTC/libp2p in WASM (Planned)
+
+**Goal:** Explore alternatives to CGO for browser-based libp2p.
+
+**Status:** CGO is required for our current libp2p stack. WASM targets (`wasm32-unknown-unknown`, `wasm32-wasip1`) cannot compile `secp256k1-sys` and other C dependencies.
+
+**Possible approaches:**
+- Bridge to `js-libp2p` via `wasm-bindgen` in browser contexts
+- Use a WASM-compatible Rust libp2p implementation (light client only)
+- Run a relay/node in the background and communicate via WebSocket from WASM
+
+---
+
+### Phase 35: Xcode Cloud CI (Planned)
+
+**Goal:** Verify clean CI build and add Swift tests to CI.
+
+**Remaining work:**
+- Verify `ci_post_clone.sh` still builds XCFramework before SPM resolve
+- Add `swift test` step to `.github/workflows/xcode-release.yml` or `make.yml`
 
 ---
 

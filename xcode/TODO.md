@@ -98,25 +98,35 @@
 - [ ] Add integration test for full NIP-94 file publish → resolve round-trip
 - [ ] Add MFS round-trip test (write → read → stat → rm)
 
-## Next Phases (2026-09-14)
+## Completed Phases (2026-09-14)
 
-### Phase 31: NIP-34 + IPFS Hybrid Integration
-- [ ] Rust: `HybridNode::pin_repo_to_mfs(repo_path, mfs_path)` — copy repo files into MFS
-- [ ] Rust: `HybridNode::publish_repo_head(repo_path)` — get HEAD, pin CID, publish NIP-34 event
-- [ ] SwiftUI: "Pin to MFS" button in Repository tab
-- [ ] SwiftUI: "Publish Head" button — reads git HEAD, calls `publish_repo_head`, displays NIP-34 event
+### Phase 31: NIP-34 + IPFS Hybrid Integration ✅
+- [x] Rust: `HybridNode::pin_repo_to_mfs(repo_path, mfs_path)` — copy repo files into MFS
+- [x] Rust: `HybridNode::publish_repo_head(repo_path)` — get HEAD, pin CID, publish NIP-34 event
+- [x] SwiftUI: "Pin to MFS" button in Repository tab
+- [x] SwiftUI: "Publish Head" button — reads git HEAD, calls `publish_repo_head`, displays NIP-34 event
 
-### Phase 32: P2P Nostr Message Types
-- [ ] Rust: Define `P2pNostrEnvelope` record (kind, event_json, signature, topic) for structured GossipSub
-- [ ] Rust: `hybrid_publish_nostr_to_p2p(event_json, topic)` — wraps Nostr event in P2P envelope
-- [ ] Rust: `hybrid_drain_nostr_from_p2p(topic)` — unwraps envelope, returns event JSON
-- [ ] SwiftUI: "P2P Nostr" card in Network > P2P with topic picker and event feed
+### Phase 32: P2P Nostr Message Types ✅
+- [x] Rust: Define `P2pNostrEnvelope` record (kind, event_json, signature, topic) for structured GossipSub
+- [x] Rust: `hybrid_publish_nostr_to_p2p(event_json, topic)` — wraps Nostr event in P2P envelope
+- [x] Rust: `hybrid_drain_nostr_from_p2p(topic)` — unwraps envelope, returns event JSON
+- [x] SwiftUI: "P2P Nostr" card in Network > P2P with topic picker and event feed
 
-### Phase 33: Repository Auto-Sync
-- [ ] Rust: Background task that `git fetch --all` on all repos every N minutes
-- [ ] Rust: If HEAD changes, auto-publish NIP-34 repo event to configured relays + gossip topic
-- [ ] SwiftUI: Settings toggle for "Auto-sync repos"
-- [ ] SwiftUI: Settings field for sync interval (default 300s)
+### Phase 33: Repository Auto-Sync ✅
+- [x] Rust: Background task that `git fetch --all` on all repos every N minutes
+- [x] Rust: If HEAD changes, auto-publish NIP-34 repo event to configured relays + gossip topic
+- [x] SwiftUI: Settings toggle for "Auto-sync repos"
+- [x] SwiftUI: Settings field for sync interval (default 300s)
+
+## Next Phases
+
+### Phase 34: WebRTC/libp2p in WASM
+- [ ] Explore alternatives to CGO dependency for browser-based libp2p
+- [ ] Evaluate js-libp2p bridge via wasm-bindgen
+
+### Phase 35: Xcode Cloud CI
+- [ ] Verify clean CI build after all tab changes
+- [ ] Add `swift test` step to CI workflow (macOS runner)
 
 ## Xcode Cloud
 

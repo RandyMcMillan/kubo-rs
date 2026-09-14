@@ -942,3 +942,73 @@ func kubo_name_resolve(handle uint64, nameStr *C.char) *C.char {
 	setError(nil)
 	return C.CString(resolved.String())
 }
+
+//export kubo_key_gen
+func kubo_key_gen(handle uint64, nameStr *C.char) *C.char {
+	nodesMu.RLock()
+	h, ok := nodes[handle]
+	nodesMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid handle %d", handle))
+		return nil
+	}
+
+	name := C.GoString(nameStr)
+	key, err := h.api.Key().Generate(h.ctx, name)
+	if err != nil {
+		setError(fmt.Errorf("key gen: %w", err))
+		return nil
+	}
+
+	setError(nil)
+	return C.CString(key.ID().String())
+}
+
+//export kubo_key_list
+func kubo_key_list(handle uint64) *C.char {
+	nodesMu.RLock()
+	h, ok := nodes[handle]
+	nodesMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid handle %d", handle))
+		return nil
+	}
+
+	keys, err := h.api.Key().List(h.ctx)
+	if err != nil {
+		setError(fmt.Errorf("key list: %w", err))
+		return nil
+	}
+
+	var parts []string
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s:%s", k.Name(), k.ID().String()))
+	}
+
+	setError(nil)
+	return C.CString(strings.Join(parts, "\n"))
+}
+
+//export kubo_key_rm
+func kubo_key_rm(handle uint64, nameStr *C.char) *C.char {
+	nodesMu.RLock()
+	h, ok := nodes[handle]
+	nodesMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid handle %d", handle))
+		return nil
+	}
+
+	name := C.GoString(nameStr)
+	key, err := h.api.Key().Remove(h.ctx, name)
+	if err != nil {
+		setError(fmt.Errorf("key rm: %w", err))
+		return nil
+	}
+
+	setError(nil)
+	return C.CString(key.ID().String())
+}

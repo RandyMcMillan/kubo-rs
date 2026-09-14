@@ -269,6 +269,35 @@ impl Node {
         ffi::name_resolve(self.handle, name)
     }
 
+    /// Generate a new IPNS key.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if key generation fails.
+    pub fn key_gen(&self, name: &str) -> Result<String, Error> {
+        ffi::key_gen(self.handle, name)
+    }
+
+    /// List IPNS keys.
+    ///
+    /// Returns a newline-separated list of `name:peer_id` pairs.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if listing fails.
+    pub fn key_list(&self) -> Result<String, Error> {
+        ffi::key_list(self.handle)
+    }
+
+    /// Remove an IPNS key.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if removal fails.
+    pub fn key_rm(&self, name: &str) -> Result<String, Error> {
+        ffi::key_rm(self.handle, name)
+    }
+
     /// Shut the node down and consume the handle.
     ///
     /// # Errors

@@ -107,6 +107,12 @@ final class HybridNodeStore: ObservableObject {
     @Published var isPolling: Bool = false
     private var pollingTask: Task<Void, Never>?
 
+    // IPNS Keys (Phase 28)
+    @Published var ipnsKeys: [(name: String, peerID: String)] = []
+    @Published var ipnsKeyGenName: String = ""
+    @Published var ipnsKeyGenResult: String = ""
+    @Published var ipnsKeyRmResult: String = ""
+
     // Network / DHT
     @Published var dhtPeerID: String = ""
     @Published var dhtPeerAddrs: [String] = []
@@ -528,6 +534,37 @@ final class HybridNodeStore: ObservableObject {
                 connectRelayEntry(id: relay.id)
             }
         }
+    }
+
+    // MARK: - IPNS Key Management (Phase 28)
+
+    func refreshIpnsKeys() {
+        let result = RustyLib.ipnsKeyList()
+        var keys: [(name: String, peerID: String)] = []
+        for line in result.split(separator: "\n") {
+            let parts = line.split(separator: ":", maxSplits: 1)
+            if parts.count == 2 {
+                keys.append((name: String(parts[0]), peerID: String(parts[1])))
+            }
+        }
+        ipnsKeys = keys
+    }
+
+    func generateIpnsKey() {
+        let name = ipnsKeyGenName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        let result = RustyLib.ipnsKeyGen(name: name)
+        ipnsKeyGenResult = result
+        ipnsKeyGenName = ""
+        refreshIpnsKeys()
+        appendActivity("Generated IPNS key: \(result)")
+    }
+
+    func removeIpnsKey(name: String) {
+        let result = RustyLib.ipnsKeyRm(name: name)
+        ipnsKeyRmResult = result
+        refreshIpnsKeys()
+        appendActivity("Removed IPNS key: \(name)")
     }
 
     // MARK: - GossipSub Multi-Topic (Phase 25)

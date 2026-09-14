@@ -820,6 +820,31 @@ pub fn hybrid_drain_typed(relay_sub_handle: Option<u64>) -> Result<Vec<HybridMes
     Ok(messages)
 }
 
+// ---------------------------------------------------------------------------
+// IPNS Key Management (Phase 28)
+// ---------------------------------------------------------------------------
+
+#[uniffi::export]
+pub fn ipns_key_gen(name: &str) -> String {
+    hybrid_with(|node| node.ipfs.key_gen(name).ok())
+        .unwrap_or_default()
+        .unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn ipns_key_list() -> String {
+    hybrid_with(|node| node.ipfs.key_list().ok())
+        .unwrap_or_default()
+        .unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn ipns_key_rm(name: &str) -> String {
+    hybrid_with(|node| node.ipfs.key_rm(name).ok())
+        .unwrap_or_default()
+        .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::rust_hello;

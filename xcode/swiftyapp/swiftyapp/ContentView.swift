@@ -971,6 +971,65 @@ struct ContentView: View {
                                 .textSelection(.enabled)
                         }
                     }
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 12) {
+                            Text("IPNS Keys")
+                                .font(.headline)
+                            Spacer()
+                            Button {
+                                store.refreshIpnsKeys()
+                            } label: {
+                                Image(systemName: "arrow.clockwise")
+                            }
+                            .buttonStyle(.borderless)
+                        }
+                        HStack(spacing: 12) {
+                            TextField("Key name…", text: $store.ipnsKeyGenName)
+                                .textFieldStyle(.roundedBorder)
+                            Button {
+                                store.generateIpnsKey()
+                            } label: {
+                                Label("Generate", systemImage: "key")
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(store.ipnsKeyGenName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+                        if !store.ipnsKeyGenResult.isEmpty {
+                            Text(store.ipnsKeyGenResult)
+                                .font(.system(.caption, design: .monospaced))
+                                .textSelection(.enabled)
+                        }
+                        if store.ipnsKeys.isEmpty {
+                            Text("No keys. Generate one to publish IPNS names.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(Array(store.ipnsKeys.enumerated()), id: \.offset) { _, key in
+                                HStack(spacing: 12) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(key.name)
+                                            .font(.subheadline.weight(.semibold))
+                                        Text(key.peerID)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
+                                    Spacer()
+                                    Button {
+                                        store.removeIpnsKey(name: key.name)
+                                    } label: {
+                                        Image(systemName: "trash")
+                                            .foregroundStyle(.red)
+                                    }
+                                    .buttonStyle(.borderless)
+                                }
+                                .padding(.vertical, 4)
+                            }
+                        }
+                    }
                 }
             }
         }

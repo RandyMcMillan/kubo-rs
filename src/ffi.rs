@@ -44,6 +44,9 @@ unsafe extern "C" {
     fn kubo_dht_findprovs(handle: u64, cid_str: *const c_char) -> *mut c_char;
     fn kubo_name_publish(handle: u64, cid_str: *const c_char, lifetime_sec: i64) -> *mut c_char;
     fn kubo_name_resolve(handle: u64, name_str: *const c_char) -> *mut c_char;
+    fn kubo_key_gen(handle: u64, name_str: *const c_char) -> *mut c_char;
+    fn kubo_key_list(handle: u64) -> *mut c_char;
+    fn kubo_key_rm(handle: u64, name_str: *const c_char) -> *mut c_char;
 
     // libp2p
     fn kubo_libp2p_host_new() -> u64;
@@ -378,6 +381,29 @@ pub fn name_resolve(handle: u64, name: &str) -> Result<String, Error> {
     let c_name = CString::new(name)?;
     unsafe {
         ptr_to_string(kubo_name_resolve(handle, c_name.as_ptr()))
+            .ok_or_else(|| Error::Go(last_error()))
+    }
+}
+
+pub fn key_gen(handle: u64, name: &str) -> Result<String, Error> {
+    let c_name = CString::new(name)?;
+    unsafe {
+        ptr_to_string(kubo_key_gen(handle, c_name.as_ptr()))
+            .ok_or_else(|| Error::Go(last_error()))
+    }
+}
+
+pub fn key_list(handle: u64) -> Result<String, Error> {
+    unsafe {
+        ptr_to_string(kubo_key_list(handle))
+            .ok_or_else(|| Error::Go(last_error()))
+    }
+}
+
+pub fn key_rm(handle: u64, name: &str) -> Result<String, Error> {
+    let c_name = CString::new(name)?;
+    unsafe {
+        ptr_to_string(kubo_key_rm(handle, c_name.as_ptr()))
             .ok_or_else(|| Error::Go(last_error()))
     }
 }

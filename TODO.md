@@ -19,14 +19,15 @@
 ## Active Work (In Progress)
 
 - [ ] **Xcode Cloud validation** — verify clean build on Xcode Cloud after all tab changes
+- [ ] **Phase 30: MFS / Files API** — assess feasibility via Kubo commands layer
 
 ## Recently Completed (2026-09-14)
 
+- [x] **Phase 29: DAG API** — `kubo_dag_put`/`kubo_dag_get` with codec handling, 16 tests passing
 - [x] **Phase 28: IPNS Key Management** — Go FFI + Rust + SwiftUI for generate/list/remove keys
 
 ## Blocked / Future
 
-- [ ] **Phase 29: DAG API** — requires Go FFI for `ipld.DAGService` serialization (complex)
 - [ ] **Phase 30: MFS / Files API** — MFS not exposed through Kubo CoreAPI (requires Go commands layer)
 
 ## Recently Completed (2026-09-12)
@@ -83,7 +84,7 @@
 | 26 | Done | Nostr QR Code |
 | 27 | Done | Real-time Sidebar Badges |
 | 28 | Done | IPNS Key Management |
-| 29 | Blocked | DAG API — needs Go FFI for IPLD serialization |
+| 29 | Done | DAG API — dag_put/dag_get with codec handling |
 | 30 | Blocked | MFS / Files API — not in CoreAPI |
 
 ---

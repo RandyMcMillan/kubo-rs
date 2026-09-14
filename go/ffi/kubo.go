@@ -21,7 +21,9 @@ import (
 
 	"github.com/ipfs/boxo/files"
 	"github.com/ipfs/boxo/path"
+	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
+	ipldlegacy "github.com/ipfs/go-ipld-legacy"
 	ipfs "github.com/ipfs/kubo"
 	"github.com/ipfs/kubo/commands"
 	"github.com/ipfs/kubo/config"
@@ -33,9 +35,20 @@ import (
 	"github.com/ipfs/kubo/core/node/libp2p"
 	"github.com/ipfs/kubo/plugin/loader"
 	"github.com/ipfs/kubo/repo/fsrepo"
+	"github.com/ipld/go-ipld-prime/multicodec"
+	basicnode "github.com/ipld/go-ipld-prime/node/basic"
 	"github.com/libp2p/go-libp2p/core/peer"
+	mc "github.com/multiformats/go-multicodec"
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
+
+	// DAG codecs
+	_ "github.com/ipld/go-codec-dagpb"
+	_ "github.com/ipld/go-ipld-prime/codec/cbor"
+	_ "github.com/ipld/go-ipld-prime/codec/dagcbor"
+	_ "github.com/ipld/go-ipld-prime/codec/dagjson"
+	_ "github.com/ipld/go-ipld-prime/codec/json"
+	_ "github.com/ipld/go-ipld-prime/codec/raw"
 )
 
 // ---------------------------------------------------------------------------
@@ -1011,4 +1024,161 @@ func kubo_key_rm(handle uint64, nameStr *C.char) *C.char {
 
 	setError(nil)
 	return C.CString(key.ID().String())
+}
+
+//export kubo_dag_put
+func kubo_dag_put(handle uint64, data *C.uint8_t, length C.size_t,
+	inputCodecStr *C.char, storeCodecStr *C.char) *C.char {
+	nodesMu.RLock()
+	h, ok := nodes[handle]
+	nodesMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid handle %d", handle))
+		return nil
+	}
+
+	inputCodecName := C.GoString(inputCodecStr)
+	storeCodecName := C.GoString(storeCodecStr)
+
+	var icodec mc.Code
+	if err := icodec.Set(inputCodecName); err != nil {
+		setError(fmt.Errorf("invalid input codec: %w", err))
+		return nil
+	}
+	var scodec mc.Code
+	if err := scodec.Set(storeCodecName); err != nil {
+		setError(fmt.Errorf("invalid store codec: %w", err))
+		return nil
+	}
+
+	decoder, err := multicodec.LookupDecoder(uint64(icodec))
+	if err != nil {
+		setError(fmt.Errorf("lookup decoder: %w", err))
+		return nil
+	}
+	encoder, err := multicodec.LookupEncoder(uint64(scodec))
+	if err != nil {
+		setError(fmt.Errorf("lookup encoder: %w", err))
+		return nil
+	}
+
+	buf := C.GoBytes(unsafe.Pointer(data), C.int(length))
+	node := basicnode.Prototype.Any.NewBuilder()
+	if err := decoder(node, bytes.NewReader(buf)); err != nil {
+		setError(fmt.Errorf("decode: %w", err))
+		return nil
+	}
+	n := node.Build()
+
+	bd := bytes.NewBuffer([]byte{})
+	if err := encoder(n, bd); err != nil {
+		setError(fmt.Errorf("encode: %w", err))
+		return nil
+	}
+
+	cfg, err := h.node.Repo.Config()
+	if err != nil {
+		setError(fmt.Errorf("repo config: %w", err))
+		return nil
+	}
+	hash := cfg.Import.HashFunction.WithDefault(config.DefaultHashFunction)
+	var mhType mc.Code
+	if err := mhType.Set(hash); err != nil {
+		setError(fmt.Errorf("hash function: %w", err))
+		return nil
+	}
+
+	prefix := cid.Prefix{
+		Version:  1,
+		Codec:    uint64(scodec),
+		MhType:   uint64(mhType),
+		MhLength: -1,
+	}
+	blockCid, err := prefix.Sum(bd.Bytes())
+	if err != nil {
+		setError(fmt.Errorf("cid sum: %w", err))
+		return nil
+	}
+	blk, err := blocks.NewBlockWithCid(bd.Bytes(), blockCid)
+	if err != nil {
+		setError(fmt.Errorf("block: %w", err))
+		return nil
+	}
+	ln := ipldlegacy.LegacyNode{
+		Block: blk,
+		Node:  n,
+	}
+
+	if err := h.api.Dag().Add(h.ctx, &ln); err != nil {
+		setError(fmt.Errorf("dag add: %w", err))
+		return nil
+	}
+
+	setError(nil)
+	return C.CString(ln.Cid().String())
+}
+
+//export kubo_dag_get
+func kubo_dag_get(handle uint64, cidStr *C.char, outputCodecStr *C.char,
+	out **C.uint8_t, outLen *C.size_t) int64 {
+	nodesMu.RLock()
+	h, ok := nodes[handle]
+	nodesMu.RUnlock()
+
+	if !ok {
+		setError(fmt.Errorf("invalid handle %d", handle))
+		return -1
+	}
+
+	c, err := cid.Decode(C.GoString(cidStr))
+	if err != nil {
+		setError(fmt.Errorf("decode cid: %w", err))
+		return -1
+	}
+
+	codecName := C.GoString(outputCodecStr)
+	var codec mc.Code
+	if err := codec.Set(codecName); err != nil {
+		setError(fmt.Errorf("invalid output codec: %w", err))
+		return -1
+	}
+
+	obj, err := h.api.Dag().Get(h.ctx, c)
+	if err != nil {
+		setError(fmt.Errorf("dag get: %w", err))
+		return -1
+	}
+
+	universal, ok := obj.(ipldlegacy.UniversalNode)
+	if !ok {
+		setError(fmt.Errorf("%T is not a valid IPLD node", obj))
+		return -1
+	}
+	finalNode := universal
+
+	encoder, err := multicodec.LookupEncoder(uint64(codec))
+	if err != nil {
+		setError(fmt.Errorf("lookup encoder: %w", err))
+		return -1
+	}
+
+	bd := bytes.NewBuffer([]byte{})
+	if err := encoder(finalNode, bd); err != nil {
+		setError(fmt.Errorf("encode: %w", err))
+		return -1
+	}
+
+	b := bd.Bytes()
+	if len(b) == 0 {
+		setError(nil)
+		*out = nil
+		*outLen = 0
+		return 0
+	}
+	cb := C.CBytes(b)
+	*out = (*C.uint8_t)(cb)
+	*outLen = C.size_t(len(b))
+	setError(nil)
+	return 0
 }

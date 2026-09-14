@@ -223,6 +223,21 @@ final class RustyLibTests: XCTestCase {
         XCTAssertFalse(listAfter.contains(keyName), "Key list should not contain removed key")
     }
 
+    // MARK: - DAG API (Phase 29)
+
+    func testDagPutGetRoundtrip() throws {
+        try hybridStartTry(online: false)
+        defer { _ = hybridStop() }
+
+        let json = "{\"hello\": \"world\"}"
+        let cid = dagPut(data: Data(json.utf8), inputCodec: "dag-json", storeCodec: "dag-cbor")
+        XCTAssertFalse(cid.isEmpty, "DAG put should return a CID")
+
+        let data = dagGet(cid: cid, outputCodec: "dag-json")
+        let result = String(data: data, encoding: .utf8) ?? ""
+        XCTAssertTrue(result.contains("hello"), "DAG get should return the original data")
+    }
+
     // MARK: - P2P Host (best-effort; may be empty in simulator)
 
     func testP2pHostSmoke() {

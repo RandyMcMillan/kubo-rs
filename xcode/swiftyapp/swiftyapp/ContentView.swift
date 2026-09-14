@@ -1031,6 +1031,63 @@ struct ContentView: View {
                         }
                     }
                 }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("DAG Put")
+                        .font(.headline)
+                    HStack(spacing: 12) {
+                        TextField("Input codec", text: $store.dagPutInputCodec)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 100)
+                        TextField("Store codec", text: $store.dagPutStoreCodec)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 100)
+                    }
+                    TextEditor(text: $store.dagPutInput)
+                        .font(.system(.caption, design: .monospaced))
+                        .frame(minHeight: 60)
+                        .border(Color.secondary.opacity(0.2), width: 1)
+                    Button {
+                        store.dagPut()
+                    } label: {
+                        Label("Put", systemImage: "square.and.arrow.down")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    if !store.dagPutResult.isEmpty {
+                        Text(store.dagPutResult)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                    }
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("DAG Get")
+                        .font(.headline)
+                    HStack(spacing: 12) {
+                        TextField("CID…", text: $store.dagGetCID)
+                            .textFieldStyle(.roundedBorder)
+                        TextField("Output codec", text: $store.dagGetOutputCodec)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 120)
+                    }
+                    Button {
+                        store.dagGet()
+                    } label: {
+                        Label("Get", systemImage: "square.and.arrow.up")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(store.dagGetCID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    if !store.dagGetResult.isEmpty {
+                        Text(store.dagGetResult)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxHeight: 200)
+                    }
+                }
             }
         }
     }

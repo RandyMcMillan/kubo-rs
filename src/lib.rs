@@ -298,6 +298,29 @@ impl Node {
         ffi::key_rm(self.handle, name)
     }
 
+    /// Add a DAG node.
+    ///
+    /// `input_codec` is the format of the input data (e.g. "dag-json").
+    /// `store_codec` is the format to store the node as (e.g. "dag-cbor").
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
+    pub fn dag_put(&self, data: &[u8], input_codec: &str, store_codec: &str) -> Result<String, Error> {
+        ffi::dag_put(self.handle, data, input_codec, store_codec)
+    }
+
+    /// Get a DAG node by CID.
+    ///
+    /// `output_codec` is the format to encode the result in (e.g. "dag-json").
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
+    pub fn dag_get(&self, cid: &str, output_codec: &str) -> Result<Vec<u8>, Error> {
+        ffi::dag_get(self.handle, cid, output_codec)
+    }
+
     /// Shut the node down and consume the handle.
     ///
     /// # Errors

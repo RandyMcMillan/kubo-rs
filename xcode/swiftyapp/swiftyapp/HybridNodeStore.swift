@@ -113,6 +113,15 @@ final class HybridNodeStore: ObservableObject {
     @Published var ipnsKeyGenResult: String = ""
     @Published var ipnsKeyRmResult: String = ""
 
+    // DAG (Phase 29)
+    @Published var dagPutInput: String = "{\"hello\": \"world\"}"
+    @Published var dagPutInputCodec: String = "dag-json"
+    @Published var dagPutStoreCodec: String = "dag-cbor"
+    @Published var dagPutResult: String = ""
+    @Published var dagGetCID: String = ""
+    @Published var dagGetOutputCodec: String = "dag-json"
+    @Published var dagGetResult: String = ""
+
     // Network / DHT
     @Published var dhtPeerID: String = ""
     @Published var dhtPeerAddrs: [String] = []
@@ -565,6 +574,23 @@ final class HybridNodeStore: ObservableObject {
         ipnsKeyRmResult = result
         refreshIpnsKeys()
         appendActivity("Removed IPNS key: \(name)")
+    }
+
+    // MARK: - DAG API (Phase 29)
+
+    func dagPut() {
+        let data = Data(dagPutInput.utf8)
+        let cid = RustyLib.dagPut(data: data, inputCodec: dagPutInputCodec, storeCodec: dagPutStoreCodec)
+        dagPutResult = cid
+        appendActivity("DAG put: \(cid)")
+    }
+
+    func dagGet() {
+        let cid = dagGetCID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cid.isEmpty else { return }
+        let data = RustyLib.dagGet(cid: cid, outputCodec: dagGetOutputCodec)
+        dagGetResult = String(data: data, encoding: .utf8) ?? data.base64EncodedString()
+        appendActivity("DAG get: \(data.count) bytes")
     }
 
     // MARK: - GossipSub Multi-Topic (Phase 25)

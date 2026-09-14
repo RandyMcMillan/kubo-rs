@@ -845,6 +845,24 @@ pub fn ipns_key_rm(name: &str) -> String {
         .unwrap_or_default()
 }
 
+// ---------------------------------------------------------------------------
+// DAG API (Phase 29)
+// ---------------------------------------------------------------------------
+
+#[uniffi::export]
+pub fn dag_put(data: Vec<u8>, input_codec: String, store_codec: String) -> String {
+    hybrid_with(|node| node.ipfs.dag_put(&data, &input_codec, &store_codec).ok())
+        .unwrap_or_default()
+        .unwrap_or_default()
+}
+
+#[uniffi::export]
+pub fn dag_get(cid: String, output_codec: String) -> Vec<u8> {
+    hybrid_with(|node| node.ipfs.dag_get(&cid, &output_codec).ok())
+        .unwrap_or_default()
+        .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::rust_hello;

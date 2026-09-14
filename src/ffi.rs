@@ -47,6 +47,20 @@ unsafe extern "C" {
     fn kubo_key_gen(handle: u64, name_str: *const c_char) -> *mut c_char;
     fn kubo_key_list(handle: u64) -> *mut c_char;
     fn kubo_key_rm(handle: u64, name_str: *const c_char) -> *mut c_char;
+    fn kubo_dag_put(
+        handle: u64,
+        data: *const u8,
+        length: usize,
+        input_codec: *const c_char,
+        store_codec: *const c_char,
+    ) -> *mut c_char;
+    fn kubo_dag_get(
+        handle: u64,
+        cid_str: *const c_char,
+        output_codec: *const c_char,
+        out: *mut *mut u8,
+        out_len: *mut usize,
+    ) -> i64;
 
     // libp2p
     fn kubo_libp2p_host_new() -> u64;
@@ -865,5 +879,38 @@ pub fn git_repo_diff_trees(handle: u64, old_hash: &str, new_hash: &str) -> Resul
             c_new.as_ptr(),
         ))
         .ok_or_else(|| Error::Go(last_error()))
+    }
+}
+
+pub fn dag_put(handle: u64, data: &[u8], input_codec: &str, store_codec: &str) -> Result<String, Error> {
+    let c_input = CString::new(input_codec)?;
+    let c_store = CString::new(store_codec)?;
+    unsafe {
+        ptr_to_string(kubo_dag_put(
+            handle,
+            data.as_ptr(),
+            data.len(),
+            c_input.as_ptr(),
+            c_store.as_ptr(),
+        ))
+        .ok_or_else(|| Error::Go(last_error()))
+    }
+}
+
+pub fn dag_get(handle: u64, cid: &str, output_codec: &str) -> Result<Vec<u8>, Error> {
+    let c_cid = CString::new(cid)?;
+    let c_codec = CString::new(output_codec)?;
+    unsafe {
+        let mut out: *mut u8 = std::ptr::null_mut();
+        let mut out_len: usize = 0;
+        let code = kubo_dag_get(handle, c_cid.as_ptr(), c_codec.as_ptr(), &mut out, &mut out_len);
+        check_err(code)?;
+        if out.is_null() || out_len == 0 {
+            Ok(Vec::new())
+        } else {
+            let buf = slice::from_raw_parts(out, out_len).to_vec();
+            kubo_ffi_free_buffer(out);
+            Ok(buf)
+        }
     }
 }

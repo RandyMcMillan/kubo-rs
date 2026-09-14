@@ -360,6 +360,59 @@ impl HybridNode {
         Ok(event)
     }
 
+    /// Check a Git repository for remote updates and auto-publish a NIP-34
+    /// announcement if HEAD changed after `git fetch --all`.
+    ///
+    /// Uses a static cache to avoid duplicate publishes for the same HEAD.
+    /// Returns `true` if a publish occurred.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if repo operations or publish fails.
+    pub fn check_repo_sync(
+        &self,
+        repo_path: &str,
+        description: &str,
+        clone_urls: &[String],
+        secret_key: &str,
+        relay_handle: Option<u64>,
+        gossip_topic: Option<&str>,
+    ) -> Result<bool, Error> {
+        use std::collections::HashMap;
+        use std::sync::Mutex;
+
+        static HEAD_CACHE: Mutex<Option<HashMap<String, String>>> = Mutex::new(None);
+
+        let repo = Repository::open(repo_path)?;
+        let before = repo.head()?;
+
+        // Fetch all remotes
+        crate::git_fetch_all(repo_path)?;
+
+        let after = repo.head()?;
+        if before == after {
+            return Ok(false);
+        }
+
+        // Update cache and publish
+        let mut cache = HEAD_CACHE.lock().map_err(|e| Error::Go(format!("mutex: {e}")))?;
+        if cache.is_none() {
+            *cache = Some(HashMap::new());
+        }
+        let map = cache.as_mut().unwrap();
+        if map.get(repo_path) == Some(&after) {
+            return Ok(false);
+        }
+        map.insert(repo_path.to_string(), after.clone());
+
+        let name = std::path::Path::new(repo_path)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("repo");
+        self.publish_repo(repo_path, &after, name, description, clone_urls, secret_key, relay_handle, gossip_topic)?;
+        Ok(true)
+    }
+
     /// Copy a local Git repository into MFS, preserving directory structure.
     ///
     /// The `.git` directory is skipped. Directories are created with `mfs_mkdir`

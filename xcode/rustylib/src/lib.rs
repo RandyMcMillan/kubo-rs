@@ -992,6 +992,34 @@ pub fn hybrid_publish_repo_head(
     .unwrap_or_default()
 }
 
+// ---------------------------------------------------------------------------
+// Repository Auto-Sync (Phase 33)
+// ---------------------------------------------------------------------------
+
+#[uniffi::export]
+pub fn hybrid_check_repo_sync(
+    repo_path: String,
+    description: String,
+    clone_urls: Vec<String>,
+    secret_key: String,
+    relay_handle: Option<u64>,
+    gossip_topic: Option<String>,
+) -> bool {
+    hybrid_with(|node| {
+        node.check_repo_sync(
+            &repo_path,
+            &description,
+            &clone_urls,
+            &secret_key,
+            relay_handle,
+            gossip_topic.as_deref(),
+        )
+        .ok()
+    })
+    .unwrap_or_default()
+    .unwrap_or(false)
+}
+
 #[cfg(test)]
 mod tests {
     use super::rust_hello;

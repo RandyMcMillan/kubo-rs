@@ -230,6 +230,27 @@ struct SettingsView: View {
                     }
                 }
             }
+
+            DashboardCard(title: "Repository Auto-Sync") {
+                VStack(alignment: .leading, spacing: 12) {
+                    Toggle("Auto-sync repos", isOn: $store.autoSyncEnabled)
+                        .font(.caption)
+                    HStack(spacing: 12) {
+                        Text("Interval (s)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        TextField("300", text: $store.autoSyncInterval)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 80)
+                        Spacer()
+                    }
+                    if !store.lastAutoSyncResult.isEmpty {
+                        Text(store.lastAutoSyncResult)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
         }
     }
 }

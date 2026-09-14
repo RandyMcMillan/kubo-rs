@@ -141,6 +141,12 @@ final class HybridNodeStore: ObservableObject {
     @Published var p2pNostrEventJson: String = ""
     @Published var p2pNostrEnvelopes: [P2pNostrEnvelope] = []
 
+    // Repository Auto-Sync (Phase 33)
+    @Published var autoSyncEnabled: Bool = false
+    @Published var autoSyncInterval: String = "300"
+    @Published var lastAutoSyncResult: String = ""
+    private var lastAutoSyncTime: Date = Date.distantPast
+
     // Network / DHT
     @Published var dhtPeerID: String = ""
     @Published var dhtPeerAddrs: [String] = []
@@ -1168,7 +1174,35 @@ final class HybridNodeStore: ObservableObject {
                     self.drainAllRelays()
                     self.drainGossip()
                     self.refreshInbox()
+                    self.checkRepoSyncIfNeeded()
                 }
+            }
+        }
+    }
+
+    func checkRepoSyncIfNeeded() {
+        guard autoSyncEnabled, !nostrSecretKey.isEmpty else { return }
+        let interval = Double(autoSyncInterval) ?? 300
+        let now = Date()
+        guard now.timeIntervalSince(lastAutoSyncTime) >= interval else { return }
+        lastAutoSyncTime = now
+        for repo in repos {
+            let desc = nip34RepoDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+            let urls = nip34RepoCloneURLs.trimmingCharacters(in: .whitespacesAndNewlines)
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+            let didPublish = RustyLib.hybridCheckRepoSync(
+                repoPath: repo.path,
+                description: desc,
+                cloneUrls: urls,
+                secretKey: nostrSecretKey,
+                relayHandle: relayHandle == 0 ? nil : relayHandle,
+                gossipTopic: gossipTopic.isEmpty ? nil : gossipTopic
+            )
+            if didPublish {
+                lastAutoSyncResult = "Auto-synced repo: \(repo.name)"
+                appendActivity(lastAutoSyncResult)
             }
         }
     }

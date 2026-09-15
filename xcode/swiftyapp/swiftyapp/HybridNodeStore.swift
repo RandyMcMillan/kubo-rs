@@ -572,7 +572,7 @@ final class HybridNodeStore: ObservableObject {
     // MARK: - IPNS Key Management (Phase 28)
 
     func refreshIpnsKeys() {
-        let result = RustyLib.ipnsKeyList()
+        let result = ipnsKeyList()
         var keys: [(name: String, peerID: String)] = []
         for line in result.split(separator: "\n") {
             let parts = line.split(separator: ":", maxSplits: 1)
@@ -586,7 +586,7 @@ final class HybridNodeStore: ObservableObject {
     func generateIpnsKey() {
         let name = ipnsKeyGenName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
-        let result = RustyLib.ipnsKeyGen(name: name)
+        let result = ipnsKeyGen(name: name)
         ipnsKeyGenResult = result
         ipnsKeyGenName = ""
         refreshIpnsKeys()
@@ -594,7 +594,7 @@ final class HybridNodeStore: ObservableObject {
     }
 
     func removeIpnsKey(name: String) {
-        let result = RustyLib.ipnsKeyRm(name: name)
+        let result = ipnsKeyRm(name: name)
         ipnsKeyRmResult = result
         refreshIpnsKeys()
         appendActivity("Removed IPNS key: \(name)")
@@ -604,7 +604,7 @@ final class HybridNodeStore: ObservableObject {
 
     func dagPut() {
         let data = Data(dagPutInput.utf8)
-        let cid = RustyLib.dagPut(data: data, inputCodec: dagPutInputCodec, storeCodec: dagPutStoreCodec)
+        let cid = dagPut(data: data, inputCodec: dagPutInputCodec, storeCodec: dagPutStoreCodec)
         dagPutResult = cid
         appendActivity("DAG put: \(cid)")
     }
@@ -612,7 +612,7 @@ final class HybridNodeStore: ObservableObject {
     func dagGet() {
         let cid = dagGetCID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cid.isEmpty else { return }
-        let data = RustyLib.dagGet(cid: cid, outputCodec: dagGetOutputCodec)
+        let data = dagGet(cid: cid, outputCodec: dagGetOutputCodec)
         dagGetResult = String(data: data, encoding: .utf8) ?? data.base64EncodedString()
         appendActivity("DAG get: \(data.count) bytes")
     }
@@ -620,20 +620,20 @@ final class HybridNodeStore: ObservableObject {
     // MARK: - MFS API (Phase 30)
 
     func mfsList() {
-        let result = RustyLib.mfsLs(path: mfsPath)
+        let result = mfsLs(path: mfsPath)
         mfsEntries = result.split(separator: "\n").map(String.init)
         appendActivity("MFS ls: \(mfsPath) has \(mfsEntries.count) entries")
     }
 
     func mfsReadFile() {
-        let data = RustyLib.mfsRead(path: mfsPath)
+        let data = mfsRead(path: mfsPath)
         mfsFileContent = String(data: data, encoding: .utf8) ?? data.base64EncodedString()
         appendActivity("MFS read: \(mfsPath) \(data.count) bytes")
     }
 
     func mfsWriteFile() {
         let data = Data(mfsWriteContent.utf8)
-        let ok = RustyLib.mfsWrite(path: mfsPath, data: data)
+        let ok = mfsWrite(path: mfsPath, data: data)
         appendActivity(ok ? "MFS write: \(mfsPath)" : "MFS write failed: \(mfsPath)")
     }
 
@@ -641,24 +641,24 @@ final class HybridNodeStore: ObservableObject {
         let name = mfsMkdirName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
         let fullPath = mfsPath.hasSuffix("/") ? "\(mfsPath)\(name)" : "\(mfsPath)/\(name)"
-        let ok = RustyLib.mfsMkdir(path: fullPath)
+        let ok = mfsMkdir(path: fullPath)
         appendActivity(ok ? "MFS mkdir: \(fullPath)" : "MFS mkdir failed: \(fullPath)")
         mfsMkdirName = ""
     }
 
     func mfsRm() {
-        let ok = RustyLib.mfsRm(path: mfsPath)
+        let ok = mfsRm(path: mfsPath)
         appendActivity(ok ? "MFS rm: \(mfsPath)" : "MFS rm failed: \(mfsPath)")
     }
 
     func mfsFlush() {
-        let cid = RustyLib.mfsFlush(path: mfsPath)
+        let cid = mfsFlush(path: mfsPath)
         mfsFlushResult = cid
         appendActivity("MFS flush: \(mfsPath) → \(cid)")
     }
 
     func mfsStat() {
-        mfsStatResult = RustyLib.mfsStat(path: mfsPath)
+        mfsStatResult = mfsStat(path: mfsPath)
         appendActivity("MFS stat: \(mfsPath) → \(mfsStatResult)")
     }
 
@@ -671,7 +671,7 @@ final class HybridNodeStore: ObservableObject {
             pinRepoResult = "No repo loaded"
             return
         }
-        let ok = RustyLib.hybridPinRepoToMfs(repoPath: path, mfsPath: mfs.isEmpty ? "/repo" : mfs)
+        let ok = hybridPinRepoToMfs(repoPath: path, mfsPath: mfs.isEmpty ? "/repo" : mfs)
         pinRepoResult = ok ? "Pinned to MFS: \(mfs.isEmpty ? "/repo" : mfs)" : "Pin to MFS failed"
         appendActivity(pinRepoResult)
     }
@@ -691,7 +691,7 @@ final class HybridNodeStore: ObservableObject {
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
-        let result = RustyLib.hybridPublishRepoHead(
+        let result = hybridPublishRepoHead(
             repoPath: path,
             description: desc,
             cloneUrls: urls,
@@ -712,7 +712,7 @@ final class HybridNodeStore: ObservableObject {
             appendActivity("Need event JSON and topic")
             return
         }
-        let ok = RustyLib.hybridPublishNostrToP2p(eventJson: event, topic: topic)
+        let ok = hybridPublishNostrToP2p(eventJson: event, topic: topic)
         appendActivity(ok ? "Published Nostr event to P2P topic \(topic)" : "P2P Nostr publish failed")
     }
 
@@ -722,7 +722,7 @@ final class HybridNodeStore: ObservableObject {
             appendActivity("Need topic to drain")
             return
         }
-        let envelopes = RustyLib.hybridDrainNostrFromP2p(topic: topic)
+        let envelopes = hybridDrainNostrFromP2p(topic: topic)
         p2pNostrEnvelopes = envelopes
         appendActivity("Drained \(envelopes.count) P2P Nostr envelopes from \(topic)")
     }
@@ -1191,7 +1191,7 @@ final class HybridNodeStore: ObservableObject {
                 .split(separator: ",")
                 .map { $0.trimmingCharacters(in: .whitespaces) }
                 .filter { !$0.isEmpty }
-            let didPublish = RustyLib.hybridCheckRepoSync(
+            let didPublish = hybridCheckRepoSync(
                 repoPath: repo.path,
                 description: desc,
                 cloneUrls: urls,

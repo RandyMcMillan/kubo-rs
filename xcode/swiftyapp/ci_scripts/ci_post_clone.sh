@@ -1,6 +1,11 @@
 #!/bin/sh
 set -e
 
+# Install Go if not present (Xcode Cloud runners don't have it by default)
+if ! command -v go &> /dev/null; then
+    brew install go
+fi
+
 # Install Rust if not present (Xcode Cloud runners don't have it by default)
 if ! command -v cargo &> /dev/null; then
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y

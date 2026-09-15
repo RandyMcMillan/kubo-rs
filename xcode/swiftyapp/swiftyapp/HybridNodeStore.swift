@@ -604,7 +604,7 @@ final class HybridNodeStore: ObservableObject {
 
     func dagPut() {
         let data = Data(dagPutInput.utf8)
-        let cid = dagPut(data: data, inputCodec: dagPutInputCodec, storeCodec: dagPutStoreCodec)
+        let cid = kubo_macos.dagPut(data: data, inputCodec: dagPutInputCodec, storeCodec: dagPutStoreCodec)
         dagPutResult = cid
         appendActivity("DAG put: \(cid)")
     }
@@ -612,7 +612,7 @@ final class HybridNodeStore: ObservableObject {
     func dagGet() {
         let cid = dagGetCID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cid.isEmpty else { return }
-        let data = dagGet(cid: cid, outputCodec: dagGetOutputCodec)
+        let data = kubo_macos.dagGet(cid: cid, outputCodec: dagGetOutputCodec)
         dagGetResult = String(data: data, encoding: .utf8) ?? data.base64EncodedString()
         appendActivity("DAG get: \(data.count) bytes")
     }
@@ -641,24 +641,24 @@ final class HybridNodeStore: ObservableObject {
         let name = mfsMkdirName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
         let fullPath = mfsPath.hasSuffix("/") ? "\(mfsPath)\(name)" : "\(mfsPath)/\(name)"
-        let ok = mfsMkdir(path: fullPath)
+        let ok = kubo_macos.mfsMkdir(path: fullPath)
         appendActivity(ok ? "MFS mkdir: \(fullPath)" : "MFS mkdir failed: \(fullPath)")
         mfsMkdirName = ""
     }
 
     func mfsRm() {
-        let ok = mfsRm(path: mfsPath)
+        let ok = kubo_macos.mfsRm(path: mfsPath)
         appendActivity(ok ? "MFS rm: \(mfsPath)" : "MFS rm failed: \(mfsPath)")
     }
 
     func mfsFlush() {
-        let cid = mfsFlush(path: mfsPath)
+        let cid = kubo_macos.mfsFlush(path: mfsPath)
         mfsFlushResult = cid
         appendActivity("MFS flush: \(mfsPath) → \(cid)")
     }
 
     func mfsStat() {
-        mfsStatResult = mfsStat(path: mfsPath)
+        mfsStatResult = kubo_macos.mfsStat(path: mfsPath)
         appendActivity("MFS stat: \(mfsPath) → \(mfsStatResult)")
     }
 

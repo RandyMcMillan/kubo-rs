@@ -137,7 +137,6 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 291DE53E2C3DE74F007F9706 /* Build configuration list for PBXNativeTarget "kubo-macos" */;
 			buildPhases = (
-				29B7A0012DF6E10000A1B2C3 /* Build RustyLib */,
 				291DE52C2C3DE74F007F9706 /* Sources */,
 				291DE52D2C3DE74F007F9706 /* Frameworks */,
 				291DE52E2C3DE74F007F9706 /* Resources */,
@@ -307,6 +306,10 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lresolv",
+				);
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
@@ -365,6 +368,10 @@
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lresolv",
+				);
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;

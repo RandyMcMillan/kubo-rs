@@ -110,7 +110,6 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 291DE53E2C3DE74F007F9706 /* Build configuration list for PBXNativeTarget "swiftyapp" */;
 			buildPhases = (
-				29B7A0012DF6E10000A1B2C3 /* Build RustyLib */,
 				291DE52C2C3DE74F007F9706 /* Sources */,
 				291DE52D2C3DE74F007F9706 /* Frameworks */,
 				291DE52E2C3DE74F007F9706 /* Resources */,

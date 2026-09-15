@@ -5,7 +5,6 @@
 
 import Foundation
 import SwiftUI
-import RustyLib
 
 enum NetworkTab: String, CaseIterable {
     case ipfs = "IPFS"

@@ -38,3 +38,7 @@ examples/website/dist/
 # FFI test binaries
 go/ffi/cmd/testffi/testffi
 go/ffi/cmd/testrust/testrust
+
+# Generated Rust artifacts — rebuilt by ci_post_clone.sh / build.sh
+# Placeholder librustylib.a files are force-added so Xcode resolves; real builds are ignored
+xcode/swiftyapp/Lib/swiftyrustlib/artifacts/**/*.a

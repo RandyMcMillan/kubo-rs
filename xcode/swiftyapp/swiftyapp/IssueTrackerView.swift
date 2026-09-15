@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import RustyLib
 
 struct IssueTrackerView: View {
     @ObservedObject var store: HybridNodeStore

@@ -7,7 +7,6 @@
 
 import Foundation
 import SwiftUI
-import RustyLib
 
 struct ContentView: View {
     @StateObject private var store = HybridNodeStore()

@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import RustyLib
 
 struct RepoDiscoveryView: View {
     @ObservedObject var store: HybridNodeStore

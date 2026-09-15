@@ -4,7 +4,6 @@
 //
 
 import SwiftUI
-import RustyLib
 
 struct SettingsView: View {
     @ObservedObject var store: HybridNodeStore

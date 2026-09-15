@@ -6,7 +6,6 @@
 import Foundation
 import MultipeerConnectivity
 import SwiftUI
-import RustyLib
 
 final class PeerNetworkStore: NSObject, ObservableObject {
     @Published var localPeerName: String

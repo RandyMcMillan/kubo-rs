@@ -37,6 +37,47 @@ extern "C" {
     ) -> i64;
     fn kubo_block_stat(handle: u64, cid_str: *const c_char) -> i64;
     fn kubo_ffi_free_buffer(buf: *mut u8);
+    fn kubo_dag_put(
+        handle: u64,
+        data: *const u8,
+        length: usize,
+        input_codec: *const c_char,
+        store_codec: *const c_char,
+    ) -> *mut c_char;
+    fn kubo_dag_get(
+        handle: u64,
+        cid_str: *const c_char,
+        output_codec: *const c_char,
+        out: *mut *mut u8,
+        out_len: *mut usize,
+    ) -> i64;
+    fn kubo_mfs_ls(handle: u64, path_str: *const c_char) -> *mut c_char;
+    fn kubo_mfs_read(
+        handle: u64,
+        path_str: *const c_char,
+        out: *mut *mut u8,
+        out_len: *mut usize,
+    ) -> i64;
+    fn kubo_mfs_write(
+        handle: u64,
+        path_str: *const c_char,
+        data: *const u8,
+        length: usize,
+    ) -> i64;
+    fn kubo_mfs_mkdir(handle: u64, path_str: *const c_char) -> i64;
+    fn kubo_mfs_rm(handle: u64, path_str: *const c_char) -> i64;
+    fn kubo_mfs_flush(handle: u64, path_str: *const c_char) -> *mut c_char;
+    fn kubo_mfs_stat(handle: u64, path_str: *const c_char) -> *mut c_char;
+    fn kubo_nostr_generate_key() -> *mut c_char;
+    fn kubo_nostr_get_public_key(sk: *const c_char) -> *mut c_char;
+    fn kubo_nostr_event_sign(
+        sk: *const c_char,
+        content: *const c_char,
+        kind: i32,
+    ) -> *mut c_char;
+    fn kubo_nostr_event_verify(json_str: *const c_char) -> i64;
+    fn kubo_nostr_nip19_encode_pubkey(hex: *const c_char) -> *mut c_char;
+    fn kubo_nostr_nip19_decode_pubkey(bech32: *const c_char) -> *mut c_char;
 }
 
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -503,6 +544,209 @@ fn test_two_nodes_exchange_data() {
     }
 }
 
+fn test_dag_and_mfs() {
+    let tmp = "./tmp/kubo-rust-test-dag-mfs";
+    rmrf(tmp);
+
+    unsafe {
+        let path = CString::new(tmp).unwrap();
+        if kubo_init_repo(path.as_ptr()) != 0 {
+            fail("init repo failed");
+            return;
+        }
+        let handle = kubo_node_start(path.as_ptr(), 0);
+        if handle == 0 {
+            fail("node start failed");
+            return;
+        }
+
+        let json = CString::new(r#"{"hello":"dag"}"#).unwrap();
+        let input_codec = CString::new("json").unwrap();
+        let store_codec = CString::new("dag-cbor").unwrap();
+        let cid = kubo_dag_put(
+            handle,
+            json.as_ptr() as *const u8,
+            json.as_bytes().len(),
+            input_codec.as_ptr(),
+            store_codec.as_ptr(),
+        );
+        if cid.is_null() {
+            fail("dag_put returned null");
+            kubo_node_stop(handle);
+            return;
+        }
+
+        let output_codec = CString::new("json").unwrap();
+        let mut dag_out: *mut u8 = std::ptr::null_mut();
+        let mut dag_out_len: usize = 0;
+        if kubo_dag_get(
+            handle,
+            cid,
+            output_codec.as_ptr(),
+            &mut dag_out,
+            &mut dag_out_len,
+        ) != 0
+        {
+            fail("dag_get failed");
+            kubo_ffi_free_string(cid);
+            kubo_node_stop(handle);
+            return;
+        }
+        let dag_json = if dag_out.is_null() {
+            String::new()
+        } else {
+            String::from_utf8_lossy(slice::from_raw_parts(dag_out, dag_out_len)).into_owned()
+        };
+        if !dag_json.contains("\"hello\"") || !dag_json.contains("\"dag\"") {
+            fail("dag_get returned unexpected JSON");
+        } else {
+            ok("DAG put/get roundtrip");
+        }
+        if !dag_out.is_null() {
+            kubo_ffi_free_buffer(dag_out);
+        }
+        kubo_ffi_free_string(cid);
+
+        let mfs_dir = CString::new("/docs").unwrap();
+        if kubo_mfs_mkdir(handle, mfs_dir.as_ptr()) != 0 {
+            fail("mfs_mkdir failed");
+            kubo_node_stop(handle);
+            return;
+        }
+        let mfs_path = CString::new("/docs/readme.txt").unwrap();
+        let data = b"created through MFS";
+        if kubo_mfs_write(handle, mfs_path.as_ptr(), data.as_ptr(), data.len()) != 0 {
+            fail("mfs_write failed to create a file");
+            kubo_node_stop(handle);
+            return;
+        }
+
+        let mut mfs_out: *mut u8 = std::ptr::null_mut();
+        let mut mfs_out_len: usize = 0;
+        if kubo_mfs_read(handle, mfs_path.as_ptr(), &mut mfs_out, &mut mfs_out_len) != 0 {
+            fail("mfs_read failed");
+            kubo_node_stop(handle);
+            return;
+        }
+        let got = if mfs_out.is_null() {
+            &[][..]
+        } else {
+            slice::from_raw_parts(mfs_out, mfs_out_len)
+        };
+        if got != data {
+            fail("MFS read returned unexpected content");
+        }
+        if !mfs_out.is_null() {
+            kubo_ffi_free_buffer(mfs_out);
+        }
+
+        let updated = b"updated through MFS";
+        if kubo_mfs_write(handle, mfs_path.as_ptr(), updated.as_ptr(), updated.len()) != 0 {
+            fail("mfs_write failed to update a file");
+            kubo_node_stop(handle);
+            return;
+        }
+        mfs_out = std::ptr::null_mut();
+        mfs_out_len = 0;
+        if kubo_mfs_read(handle, mfs_path.as_ptr(), &mut mfs_out, &mut mfs_out_len) != 0 {
+            fail("mfs_read after update failed");
+            kubo_node_stop(handle);
+            return;
+        }
+        let got = if mfs_out.is_null() {
+            &[][..]
+        } else {
+            slice::from_raw_parts(mfs_out, mfs_out_len)
+        };
+        if got != updated {
+            fail("MFS update returned unexpected content");
+        }
+        if !mfs_out.is_null() {
+            kubo_ffi_free_buffer(mfs_out);
+        }
+
+        let stat = kubo_mfs_stat(handle, mfs_path.as_ptr());
+        if stat.is_null() {
+            fail("mfs_stat failed");
+            kubo_node_stop(handle);
+            return;
+        }
+        kubo_ffi_free_string(stat);
+
+        let entries = kubo_mfs_ls(handle, mfs_dir.as_ptr());
+        if entries.is_null() || !CStr::from_ptr(entries).to_string_lossy().contains("readme.txt") {
+            fail("mfs_ls did not list the created file");
+            if !entries.is_null() {
+                kubo_ffi_free_string(entries);
+            }
+            kubo_node_stop(handle);
+            return;
+        }
+        kubo_ffi_free_string(entries);
+
+        let flushed = kubo_mfs_flush(handle, mfs_path.as_ptr());
+        if flushed.is_null() {
+            fail("mfs_flush failed");
+            kubo_node_stop(handle);
+            return;
+        }
+        kubo_ffi_free_string(flushed);
+
+        if kubo_mfs_rm(handle, mfs_path.as_ptr()) != 0 {
+            fail("mfs_rm failed");
+            kubo_node_stop(handle);
+            return;
+        }
+        ok("MFS create/read/update/list/flush/remove");
+        kubo_node_stop(handle);
+    }
+}
+
+fn test_nostr_key_and_event() {
+    unsafe {
+        let sk = kubo_nostr_generate_key();
+        if sk.is_null() {
+            fail("nostr key generation failed");
+            return;
+        }
+        let pk = kubo_nostr_get_public_key(sk);
+        if pk.is_null() {
+            fail("nostr public key derivation failed");
+            kubo_ffi_free_string(sk);
+            return;
+        }
+        let npub = kubo_nostr_nip19_encode_pubkey(pk);
+        if npub.is_null() {
+            fail("NIP-19 public key encoding failed");
+            kubo_ffi_free_string(pk);
+            kubo_ffi_free_string(sk);
+            return;
+        }
+        let decoded_pk = kubo_nostr_nip19_decode_pubkey(npub);
+        if decoded_pk.is_null() || CStr::from_ptr(decoded_pk).to_bytes() != CStr::from_ptr(pk).to_bytes() {
+            fail("NIP-19 public key roundtrip failed");
+        }
+
+        let content = CString::new("ffi smoke test").unwrap();
+        let event = kubo_nostr_event_sign(sk, content.as_ptr(), 1);
+        if event.is_null() || kubo_nostr_event_verify(event) != 1 {
+            fail("Nostr event sign/verify failed");
+        } else {
+            ok("Nostr key, NIP-19, sign/verify");
+        }
+
+        if !event.is_null() {
+            kubo_ffi_free_string(event);
+        }
+        if !decoded_pk.is_null() {
+            kubo_ffi_free_string(decoded_pk);
+        }
+        kubo_ffi_free_string(npub);
+        kubo_ffi_free_string(pk);
+        kubo_ffi_free_string(sk);
+    }
+}
+
 fn main() {
     println!("=== Rust FFI Test Runner ===");
 
@@ -514,6 +758,8 @@ fn main() {
     test_hello_world_cidv0_alignment();
     test_add_cat_empty();
     test_two_nodes_exchange_data();
+    test_dag_and_mfs();
+    test_nostr_key_and_event();
 
     println!();
     let failures = FAILURES.load(Ordering::SeqCst);

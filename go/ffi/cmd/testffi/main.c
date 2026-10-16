@@ -388,6 +388,167 @@ static void test_two_nodes_exchange_data(void) {
     kubo_node_stop(handle_b);
 }
 
+static void test_dag_and_mfs(void) {
+    const char *tmp = "./tmp/kubo-ffi-test-dag-mfs";
+    rmrf(tmp);
+
+    if (kubo_init_repo((char *)tmp) != 0) {
+        failf("init repo failed");
+        return;
+    }
+
+    uint64_t handle = kubo_node_start((char *)tmp, 0);
+    if (handle == 0) {
+        failf("node start failed");
+        return;
+    }
+
+    const char *json = "{\"hello\":\"dag\"}";
+    char *cid = kubo_dag_put(handle, (uint8_t *)json, strlen(json), "json", "dag-cbor");
+    if (!cid) {
+        failf("dag_put returned nil");
+        kubo_node_stop(handle);
+        return;
+    }
+
+    uint8_t *dag_out = NULL;
+    size_t dag_out_len = 0;
+    if (kubo_dag_get(handle, cid, "json", &dag_out, &dag_out_len) != 0) {
+        failf("dag_get failed");
+        kubo_ffi_free_string(cid);
+        kubo_node_stop(handle);
+        return;
+    }
+    char dag_json[256] = {0};
+    if (dag_out && dag_out_len < sizeof(dag_json)) {
+        memcpy(dag_json, dag_out, dag_out_len);
+    }
+    if (!dag_out || dag_out_len >= sizeof(dag_json) ||
+        !strstr(dag_json, "\"hello\"") || !strstr(dag_json, "\"dag\"")) {
+        failf("dag_get returned unexpected JSON");
+    } else {
+        okf("DAG put/get roundtrip");
+    }
+    if (dag_out) kubo_ffi_free_buffer(dag_out);
+    kubo_ffi_free_string(cid);
+
+    if (kubo_mfs_mkdir(handle, "/docs") != 0) {
+        failf("mfs_mkdir failed");
+        kubo_node_stop(handle);
+        return;
+    }
+
+    const char *path = "/docs/readme.txt";
+    const char *data = "created through MFS";
+    if (kubo_mfs_write(handle, (char *)path, (uint8_t *)data, strlen(data)) != 0) {
+        failf("mfs_write failed to create a file");
+        kubo_node_stop(handle);
+        return;
+    }
+
+    uint8_t *mfs_out = NULL;
+    size_t mfs_out_len = 0;
+    if (kubo_mfs_read(handle, (char *)path, &mfs_out, &mfs_out_len) != 0) {
+        failf("mfs_read failed");
+        kubo_node_stop(handle);
+        return;
+    }
+    if (mfs_out_len != strlen(data) || memcmp(mfs_out, data, mfs_out_len) != 0) {
+        failf("MFS read returned unexpected content");
+    }
+    if (mfs_out) kubo_ffi_free_buffer(mfs_out);
+
+    const char *updated = "updated through MFS";
+    if (kubo_mfs_write(handle, (char *)path, (uint8_t *)updated, strlen(updated)) != 0) {
+        failf("mfs_write failed to update a file");
+        kubo_node_stop(handle);
+        return;
+    }
+    mfs_out = NULL;
+    mfs_out_len = 0;
+    if (kubo_mfs_read(handle, (char *)path, &mfs_out, &mfs_out_len) != 0) {
+        failf("mfs_read after update failed");
+        kubo_node_stop(handle);
+        return;
+    }
+    if (mfs_out_len != strlen(updated) || memcmp(mfs_out, updated, mfs_out_len) != 0) {
+        failf("MFS update returned unexpected content");
+    }
+    if (mfs_out) kubo_ffi_free_buffer(mfs_out);
+
+    char *stat = kubo_mfs_stat(handle, (char *)path);
+    if (!stat) {
+        failf("mfs_stat failed");
+        kubo_node_stop(handle);
+        return;
+    }
+    kubo_ffi_free_string(stat);
+    char *entries = kubo_mfs_ls(handle, "/docs");
+    if (!entries || !strstr(entries, "readme.txt")) {
+        failf("mfs_ls did not list the created file");
+        if (entries) kubo_ffi_free_string(entries);
+        kubo_node_stop(handle);
+        return;
+    }
+    kubo_ffi_free_string(entries);
+
+    char *flushed = kubo_mfs_flush(handle, (char *)path);
+    if (!flushed) {
+        failf("mfs_flush failed");
+        kubo_node_stop(handle);
+        return;
+    }
+    kubo_ffi_free_string(flushed);
+
+    if (kubo_mfs_rm(handle, (char *)path) != 0) {
+        failf("mfs_rm failed");
+        kubo_node_stop(handle);
+        return;
+    }
+    okf("MFS create/read/update/list/flush/remove");
+    kubo_node_stop(handle);
+}
+
+static void test_nostr_key_and_event(void) {
+    char *sk = kubo_nostr_generate_key();
+    if (!sk) {
+        failf("nostr key generation failed");
+        return;
+    }
+
+    char *pk = kubo_nostr_get_public_key(sk);
+    if (!pk) {
+        failf("nostr public key derivation failed");
+        kubo_ffi_free_string(sk);
+        return;
+    }
+
+    char *npub = kubo_nostr_nip19_encode_pubkey(pk);
+    if (!npub) {
+        failf("NIP-19 public key encoding failed");
+        kubo_ffi_free_string(pk);
+        kubo_ffi_free_string(sk);
+        return;
+    }
+    char *decoded_pk = kubo_nostr_nip19_decode_pubkey(npub);
+    if (!decoded_pk || strcmp(decoded_pk, pk) != 0) {
+        failf("NIP-19 public key roundtrip failed");
+    }
+
+    char *event = kubo_nostr_event_sign(sk, "ffi smoke test", 1);
+    if (!event || kubo_nostr_event_verify(event) != 1) {
+        failf("Nostr event sign/verify failed");
+    } else {
+        okf("Nostr key, NIP-19, sign/verify");
+    }
+
+    if (event) kubo_ffi_free_string(event);
+    if (decoded_pk) kubo_ffi_free_string(decoded_pk);
+    kubo_ffi_free_string(npub);
+    kubo_ffi_free_string(pk);
+    kubo_ffi_free_string(sk);
+}
+
 int main(void) {
     printf("=== FFI Test Runner ===\n");
 
@@ -399,6 +560,8 @@ int main(void) {
     test_hello_world_cidv0_alignment();
     test_add_cat_empty();
     test_two_nodes_exchange_data();
+    test_dag_and_mfs();
+    test_nostr_key_and_event();
 
     printf("\n");
     if (failures > 0) {

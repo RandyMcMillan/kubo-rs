@@ -100,32 +100,32 @@ wasm-dashboard: fix-wasm-bindgen
 	./scripts/wasm-dashboard.sh --build-only 2>/dev/null || ./scripts/wasm-dashboard.sh
 
 run-wasm-dashboard: fix-wasm-bindgen
-	pkill -f "trunk serve" 2>/dev/null || true
+	pkill -f '[t]runk serve' 2>/dev/null || true
 	./scripts/wasm-dashboard.sh
 
 build-wasm-dashboard-release: fix-wasm-bindgen
-	pkill -f "trunk serve" 2>/dev/null || true
+	pkill -f '[t]runk serve' 2>/dev/null || true
 	cd examples/wasm-dashboard && env -u NO_COLOR trunk build --public-url /kubo-rs/
 
 website: fix-wasm-bindgen
 	./scripts/website.sh --build-only 2>/dev/null || ./scripts/website.sh
 
 run-website: fix-wasm-bindgen
-	pkill -f "trunk serve" 2>/dev/null || true
+	pkill -f '[t]runk serve' 2>/dev/null || true
 	./scripts/website.sh
 
 build-website-release: fix-wasm-bindgen
-	pkill -f "trunk serve" 2>/dev/null || true
+	pkill -f '[t]runk serve' 2>/dev/null || true
 	cd examples/website && env -u NO_COLOR trunk build --public-url /kubo-rs/
 
 wasm-p2p: fix-wasm-bindgen
-	pkill -f "trunk serve" 2>/dev/null || true
+	pkill -f '[t]runk serve' 2>/dev/null || true
 	cd examples/wasm-p2p && env -u NO_COLOR trunk serve --port 8084
 
 run-wasm-p2p: wasm-p2p
 
 build-wasm-p2p-release: fix-wasm-bindgen
-	pkill -f "trunk serve" 2>/dev/null || true
+	pkill -f '[t]runk serve' 2>/dev/null || true
 	cd examples/wasm-p2p && env -u NO_COLOR trunk build --public-url /kubo-rs/
 
 install-wasi-sdk:

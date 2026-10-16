@@ -7,6 +7,7 @@ rust-version = "1.85"
 [dependencies]
 ratzilla = "0.3"
 ratatui = { version = "0.30", default-features = false }
+critical-section = { version = "1", features = ["std"] }
 libp2p-identity = { version = "0.2", features = ["ed25519", "rand"] }
 libp2p-webrtc-websys = "0.4"
 libp2p-websocket-websys = "0.5"

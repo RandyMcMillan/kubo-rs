@@ -101,16 +101,16 @@ jobs:
           case "$INPUT" in
             all)
               if [ "${{ runner.os }}" = "macOS" ]; then
-                echo 'list=build,test,clippy,fmt,build-bin,build-ffi,build-go,wasm-dashboard,website,wasm-p2p,wasm-hybrid-wasi' >> "$GITHUB_OUTPUT"
+                echo 'list=build,test,clippy,fmt,build-bin,build-ffi,build-go,wasm-dashboard,website,build-wasm-p2p-release,wasm-hybrid-wasi' >> "$GITHUB_OUTPUT"
               else
-                echo 'list=build,test,clippy,fmt,build-bin,build-ffi,build-go,wasm-dashboard,website,wasm-p2p,wasm-hybrid-wasi' >> "$GITHUB_OUTPUT"
+                echo 'list=build,test,clippy,fmt,build-bin,build-ffi,build-go,wasm-dashboard,website,build-wasm-p2p-release,wasm-hybrid-wasi' >> "$GITHUB_OUTPUT"
               fi
               ;;
             rust)
               echo 'list=build,test,clippy,fmt,build-bin' >> "$GITHUB_OUTPUT"
               ;;
             wasm)
-              echo 'list=wasm-dashboard,website,wasm-p2p,wasm-hybrid-wasi' >> "$GITHUB_OUTPUT"
+              echo 'list=wasm-dashboard,website,build-wasm-p2p-release,wasm-hybrid-wasi' >> "$GITHUB_OUTPUT"
               ;;
             xcode)
               if [ "${{ runner.os }}" != "macOS" ]; then

@@ -41,25 +41,21 @@ The root `go/kubo-sys/` module is `package main` (the `ipfs` binary). The `ffi/`
 
 ### Exported C Functions
 
-| Function | Signature | Description |
-|----------|-----------|-------------|
-| `kubo_version` | `() -> *char` | Returns the Kubo version string |
-| `kubo_last_error` | `() -> *char` | Returns the last error message (if any) |
-| `kubo_free_string` | `(*char)` | Frees a C string allocated by Go |
-| `kubo_init_repo` | `(path) -> int64` | Initializes a new IPFS repo |
-| `kubo_node_start` | `(path, online) -> uint64` | Starts a node; returns an opaque handle |
-| `kubo_node_stop` | `(handle) -> int64` | Stops the node |
-| `kubo_node_peer_id` | `(handle) -> *char` | Returns the node's peer ID |
-| `kubo_node_listening_addrs` | `(handle) -> *char` | Returns newline-separated listen addrs |
-| `kubo_node_connect` | `(handle, addr) -> int64` | Connects to a peer by multiaddr |
-| `kubo_unixfs_add_bytes` | `(handle, data, len) -> *char` | Adds bytes to IPFS; returns CID |
-| `kubo_unixfs_cat` | `(handle, cid, out, out_len) -> int64` | Retrieves UnixFS content by CID |
-| `kubo_block_put` | `(handle, data, len) -> *char` | Stores raw block; returns CID |
-| `kubo_block_get` | `(handle, cid, out, out_len) -> int64` | Retrieves raw block data |
-| `kubo_block_stat` | `(handle, cid) -> int64` | Returns block size (-1 on error) |
-| `kubo_free_buffer` | `(*uint8_t)` | Frees a buffer allocated by Go |
+| Group | Exports |
+|-------|---------|
+| Shared utilities | `kubo_ffi_last_error`, `kubo_ffi_free_string`, `kubo_ffi_free_buffer` |
+| Kubo node and content | `kubo_version`, `kubo_init_repo`, `kubo_node_*`, `kubo_unixfs_*`, `kubo_block_*`, `kubo_swarm_*`, `kubo_pin_*`, `kubo_dht_*`, `kubo_name_*`, `kubo_key_*`, `kubo_dag_*`, `kubo_mfs_*` |
+| Standalone libp2p | `kubo_libp2p_host_*` |
+| Nostr | `kubo_nostr_*` |
+| Git | `kubo_git_*` |
 
-All functions that can fail return an `int64` error code (`0` = success, `-1` = error). Details are available via `kubo_last_error()`.
+The complete Rust declarations are in `src/ffi.rs`; their Go implementations
+are the `//export` functions in `go/ffi/`. The public Rust API wraps these
+operations in `Node`, `Host`, `Repository`, and top-level Nostr functions.
+
+Functions returning status codes use `0` for success and `-1` for failure;
+handle-returning functions use `0` for failure. Details are available via
+`kubo_ffi_last_error()`.
 
 ### Node Registry
 
@@ -142,7 +138,13 @@ node.stop()?;
 | `node.block_put(data)` | Stores a raw block; returns the CID. |
 | `node.block_get(cid)` | Retrieves raw block data by CID. |
 | `node.block_stat(cid)` | Returns the size of a block by CID. |
+| `node.dag_put(data, input_codec, store_codec)` / `node.dag_get(cid, output_codec)` | Writes and reads an IPLD DAG node. |
+| `node.mfs_*` | Provides MFS list/read/write/mkdir/remove/flush/stat operations. |
 | `node.stop()` | Shuts the node down and consumes the handle. |
+
+`mfs_write` creates a file when the path does not yet exist (its parent
+directory must already exist) and replaces the contents when the path is an
+existing file.
 
 ### `kubo_rs::HybridNode`
 
@@ -178,8 +180,8 @@ node.stop()?;
 
 ## Memory Safety
 
-- All C strings allocated by Go are freed by calling `kubo_free_string` from Rust.
-- All byte buffers allocated by `kubo_unixfs_cat`, `kubo_block_get`, etc. are freed by calling `kubo_free_buffer` from Rust.
+- All C strings allocated by Go are freed by calling `kubo_ffi_free_string` from Rust.
+- All byte buffers allocated by data-returning functions are freed by calling `kubo_ffi_free_buffer` from Rust.
 - The `Node` type implements `Drop` so that the Go node is stopped even if the Rust consumer forgets to call `stop()`.
 - Null bytes in paths and strings are rejected early with `Error::InvalidPath` / `Error::InvalidString`.
 
@@ -201,15 +203,18 @@ make test-all       # rust tests + C/Rust FFI tests
 
 ### Test coverage
 
-- **Version string retrieval**
-- **Repo initialization and node start/stop**
-- **UnixFS add/cat roundtrip** — including empty content
-- **CID alignment** — `add_bytes("hello world")` must produce `Qmf412jQZiuVUtdgnB36FXFX7xg5V6KEbSJ4dpQuhkLyfD` (CIDv0 dag-pb sha2-256), matching Kubo's default profile and `go/kubo-sys/test/cli/add_test.go`
-- **Drop behavior** — node stops automatically when handle is dropped
-- **Listening addresses** on online nodes
-- **Invalid path rejection**
-- **Peer-to-peer data exchange** between two online nodes via Bitswap
-- **Block API** put/get/stat roundtrip
+- Rust API tests cover node lifecycle, UnixFS and block roundtrips, pinning,
+  swarm operations, libp2p lifecycle, Nostr signing, and basic Git repository
+  operations. DHT/IPNS and public-relay tests are ignored unless their network
+  prerequisites are available.
+- C and raw Rust FFI runners exercise matching version/lifecycle, UnixFS,
+  block, peer-connect, DAG, MFS create/update, and local Nostr key/event
+  roundtrips.
+- Coverage is not exhaustive: many individual Git, Nostr relay/NIP, DHT/IPNS,
+  and libp2p exports do not yet have dedicated raw-FFI test cases.
+- CID alignment: `add_bytes("hello world")` must produce
+  `Qmf412jQZiuVUtdgnB36FXFX7xg5V6KEbSJ4dpQuhkLyfD` (CIDv0 dag-pb sha2-256),
+  matching Kubo's default profile and `go/kubo-sys/test/cli/add_test.go`.
 
 ### Cross-language test runners
 
@@ -221,7 +226,9 @@ The FFI layer is validated from both sides:
 | `testffi` | C (raw FFI) | `go/ffi/cmd/testffi/main.c` | Validate C exports from Go side |
 | `testrust` | Rust (raw FFI) | `go/ffi/cmd/testrust/main.rs` | Validate C exports from Rust side |
 
-Both `testffi` and `testrust` exercise the same functions with the same test vectors, confirming functional equivalence across languages.
+Both `testffi` and `testrust` exercise matching raw-FFI flows with the same
+vectors. This validates those selected exports across languages; it does not
+replace per-export coverage for the full ABI.
 
 ### Temp directories
 

@@ -215,7 +215,6 @@ make test-all       # rust tests + C/Rust FFI tests
 - CID alignment: `add_bytes("hello world")` must produce
   `Qmf412jQZiuVUtdgnB36FXFX7xg5V6KEbSJ4dpQuhkLyfD` (CIDv0 dag-pb sha2-256),
   matching Kubo's default profile and `go/kubo-sys/test/cli/add_test.go`.
-- **Drop behavior** — node stops automatically when handle is dropped
 
 ### Cross-language test runners
 

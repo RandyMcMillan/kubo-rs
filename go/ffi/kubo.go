@@ -15,8 +15,8 @@ import (
 	"io"
 	"net"
 	"net/http"
-	gopath "path"
 	"os"
+	gopath "path"
 	"strings"
 	"sync"
 	"time"
@@ -42,9 +42,9 @@ import (
 	"github.com/ipld/go-ipld-prime/multicodec"
 	basicnode "github.com/ipld/go-ipld-prime/node/basic"
 	"github.com/libp2p/go-libp2p/core/peer"
-	mc "github.com/multiformats/go-multicodec"
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
+	mc "github.com/multiformats/go-multicodec"
 
 	// DAG codecs
 	_ "github.com/ipld/go-codec-dagpb"
@@ -157,7 +157,7 @@ type nodeHandle struct {
 
 var (
 	nodesMu    sync.RWMutex
-	nodes      = make(map[uint64]*nodeHandle)
+	nodes             = make(map[uint64]*nodeHandle)
 	nextHandle uint64 = 1
 )
 
@@ -1294,6 +1294,17 @@ func kubo_mfs_write(handle uint64, pathStr *C.char, data *C.uint8_t, length C.si
 	}
 
 	if err != nil {
+		parentPath, _ := gopath.Split(p)
+		parent, err := mfs.Lookup(h.node.FilesRoot, parentPath)
+		if err != nil {
+			setError(fmt.Errorf("mfs lookup parent: %w", err))
+			return -1
+		}
+		if _, ok := parent.(*mfs.Directory); !ok {
+			setError(fmt.Errorf("mfs create file: parent of %s is not a directory", p))
+			return -1
+		}
+
 		file, err := h.api.Unixfs().Add(h.ctx, files.NewBytesFile(buf))
 		if err != nil {
 			setError(fmt.Errorf("mfs add file: %w", err))

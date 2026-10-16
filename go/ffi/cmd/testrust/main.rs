@@ -58,23 +58,14 @@ extern "C" {
         out: *mut *mut u8,
         out_len: *mut usize,
     ) -> i64;
-    fn kubo_mfs_write(
-        handle: u64,
-        path_str: *const c_char,
-        data: *const u8,
-        length: usize,
-    ) -> i64;
+    fn kubo_mfs_write(handle: u64, path_str: *const c_char, data: *const u8, length: usize) -> i64;
     fn kubo_mfs_mkdir(handle: u64, path_str: *const c_char) -> i64;
     fn kubo_mfs_rm(handle: u64, path_str: *const c_char) -> i64;
     fn kubo_mfs_flush(handle: u64, path_str: *const c_char) -> *mut c_char;
     fn kubo_mfs_stat(handle: u64, path_str: *const c_char) -> *mut c_char;
     fn kubo_nostr_generate_key() -> *mut c_char;
     fn kubo_nostr_get_public_key(sk: *const c_char) -> *mut c_char;
-    fn kubo_nostr_event_sign(
-        sk: *const c_char,
-        content: *const c_char,
-        kind: i32,
-    ) -> *mut c_char;
+    fn kubo_nostr_event_sign(sk: *const c_char, content: *const c_char, kind: i32) -> *mut c_char;
     fn kubo_nostr_event_verify(json_str: *const c_char) -> i64;
     fn kubo_nostr_nip19_encode_pubkey(hex: *const c_char) -> *mut c_char;
     fn kubo_nostr_nip19_decode_pubkey(bech32: *const c_char) -> *mut c_char;
@@ -270,7 +261,11 @@ fn test_block_put_get_stat() {
 
         let size = kubo_block_stat(handle, cid);
         if size != data.len() as i64 {
-            fail(&format!("block_stat: expected {}, got {}", data.len(), size));
+            fail(&format!(
+                "block_stat: expected {}, got {}",
+                data.len(),
+                size
+            ));
         }
 
         let mut out: *mut u8 = std::ptr::null_mut();
@@ -674,7 +669,11 @@ fn test_dag_and_mfs() {
         kubo_ffi_free_string(stat);
 
         let entries = kubo_mfs_ls(handle, mfs_dir.as_ptr());
-        if entries.is_null() || !CStr::from_ptr(entries).to_string_lossy().contains("readme.txt") {
+        if entries.is_null()
+            || !CStr::from_ptr(entries)
+                .to_string_lossy()
+                .contains("readme.txt")
+        {
             fail("mfs_ls did not list the created file");
             if !entries.is_null() {
                 kubo_ffi_free_string(entries);
@@ -723,7 +722,9 @@ fn test_nostr_key_and_event() {
             return;
         }
         let decoded_pk = kubo_nostr_nip19_decode_pubkey(npub);
-        if decoded_pk.is_null() || CStr::from_ptr(decoded_pk).to_bytes() != CStr::from_ptr(pk).to_bytes() {
+        if decoded_pk.is_null()
+            || CStr::from_ptr(decoded_pk).to_bytes() != CStr::from_ptr(pk).to_bytes()
+        {
             fail("NIP-19 public key roundtrip failed");
         }
 
